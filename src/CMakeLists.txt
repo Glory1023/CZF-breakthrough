@@ -14,4 +14,4 @@ add_subdirectory(games)
 add_subdirectory(python)
 
 add_executable(dummy_agent dummy_agent.cc ${CZF_OBJECTS})
-install(TARGETS dummy_agent DESTINATION bin)
+set_target_properties(dummy_agent PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_INSTALL_PREFIX}/bin)
