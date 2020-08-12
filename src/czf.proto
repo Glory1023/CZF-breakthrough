@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+message MCTSRoot {
+  float value = 1;
+  repeated float policy = 2;
+}
+
+message GameOrigin {
+  bytes node = 1;
+  int32 index = 2;
+}
+
+enum JobType {
+  UNKNOWN = 0;
+  PREPROCESS = 1;
+  SEARCH = 2;
+}
+
+message Model { repeated bytes blobs = 2; }
+
+// packet definition
+message Heartbeat {}
+
+message JobRequest {
+  JobType job_type = 1;
+  int32 vacancy = 2;
+  float efficiency = 3;
+}
+
+message PreprocessRequest {
+  GameOrigin game_origin = 1;
+  bytes observation = 2;
+  repeated int32 legal_actions = 3;
+}
+
+message SearchRequest {
+  GameOrigin game_origin = 1;
+  bytes state = 2;
+  repeated int32 legal_actions = 3;
+}
+
+message SearchResponse {
+  GameOrigin game_origin = 1;
+  repeated MCTSRoot mcts_roots = 2;
+}
+
+message Trajectory {
+  repeated int32 actions = 1;
+  repeated float rewards = 2;
+  repeated MCTSRoot mcts_roots = 3;
+}
+
+message Packet {
+  oneof payload {
+    Heartbeat heartbeat = 1;
+    JobRequest job_request = 2;
+    PreprocessRequest preprocess_request = 3;
+    SearchRequest search_request = 4;
+    SearchResponse search_response = 5;
+    Model model = 6;
+    Trajectory trajectory = 7;
+  }
+}

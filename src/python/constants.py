@@ -1,0 +1,4 @@
+# role
+GAME_SERVER_IDENTITY_PREFIX = 'game-server'
+SELF_PLAYER_IDENTITY_PREFIX = 'self-player'
+PREPROCESSOR_IDENTITY_PREFIX = 'preprocessor'
