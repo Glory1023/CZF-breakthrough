@@ -6,16 +6,15 @@ import argparse
 from uuid import uuid4
 
 import czf_pb2
-import constants
 
 
 class GameServer:
     def __init__(self, suffix):
-        self.identity = f"{constants.GAME_SERVER_IDENTITY_PREFIX}-{suffix}".encode()
+        self.identity = f"game-server-{suffix}"
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
-        socket.setsockopt(zmq.IDENTITY, self.identity)
+        socket.setsockopt(zmq.IDENTITY, self.identity.encode())
         socket.connect("tcp://localhost:5555")
         self.socket = socket
 

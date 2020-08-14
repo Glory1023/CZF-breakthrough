@@ -6,17 +6,16 @@ import zmq.asyncio
 import argparse
 from uuid import uuid4
 
-import constants
 import czf_pb2
 
 
 class SelfPlayer:
     def __init__(self, suffix):
-        self.identity = f"{constants.SELF_PLAYER_IDENTITY_PREFIX}-{suffix}".encode()
+        self.identity = f"actor-{suffix}"
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
-        socket.setsockopt(zmq.IDENTITY, self.identity)
+        socket.setsockopt(zmq.IDENTITY, self.identity.encode())
         socket.connect("tcp://localhost:5555")
         self.socket = socket
 
