@@ -6,5 +6,5 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include_directories(.)
 
-add_subdirectory(czf_env)
+add_subdirectory(third_party)
 add_subdirectory(czf)
