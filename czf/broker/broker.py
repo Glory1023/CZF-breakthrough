@@ -6,7 +6,6 @@ import zmq.asyncio
 from pprint import pprint
 
 import czf_pb2
-import constants
 
 
 class Broker:

@@ -1,7 +1,7 @@
 #! /bin/sh
 SCRIPT_PATH=$(realpath "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
-SOURCE_DIR="$SCRIPT_DIR/src"
+SOURCE_DIR="$SCRIPT_DIR"
 BUILD_DIR="$SCRIPT_DIR/build"
 
 rm -rf "$SCRIPT_DIR/bin"
