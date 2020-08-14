@@ -1,14 +1,14 @@
 #include <iostream>
 #include <random>
 
-#include "czf.h"
+#include "third_party/czf_env/czf_env/czf_env.h"
 using namespace std;
 
 int main() {
   std::random_device rd;
   std::mt19937 gen(rd());
 
-  auto game = czf::LoadGame("tic_tac_toe");
+  auto game = czf_env::LoadGame("tic_tac_toe");
 
   auto state = game->NewInitialState();
   while (!state->IsTerminal()) {
