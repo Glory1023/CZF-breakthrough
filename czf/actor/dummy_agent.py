@@ -1,10 +1,10 @@
 #! /usr/bin/env python3
 import random
-import pyczf
+import czf_env
 
 
 def main():
-    game = pyczf.load_game("tic_tac_toe")
+    game = czf_env.load_game("tic_tac_toe")
     state = game.new_initial_state()
     while not state.is_terminal():
         legal_actions = state.legal_actions()

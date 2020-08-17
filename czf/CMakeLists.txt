@@ -1,1 +1,1 @@
-add_executable(dummy_agent actor/dummy_agent.cc $<TARGET_OBJECTS:env_core> $<TARGET_OBJECTS:games>)
+add_executable(dummy_agent actor/dummy_agent.cc $<TARGET_OBJECTS:games>)

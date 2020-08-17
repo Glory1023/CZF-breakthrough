@@ -3,7 +3,6 @@ import time
 import zmq
 import asyncio
 import zmq.asyncio
-from pprint import pprint
 
 import czf_pb2
 
