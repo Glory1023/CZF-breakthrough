@@ -16,7 +16,15 @@ enum JobType {
   SEARCH = 2;
 }
 
-message Model { repeated bytes blobs = 2; }
+message Affinity {
+  repeated bytes preprocessors = 1;
+  repeated bytes actors = 2;
+}
+
+message Model {
+  string name = 1;
+  repeated bytes blobs = 2;
+}
 
 // packet definition
 message Heartbeat {}
@@ -31,17 +39,22 @@ message PreprocessRequest {
   GameOrigin game_origin = 1;
   bytes observation = 2;
   repeated int32 legal_actions = 3;
+  Affinity affinity = 4;
 }
 
 message SearchRequest {
   GameOrigin game_origin = 1;
   bytes state = 2;
   repeated int32 legal_actions = 3;
+  bytes preprocessor = 4;
+  Affinity affinity = 5;
 }
 
 message SearchResponse {
   GameOrigin game_origin = 1;
   repeated MCTSRoot mcts_roots = 2;
+  bytes preprocessor = 3;
+  bytes actor = 4;
 }
 
 message Trajectory {

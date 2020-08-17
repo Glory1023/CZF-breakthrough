@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\tczf.proto\")\n\x08MCTSRoot\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\")\n\nGameOrigin\x12\x0c\n\x04node\x18\x01 \x01(\x0c\x12\r\n\x05index\x18\x02 \x01(\x05\"\x16\n\x05Model\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\x0b\n\tHeartbeat\"M\n\nJobRequest\x12\x1a\n\x08job_type\x18\x01 \x01(\x0e\x32\x08.JobType\x12\x0f\n\x07vacancy\x18\x02 \x01(\x05\x12\x12\n\nefficiency\x18\x03 \x01(\x02\"a\n\x11PreprocessRequest\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\x13\n\x0bobservation\x18\x02 \x01(\x0c\x12\x15\n\rlegal_actions\x18\x03 \x03(\x05\"W\n\rSearchRequest\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\r\n\x05state\x18\x02 \x01(\x0c\x12\x15\n\rlegal_actions\x18\x03 \x03(\x05\"Q\n\x0eSearchResponse\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\x1d\n\nmcts_roots\x18\x02 \x03(\x0b\x32\t.MCTSRoot\"M\n\nTrajectory\x12\x0f\n\x07\x61\x63tions\x18\x01 \x03(\x05\x12\x0f\n\x07rewards\x18\x02 \x03(\x02\x12\x1d\n\nmcts_roots\x18\x03 \x03(\x0b\x32\t.MCTSRoot\"\x9c\x02\n\x06Packet\x12\x1f\n\theartbeat\x18\x01 \x01(\x0b\x32\n.HeartbeatH\x00\x12\"\n\x0bjob_request\x18\x02 \x01(\x0b\x32\x0b.JobRequestH\x00\x12\x30\n\x12preprocess_request\x18\x03 \x01(\x0b\x32\x12.PreprocessRequestH\x00\x12(\n\x0esearch_request\x18\x04 \x01(\x0b\x32\x0e.SearchRequestH\x00\x12*\n\x0fsearch_response\x18\x05 \x01(\x0b\x32\x0f.SearchResponseH\x00\x12\x17\n\x05model\x18\x06 \x01(\x0b\x32\x06.ModelH\x00\x12!\n\ntrajectory\x18\x07 \x01(\x0b\x32\x0b.TrajectoryH\x00\x42\t\n\x07payload*2\n\x07JobType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0e\n\nPREPROCESS\x10\x01\x12\n\n\x06SEARCH\x10\x02\x62\x06proto3'
+  serialized_pb=b'\n\tczf.proto\")\n\x08MCTSRoot\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\")\n\nGameOrigin\x12\x0c\n\x04node\x18\x01 \x01(\x0c\x12\r\n\x05index\x18\x02 \x01(\x05\"1\n\x08\x41\x66\x66inity\x12\x15\n\rpreprocessors\x18\x01 \x03(\x0c\x12\x0e\n\x06\x61\x63tors\x18\x02 \x03(\x0c\"$\n\x05Model\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\x0b\n\tHeartbeat\"M\n\nJobRequest\x12\x1a\n\x08job_type\x18\x01 \x01(\x0e\x32\x08.JobType\x12\x0f\n\x07vacancy\x18\x02 \x01(\x05\x12\x12\n\nefficiency\x18\x03 \x01(\x02\"~\n\x11PreprocessRequest\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\x13\n\x0bobservation\x18\x02 \x01(\x0c\x12\x15\n\rlegal_actions\x18\x03 \x03(\x05\x12\x1b\n\x08\x61\x66\x66inity\x18\x04 \x01(\x0b\x32\t.Affinity\"\x8a\x01\n\rSearchRequest\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\r\n\x05state\x18\x02 \x01(\x0c\x12\x15\n\rlegal_actions\x18\x03 \x03(\x05\x12\x14\n\x0cpreprocessor\x18\x04 \x01(\x0c\x12\x1b\n\x08\x61\x66\x66inity\x18\x05 \x01(\x0b\x32\t.Affinity\"v\n\x0eSearchResponse\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\x1d\n\nmcts_roots\x18\x02 \x03(\x0b\x32\t.MCTSRoot\x12\x14\n\x0cpreprocessor\x18\x03 \x01(\x0c\x12\r\n\x05\x61\x63tor\x18\x04 \x01(\x0c\"M\n\nTrajectory\x12\x0f\n\x07\x61\x63tions\x18\x01 \x03(\x05\x12\x0f\n\x07rewards\x18\x02 \x03(\x02\x12\x1d\n\nmcts_roots\x18\x03 \x03(\x0b\x32\t.MCTSRoot\"\x9c\x02\n\x06Packet\x12\x1f\n\theartbeat\x18\x01 \x01(\x0b\x32\n.HeartbeatH\x00\x12\"\n\x0bjob_request\x18\x02 \x01(\x0b\x32\x0b.JobRequestH\x00\x12\x30\n\x12preprocess_request\x18\x03 \x01(\x0b\x32\x12.PreprocessRequestH\x00\x12(\n\x0esearch_request\x18\x04 \x01(\x0b\x32\x0e.SearchRequestH\x00\x12*\n\x0fsearch_response\x18\x05 \x01(\x0b\x32\x0f.SearchResponseH\x00\x12\x17\n\x05model\x18\x06 \x01(\x0b\x32\x06.ModelH\x00\x12!\n\ntrajectory\x18\x07 \x01(\x0b\x32\x0b.TrajectoryH\x00\x42\t\n\x07payload*2\n\x07JobType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0e\n\nPREPROCESS\x10\x01\x12\n\n\x06SEARCH\x10\x02\x62\x06proto3'
 )
 
 _JOBTYPE = _descriptor.EnumDescriptor(
@@ -48,8 +48,8 @@ _JOBTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=852,
-  serialized_end=902,
+  serialized_start=1035,
+  serialized_end=1085,
 )
 _sym_db.RegisterEnumDescriptor(_JOBTYPE)
 
@@ -138,16 +138,23 @@ _GAMEORIGIN = _descriptor.Descriptor(
 )
 
 
-_MODEL = _descriptor.Descriptor(
-  name='Model',
-  full_name='Model',
+_AFFINITY = _descriptor.Descriptor(
+  name='Affinity',
+  full_name='Affinity',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='blobs', full_name='Model.blobs', index=0,
+      name='preprocessors', full_name='Affinity.preprocessors', index=0,
+      number=1, type=12, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='actors', full_name='Affinity.actors', index=1,
       number=2, type=12, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -166,7 +173,46 @@ _MODEL = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=99,
-  serialized_end=121,
+  serialized_end=148,
+)
+
+
+_MODEL = _descriptor.Descriptor(
+  name='Model',
+  full_name='Model',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='name', full_name='Model.name', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='blobs', full_name='Model.blobs', index=1,
+      number=2, type=12, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=150,
+  serialized_end=186,
 )
 
 
@@ -190,8 +236,8 @@ _HEARTBEAT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=123,
-  serialized_end=134,
+  serialized_start=188,
+  serialized_end=199,
 )
 
 
@@ -236,8 +282,8 @@ _JOBREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=136,
-  serialized_end=213,
+  serialized_start=201,
+  serialized_end=278,
 )
 
 
@@ -270,6 +316,13 @@ _PREPROCESSREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='affinity', full_name='PreprocessRequest.affinity', index=3,
+      number=4, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -282,8 +335,8 @@ _PREPROCESSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=215,
-  serialized_end=312,
+  serialized_start=280,
+  serialized_end=406,
 )
 
 
@@ -316,6 +369,20 @@ _SEARCHREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='preprocessor', full_name='SearchRequest.preprocessor', index=3,
+      number=4, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"",
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='affinity', full_name='SearchRequest.affinity', index=4,
+      number=5, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -328,8 +395,8 @@ _SEARCHREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=314,
-  serialized_end=401,
+  serialized_start=409,
+  serialized_end=547,
 )
 
 
@@ -355,6 +422,20 @@ _SEARCHRESPONSE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='preprocessor', full_name='SearchResponse.preprocessor', index=2,
+      number=3, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"",
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='actor', full_name='SearchResponse.actor', index=3,
+      number=4, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"",
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -367,8 +448,8 @@ _SEARCHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=403,
-  serialized_end=484,
+  serialized_start=549,
+  serialized_end=667,
 )
 
 
@@ -413,8 +494,8 @@ _TRAJECTORY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=486,
-  serialized_end=563,
+  serialized_start=669,
+  serialized_end=746,
 )
 
 
@@ -492,13 +573,15 @@ _PACKET = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=566,
-  serialized_end=850,
+  serialized_start=749,
+  serialized_end=1033,
 )
 
 _JOBREQUEST.fields_by_name['job_type'].enum_type = _JOBTYPE
 _PREPROCESSREQUEST.fields_by_name['game_origin'].message_type = _GAMEORIGIN
+_PREPROCESSREQUEST.fields_by_name['affinity'].message_type = _AFFINITY
 _SEARCHREQUEST.fields_by_name['game_origin'].message_type = _GAMEORIGIN
+_SEARCHREQUEST.fields_by_name['affinity'].message_type = _AFFINITY
 _SEARCHRESPONSE.fields_by_name['game_origin'].message_type = _GAMEORIGIN
 _SEARCHRESPONSE.fields_by_name['mcts_roots'].message_type = _MCTSROOT
 _TRAJECTORY.fields_by_name['mcts_roots'].message_type = _MCTSROOT
@@ -532,6 +615,7 @@ _PACKET.oneofs_by_name['payload'].fields.append(
 _PACKET.fields_by_name['trajectory'].containing_oneof = _PACKET.oneofs_by_name['payload']
 DESCRIPTOR.message_types_by_name['MCTSRoot'] = _MCTSROOT
 DESCRIPTOR.message_types_by_name['GameOrigin'] = _GAMEORIGIN
+DESCRIPTOR.message_types_by_name['Affinity'] = _AFFINITY
 DESCRIPTOR.message_types_by_name['Model'] = _MODEL
 DESCRIPTOR.message_types_by_name['Heartbeat'] = _HEARTBEAT
 DESCRIPTOR.message_types_by_name['JobRequest'] = _JOBREQUEST
@@ -556,6 +640,13 @@ GameOrigin = _reflection.GeneratedProtocolMessageType('GameOrigin', (_message.Me
   # @@protoc_insertion_point(class_scope:GameOrigin)
   })
 _sym_db.RegisterMessage(GameOrigin)
+
+Affinity = _reflection.GeneratedProtocolMessageType('Affinity', (_message.Message,), {
+  'DESCRIPTOR' : _AFFINITY,
+  '__module__' : 'czf_pb2'
+  # @@protoc_insertion_point(class_scope:Affinity)
+  })
+_sym_db.RegisterMessage(Affinity)
 
 Model = _reflection.GeneratedProtocolMessageType('Model', (_message.Message,), {
   'DESCRIPTOR' : _MODEL,
