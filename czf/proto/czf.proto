@@ -1,76 +1,90 @@
 syntax = "proto3";
 
-message MCTSRoot {
-  float value = 1;
-  repeated float policy = 2;
+message Resource {
+  message Model {
+    string name = 1;
+    int32 version = 2;
+    repeated bytes blobs = 3;
+  }
+  message Program {
+    string name = 1;
+    int32 version = 2;
+    bytes binary = 3;
+  }
+  oneof resource {
+    Model model = 1;
+    Program program = 2;
+  }
 }
 
-message GameOrigin {
-  bytes node = 1;
-  int32 index = 2;
-}
-
-enum JobType {
-  UNKNOWN = 0;
-  PREPROCESS = 1;
-  SEARCH = 2;
-}
-
-message Affinity {
-  repeated bytes preprocessors = 1;
-  repeated bytes actors = 2;
-}
-
-message Model {
-  string name = 1;
-  repeated bytes blobs = 2;
-}
-
-// packet definition
-message Heartbeat {}
-
-message JobRequest {
-  JobType job_type = 1;
-  int32 vacancy = 2;
-  float efficiency = 3;
-}
-
-message PreprocessRequest {
-  GameOrigin game_origin = 1;
-  bytes observation = 2;
+message State {
+  message Evaluation {
+    float value = 1;
+    repeated float policy = 2;
+  }
+  message Transition {
+    int32 action = 1;
+    float reward = 2;
+  }
+  bytes serialize = 1;
+  int32 current_player = 2;
   repeated int32 legal_actions = 3;
-  Affinity affinity = 4;
-}
-
-message SearchRequest {
-  GameOrigin game_origin = 1;
-  bytes state = 2;
-  repeated int32 legal_actions = 3;
-  bytes preprocessor = 4;
-  Affinity affinity = 5;
-}
-
-message SearchResponse {
-  GameOrigin game_origin = 1;
-  repeated MCTSRoot mcts_roots = 2;
-  bytes preprocessor = 3;
-  bytes actor = 4;
+  bytes observation_tensor = 4;
+  Evaluation evaluation = 5;
+  Transition transition = 6;
 }
 
 message Trajectory {
-  repeated int32 actions = 1;
-  repeated float rewards = 2;
-  repeated MCTSRoot mcts_roots = 3;
+  repeated State states = 1;
+  // returns for each player
+  repeated int32 returns = 2;
+}
+
+enum SearchType {
+  UNKNOWN = 0;
+  ALPHAZERO = 1;
+  MUZERO = 2;
+  MCTS = 3;
+}
+
+message SearchHeader {
+  // assigned by broker
+  string job_id = 1;
+  SearchType type = 2;
+  // [SearchRequest]  preferred worker
+  // [SearchResponse] the worker that handled this job
+  string worker = 3;
+  string client = 4;
+}
+
+message Heartbeat {}
+
+message SearchRequest {
+  SearchHeader header = 1;
+  int32 env_index = 2;
+  State state = 3;
+  Resource requirement = 4;
+}
+
+message SearchResponse {
+  SearchHeader header = 1;
+  int32 env_index = 2;
+  State.Evaluation evaluation = 3;
+}
+
+message JobRequest {
+  SearchType search_type = 1;
+  int32 count = 2;
 }
 
 message Packet {
   oneof payload {
     Heartbeat heartbeat = 1;
     JobRequest job_request = 2;
-    PreprocessRequest preprocess_request = 3;
-    SearchRequest search_request = 4;
-    SearchResponse search_response = 5;
-    Model model = 6;
+    SearchRequest search_request = 3;
+    SearchResponse search_response = 4;
+    Resource resource_request = 5;
+    Resource resource = 6;
     Trajectory trajectory = 7;
   }
 }

@@ -20,12 +20,12 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\tczf.proto\")\n\x08MCTSRoot\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\")\n\nGameOrigin\x12\x0c\n\x04node\x18\x01 \x01(\x0c\x12\r\n\x05index\x18\x02 \x01(\x05\"1\n\x08\x41\x66\x66inity\x12\x15\n\rpreprocessors\x18\x01 \x03(\x0c\x12\x0e\n\x06\x61\x63tors\x18\x02 \x03(\x0c\"$\n\x05Model\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\x0b\n\tHeartbeat\"M\n\nJobRequest\x12\x1a\n\x08job_type\x18\x01 \x01(\x0e\x32\x08.JobType\x12\x0f\n\x07vacancy\x18\x02 \x01(\x05\x12\x12\n\nefficiency\x18\x03 \x01(\x02\"~\n\x11PreprocessRequest\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\x13\n\x0bobservation\x18\x02 \x01(\x0c\x12\x15\n\rlegal_actions\x18\x03 \x03(\x05\x12\x1b\n\x08\x61\x66\x66inity\x18\x04 \x01(\x0b\x32\t.Affinity\"\x8a\x01\n\rSearchRequest\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\r\n\x05state\x18\x02 \x01(\x0c\x12\x15\n\rlegal_actions\x18\x03 \x03(\x05\x12\x14\n\x0cpreprocessor\x18\x04 \x01(\x0c\x12\x1b\n\x08\x61\x66\x66inity\x18\x05 \x01(\x0b\x32\t.Affinity\"v\n\x0eSearchResponse\x12 \n\x0bgame_origin\x18\x01 \x01(\x0b\x32\x0b.GameOrigin\x12\x1d\n\nmcts_roots\x18\x02 \x03(\x0b\x32\t.MCTSRoot\x12\x14\n\x0cpreprocessor\x18\x03 \x01(\x0c\x12\r\n\x05\x61\x63tor\x18\x04 \x01(\x0c\"M\n\nTrajectory\x12\x0f\n\x07\x61\x63tions\x18\x01 \x03(\x05\x12\x0f\n\x07rewards\x18\x02 \x03(\x02\x12\x1d\n\nmcts_roots\x18\x03 \x03(\x0b\x32\t.MCTSRoot\"\x9c\x02\n\x06Packet\x12\x1f\n\theartbeat\x18\x01 \x01(\x0b\x32\n.HeartbeatH\x00\x12\"\n\x0bjob_request\x18\x02 \x01(\x0b\x32\x0b.JobRequestH\x00\x12\x30\n\x12preprocess_request\x18\x03 \x01(\x0b\x32\x12.PreprocessRequestH\x00\x12(\n\x0esearch_request\x18\x04 \x01(\x0b\x32\x0e.SearchRequestH\x00\x12*\n\x0fsearch_response\x18\x05 \x01(\x0b\x32\x0f.SearchResponseH\x00\x12\x17\n\x05model\x18\x06 \x01(\x0b\x32\x06.ModelH\x00\x12!\n\ntrajectory\x18\x07 \x01(\x0b\x32\x0b.TrajectoryH\x00\x42\t\n\x07payload*2\n\x07JobType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0e\n\nPREPROCESS\x10\x01\x12\n\n\x06SEARCH\x10\x02\x62\x06proto3'
+  serialized_pb=b'\n\tczf.proto\"\xcf\x01\n\x08Resource\x12 \n\x05model\x18\x01 \x01(\x0b\x32\x0f.Resource.ModelH\x00\x12$\n\x07program\x18\x02 \x01(\x0b\x32\x11.Resource.ProgramH\x00\x1a\x35\n\x05Model\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\x12\r\n\x05\x62lobs\x18\x03 \x03(\x0c\x1a\x38\n\x07Program\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\x12\x0e\n\x06\x62inary\x18\x03 \x01(\x0c\x42\n\n\x08resource\"\x8e\x02\n\x05State\x12\x11\n\tserialize\x18\x01 \x01(\x0c\x12\x16\n\x0e\x63urrent_player\x18\x02 \x01(\x05\x12\x15\n\rlegal_actions\x18\x03 \x03(\x05\x12\x1a\n\x12observation_tensor\x18\x04 \x01(\x0c\x12%\n\nevaluation\x18\x05 \x01(\x0b\x32\x11.State.Evaluation\x12%\n\ntransition\x18\x06 \x01(\x0b\x32\x11.State.Transition\x1a+\n\nEvaluation\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\x1a,\n\nTransition\x12\x0e\n\x06\x61\x63tion\x18\x01 \x01(\x05\x12\x0e\n\x06reward\x18\x02 \x01(\x02\"5\n\nTrajectory\x12\x16\n\x06states\x18\x01 \x03(\x0b\x32\x06.State\x12\x0f\n\x07returns\x18\x02 \x03(\x05\"Y\n\x0cSearchHeader\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x19\n\x04type\x18\x02 \x01(\x0e\x32\x0b.SearchType\x12\x0e\n\x06worker\x18\x03 \x01(\t\x12\x0e\n\x06\x63lient\x18\x04 \x01(\t\"\x0b\n\tHeartbeat\"x\n\rSearchRequest\x12\x1d\n\x06header\x18\x01 \x01(\x0b\x32\r.SearchHeader\x12\x11\n\tenv_index\x18\x02 \x01(\x05\x12\x15\n\x05state\x18\x03 \x01(\x0b\x32\x06.State\x12\x1e\n\x0brequirement\x18\x04 \x01(\x0b\x32\t.Resource\"i\n\x0eSearchResponse\x12\x1d\n\x06header\x18\x01 \x01(\x0b\x32\r.SearchHeader\x12\x11\n\tenv_index\x18\x02 \x01(\x05\x12%\n\nevaluation\x18\x03 \x01(\x0b\x32\x11.State.Evaluation\"=\n\nJobRequest\x12 \n\x0bsearch_type\x18\x01 \x01(\x0e\x32\x0b.SearchType\x12\r\n\x05\x63ount\x18\x02 \x01(\x05\"\x97\x02\n\x06Packet\x12\x1f\n\theartbeat\x18\x01 \x01(\x0b\x32\n.HeartbeatH\x00\x12\"\n\x0bjob_request\x18\x02 \x01(\x0b\x32\x0b.JobRequestH\x00\x12(\n\x0esearch_request\x18\x03 \x01(\x0b\x32\x0e.SearchRequestH\x00\x12*\n\x0fsearch_response\x18\x04 \x01(\x0b\x32\x0f.SearchResponseH\x00\x12%\n\x10resource_request\x18\x05 \x01(\x0b\x32\t.ResourceH\x00\x12\x1d\n\x08resource\x18\x06 \x01(\x0b\x32\t.ResourceH\x00\x12!\n\ntrajectory\x18\x07 \x01(\x0b\x32\x0b.TrajectoryH\x00\x42\t\n\x07payload*>\n\nSearchType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\r\n\tALPHAZERO\x10\x01\x12\n\n\x06MUZERO\x10\x02\x12\x08\n\x04MCTS\x10\x03\x62\x06proto3'
 )
 
-_JOBTYPE = _descriptor.EnumDescriptor(
-  name='JobType',
-  full_name='JobType',
+_SEARCHTYPE = _descriptor.EnumDescriptor(
+  name='SearchType',
+  full_name='SearchType',
   filename=None,
   file=DESCRIPTOR,
   create_key=_descriptor._internal_create_key,
@@ -36,47 +36,187 @@ _JOBTYPE = _descriptor.EnumDescriptor(
       type=None,
       create_key=_descriptor._internal_create_key),
     _descriptor.EnumValueDescriptor(
-      name='PREPROCESS', index=1, number=1,
+      name='ALPHAZERO', index=1, number=1,
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
     _descriptor.EnumValueDescriptor(
-      name='SEARCH', index=2, number=2,
+      name='MUZERO', index=2, number=2,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='MCTS', index=3, number=3,
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=1035,
-  serialized_end=1085,
+  serialized_start=1229,
+  serialized_end=1291,
 )
-_sym_db.RegisterEnumDescriptor(_JOBTYPE)
+_sym_db.RegisterEnumDescriptor(_SEARCHTYPE)
 
-JobType = enum_type_wrapper.EnumTypeWrapper(_JOBTYPE)
+SearchType = enum_type_wrapper.EnumTypeWrapper(_SEARCHTYPE)
 UNKNOWN = 0
-PREPROCESS = 1
-SEARCH = 2
+ALPHAZERO = 1
+MUZERO = 2
+MCTS = 3
 
 
 
-_MCTSROOT = _descriptor.Descriptor(
-  name='MCTSRoot',
-  full_name='MCTSRoot',
+_RESOURCE_MODEL = _descriptor.Descriptor(
+  name='Model',
+  full_name='Resource.Model',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='value', full_name='MCTSRoot.value', index=0,
+      name='name', full_name='Resource.Model.name', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='version', full_name='Resource.Model.version', index=1,
+      number=2, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='blobs', full_name='Resource.Model.blobs', index=2,
+      number=3, type=12, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=98,
+  serialized_end=151,
+)
+
+_RESOURCE_PROGRAM = _descriptor.Descriptor(
+  name='Program',
+  full_name='Resource.Program',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='name', full_name='Resource.Program.name', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='version', full_name='Resource.Program.version', index=1,
+      number=2, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='binary', full_name='Resource.Program.binary', index=2,
+      number=3, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"",
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=153,
+  serialized_end=209,
+)
+
+_RESOURCE = _descriptor.Descriptor(
+  name='Resource',
+  full_name='Resource',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='model', full_name='Resource.model', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='program', full_name='Resource.program', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[_RESOURCE_MODEL, _RESOURCE_PROGRAM, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+    _descriptor.OneofDescriptor(
+      name='resource', full_name='Resource.resource',
+      index=0, containing_type=None,
+      create_key=_descriptor._internal_create_key,
+    fields=[]),
+  ],
+  serialized_start=14,
+  serialized_end=221,
+)
+
+
+_STATE_EVALUATION = _descriptor.Descriptor(
+  name='Evaluation',
+  full_name='State.Evaluation',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='value', full_name='State.Evaluation.value', index=0,
       number=1, type=2, cpp_type=6, label=1,
       has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='policy', full_name='MCTSRoot.policy', index=1,
+      name='policy', full_name='State.Evaluation.policy', index=1,
       number=2, type=2, cpp_type=6, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -94,33 +234,137 @@ _MCTSROOT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=13,
-  serialized_end=54,
+  serialized_start=405,
+  serialized_end=448,
 )
 
-
-_GAMEORIGIN = _descriptor.Descriptor(
-  name='GameOrigin',
-  full_name='GameOrigin',
+_STATE_TRANSITION = _descriptor.Descriptor(
+  name='Transition',
+  full_name='State.Transition',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='node', full_name='GameOrigin.node', index=0,
+      name='action', full_name='State.Transition.action', index=0,
+      number=1, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='reward', full_name='State.Transition.reward', index=1,
+      number=2, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=450,
+  serialized_end=494,
+)
+
+_STATE = _descriptor.Descriptor(
+  name='State',
+  full_name='State',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='serialize', full_name='State.serialize', index=0,
       number=1, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=b"",
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='index', full_name='GameOrigin.index', index=1,
+      name='current_player', full_name='State.current_player', index=1,
       number=2, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='legal_actions', full_name='State.legal_actions', index=2,
+      number=3, type=5, cpp_type=1, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='observation_tensor', full_name='State.observation_tensor', index=3,
+      number=4, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"",
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='evaluation', full_name='State.evaluation', index=4,
+      number=5, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='transition', full_name='State.transition', index=5,
+      number=6, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[_STATE_EVALUATION, _STATE_TRANSITION, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=224,
+  serialized_end=494,
+)
+
+
+_TRAJECTORY = _descriptor.Descriptor(
+  name='Trajectory',
+  full_name='Trajectory',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='states', full_name='Trajectory.states', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='returns', full_name='Trajectory.returns', index=1,
+      number=2, type=5, cpp_type=1, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -133,69 +377,44 @@ _GAMEORIGIN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=56,
-  serialized_end=97,
+  serialized_start=496,
+  serialized_end=549,
 )
 
 
-_AFFINITY = _descriptor.Descriptor(
-  name='Affinity',
-  full_name='Affinity',
+_SEARCHHEADER = _descriptor.Descriptor(
+  name='SearchHeader',
+  full_name='SearchHeader',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='preprocessors', full_name='Affinity.preprocessors', index=0,
-      number=1, type=12, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='actors', full_name='Affinity.actors', index=1,
-      number=2, type=12, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=99,
-  serialized_end=148,
-)
-
-
-_MODEL = _descriptor.Descriptor(
-  name='Model',
-  full_name='Model',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='name', full_name='Model.name', index=0,
+      name='job_id', full_name='SearchHeader.job_id', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='blobs', full_name='Model.blobs', index=1,
-      number=2, type=12, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
+      name='type', full_name='SearchHeader.type', index=1,
+      number=2, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='worker', full_name='SearchHeader.worker', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='client', full_name='SearchHeader.client', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
@@ -211,8 +430,8 @@ _MODEL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=150,
-  serialized_end=186,
+  serialized_start=551,
+  serialized_end=640,
 )
 
 
@@ -236,88 +455,42 @@ _HEARTBEAT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=188,
-  serialized_end=199,
+  serialized_start=642,
+  serialized_end=653,
 )
 
 
-_JOBREQUEST = _descriptor.Descriptor(
-  name='JobRequest',
-  full_name='JobRequest',
+_SEARCHREQUEST = _descriptor.Descriptor(
+  name='SearchRequest',
+  full_name='SearchRequest',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='job_type', full_name='JobRequest.job_type', index=0,
-      number=1, type=14, cpp_type=8, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='vacancy', full_name='JobRequest.vacancy', index=1,
-      number=2, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='efficiency', full_name='JobRequest.efficiency', index=2,
-      number=3, type=2, cpp_type=6, label=1,
-      has_default_value=False, default_value=float(0),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=201,
-  serialized_end=278,
-)
-
-
-_PREPROCESSREQUEST = _descriptor.Descriptor(
-  name='PreprocessRequest',
-  full_name='PreprocessRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='game_origin', full_name='PreprocessRequest.game_origin', index=0,
+      name='header', full_name='SearchRequest.header', index=0,
       number=1, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='observation', full_name='PreprocessRequest.observation', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
+      name='env_index', full_name='SearchRequest.env_index', index=1,
+      number=2, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='legal_actions', full_name='PreprocessRequest.legal_actions', index=2,
-      number=3, type=5, cpp_type=1, label=3,
-      has_default_value=False, default_value=[],
+      name='state', full_name='SearchRequest.state', index=2,
+      number=3, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='affinity', full_name='PreprocessRequest.affinity', index=3,
+      name='requirement', full_name='SearchRequest.requirement', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -335,68 +508,8 @@ _PREPROCESSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=280,
-  serialized_end=406,
-)
-
-
-_SEARCHREQUEST = _descriptor.Descriptor(
-  name='SearchRequest',
-  full_name='SearchRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='game_origin', full_name='SearchRequest.game_origin', index=0,
-      number=1, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='state', full_name='SearchRequest.state', index=1,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='legal_actions', full_name='SearchRequest.legal_actions', index=2,
-      number=3, type=5, cpp_type=1, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='preprocessor', full_name='SearchRequest.preprocessor', index=3,
-      number=4, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='affinity', full_name='SearchRequest.affinity', index=4,
-      number=5, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=409,
-  serialized_end=547,
+  serialized_start=655,
+  serialized_end=775,
 )
 
 
@@ -409,30 +522,23 @@ _SEARCHRESPONSE = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='game_origin', full_name='SearchResponse.game_origin', index=0,
+      name='header', full_name='SearchResponse.header', index=0,
       number=1, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='mcts_roots', full_name='SearchResponse.mcts_roots', index=1,
-      number=2, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
+      name='env_index', full_name='SearchResponse.env_index', index=1,
+      number=2, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='preprocessor', full_name='SearchResponse.preprocessor', index=2,
-      number=3, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='actor', full_name='SearchResponse.actor', index=3,
-      number=4, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
+      name='evaluation', full_name='SearchResponse.evaluation', index=2,
+      number=3, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
@@ -448,37 +554,30 @@ _SEARCHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=549,
-  serialized_end=667,
+  serialized_start=777,
+  serialized_end=882,
 )
 
 
-_TRAJECTORY = _descriptor.Descriptor(
-  name='Trajectory',
-  full_name='Trajectory',
+_JOBREQUEST = _descriptor.Descriptor(
+  name='JobRequest',
+  full_name='JobRequest',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='actions', full_name='Trajectory.actions', index=0,
-      number=1, type=5, cpp_type=1, label=3,
-      has_default_value=False, default_value=[],
+      name='search_type', full_name='JobRequest.search_type', index=0,
+      number=1, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='rewards', full_name='Trajectory.rewards', index=1,
-      number=2, type=2, cpp_type=6, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='mcts_roots', full_name='Trajectory.mcts_roots', index=2,
-      number=3, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
+      name='count', full_name='JobRequest.count', index=1,
+      number=2, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
@@ -494,8 +593,8 @@ _TRAJECTORY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=669,
-  serialized_end=746,
+  serialized_start=884,
+  serialized_end=945,
 )
 
 
@@ -522,28 +621,28 @@ _PACKET = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='preprocess_request', full_name='Packet.preprocess_request', index=2,
+      name='search_request', full_name='Packet.search_request', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='search_request', full_name='Packet.search_request', index=3,
+      name='search_response', full_name='Packet.search_response', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='search_response', full_name='Packet.search_response', index=4,
+      name='resource_request', full_name='Packet.resource_request', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='model', full_name='Packet.model', index=5,
+      name='resource', full_name='Packet.resource', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -573,24 +672,38 @@ _PACKET = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=749,
-  serialized_end=1033,
+  serialized_start=948,
+  serialized_end=1227,
 )
 
-_JOBREQUEST.fields_by_name['job_type'].enum_type = _JOBTYPE
-_PREPROCESSREQUEST.fields_by_name['game_origin'].message_type = _GAMEORIGIN
-_PREPROCESSREQUEST.fields_by_name['affinity'].message_type = _AFFINITY
-_SEARCHREQUEST.fields_by_name['game_origin'].message_type = _GAMEORIGIN
-_SEARCHREQUEST.fields_by_name['affinity'].message_type = _AFFINITY
-_SEARCHRESPONSE.fields_by_name['game_origin'].message_type = _GAMEORIGIN
-_SEARCHRESPONSE.fields_by_name['mcts_roots'].message_type = _MCTSROOT
-_TRAJECTORY.fields_by_name['mcts_roots'].message_type = _MCTSROOT
+_RESOURCE_MODEL.containing_type = _RESOURCE
+_RESOURCE_PROGRAM.containing_type = _RESOURCE
+_RESOURCE.fields_by_name['model'].message_type = _RESOURCE_MODEL
+_RESOURCE.fields_by_name['program'].message_type = _RESOURCE_PROGRAM
+_RESOURCE.oneofs_by_name['resource'].fields.append(
+  _RESOURCE.fields_by_name['model'])
+_RESOURCE.fields_by_name['model'].containing_oneof = _RESOURCE.oneofs_by_name['resource']
+_RESOURCE.oneofs_by_name['resource'].fields.append(
+  _RESOURCE.fields_by_name['program'])
+_RESOURCE.fields_by_name['program'].containing_oneof = _RESOURCE.oneofs_by_name['resource']
+_STATE_EVALUATION.containing_type = _STATE
+_STATE_TRANSITION.containing_type = _STATE
+_STATE.fields_by_name['evaluation'].message_type = _STATE_EVALUATION
+_STATE.fields_by_name['transition'].message_type = _STATE_TRANSITION
+_TRAJECTORY.fields_by_name['states'].message_type = _STATE
+_SEARCHHEADER.fields_by_name['type'].enum_type = _SEARCHTYPE
+_SEARCHREQUEST.fields_by_name['header'].message_type = _SEARCHHEADER
+_SEARCHREQUEST.fields_by_name['state'].message_type = _STATE
+_SEARCHREQUEST.fields_by_name['requirement'].message_type = _RESOURCE
+_SEARCHRESPONSE.fields_by_name['header'].message_type = _SEARCHHEADER
+_SEARCHRESPONSE.fields_by_name['evaluation'].message_type = _STATE_EVALUATION
+_JOBREQUEST.fields_by_name['search_type'].enum_type = _SEARCHTYPE
 _PACKET.fields_by_name['heartbeat'].message_type = _HEARTBEAT
 _PACKET.fields_by_name['job_request'].message_type = _JOBREQUEST
-_PACKET.fields_by_name['preprocess_request'].message_type = _PREPROCESSREQUEST
 _PACKET.fields_by_name['search_request'].message_type = _SEARCHREQUEST
 _PACKET.fields_by_name['search_response'].message_type = _SEARCHRESPONSE
-_PACKET.fields_by_name['model'].message_type = _MODEL
+_PACKET.fields_by_name['resource_request'].message_type = _RESOURCE
+_PACKET.fields_by_name['resource'].message_type = _RESOURCE
 _PACKET.fields_by_name['trajectory'].message_type = _TRAJECTORY
 _PACKET.oneofs_by_name['payload'].fields.append(
   _PACKET.fields_by_name['heartbeat'])
@@ -599,61 +712,91 @@ _PACKET.oneofs_by_name['payload'].fields.append(
   _PACKET.fields_by_name['job_request'])
 _PACKET.fields_by_name['job_request'].containing_oneof = _PACKET.oneofs_by_name['payload']
 _PACKET.oneofs_by_name['payload'].fields.append(
-  _PACKET.fields_by_name['preprocess_request'])
-_PACKET.fields_by_name['preprocess_request'].containing_oneof = _PACKET.oneofs_by_name['payload']
-_PACKET.oneofs_by_name['payload'].fields.append(
   _PACKET.fields_by_name['search_request'])
 _PACKET.fields_by_name['search_request'].containing_oneof = _PACKET.oneofs_by_name['payload']
 _PACKET.oneofs_by_name['payload'].fields.append(
   _PACKET.fields_by_name['search_response'])
 _PACKET.fields_by_name['search_response'].containing_oneof = _PACKET.oneofs_by_name['payload']
 _PACKET.oneofs_by_name['payload'].fields.append(
-  _PACKET.fields_by_name['model'])
-_PACKET.fields_by_name['model'].containing_oneof = _PACKET.oneofs_by_name['payload']
+  _PACKET.fields_by_name['resource_request'])
+_PACKET.fields_by_name['resource_request'].containing_oneof = _PACKET.oneofs_by_name['payload']
+_PACKET.oneofs_by_name['payload'].fields.append(
+  _PACKET.fields_by_name['resource'])
+_PACKET.fields_by_name['resource'].containing_oneof = _PACKET.oneofs_by_name['payload']
 _PACKET.oneofs_by_name['payload'].fields.append(
   _PACKET.fields_by_name['trajectory'])
 _PACKET.fields_by_name['trajectory'].containing_oneof = _PACKET.oneofs_by_name['payload']
-DESCRIPTOR.message_types_by_name['MCTSRoot'] = _MCTSROOT
-DESCRIPTOR.message_types_by_name['GameOrigin'] = _GAMEORIGIN
-DESCRIPTOR.message_types_by_name['Affinity'] = _AFFINITY
-DESCRIPTOR.message_types_by_name['Model'] = _MODEL
+DESCRIPTOR.message_types_by_name['Resource'] = _RESOURCE
+DESCRIPTOR.message_types_by_name['State'] = _STATE
+DESCRIPTOR.message_types_by_name['Trajectory'] = _TRAJECTORY
+DESCRIPTOR.message_types_by_name['SearchHeader'] = _SEARCHHEADER
 DESCRIPTOR.message_types_by_name['Heartbeat'] = _HEARTBEAT
-DESCRIPTOR.message_types_by_name['JobRequest'] = _JOBREQUEST
-DESCRIPTOR.message_types_by_name['PreprocessRequest'] = _PREPROCESSREQUEST
 DESCRIPTOR.message_types_by_name['SearchRequest'] = _SEARCHREQUEST
 DESCRIPTOR.message_types_by_name['SearchResponse'] = _SEARCHRESPONSE
-DESCRIPTOR.message_types_by_name['Trajectory'] = _TRAJECTORY
+DESCRIPTOR.message_types_by_name['JobRequest'] = _JOBREQUEST
 DESCRIPTOR.message_types_by_name['Packet'] = _PACKET
-DESCRIPTOR.enum_types_by_name['JobType'] = _JOBTYPE
+DESCRIPTOR.enum_types_by_name['SearchType'] = _SEARCHTYPE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
-MCTSRoot = _reflection.GeneratedProtocolMessageType('MCTSRoot', (_message.Message,), {
-  'DESCRIPTOR' : _MCTSROOT,
-  '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:MCTSRoot)
-  })
-_sym_db.RegisterMessage(MCTSRoot)
+Resource = _reflection.GeneratedProtocolMessageType('Resource', (_message.Message,), {
 
-GameOrigin = _reflection.GeneratedProtocolMessageType('GameOrigin', (_message.Message,), {
-  'DESCRIPTOR' : _GAMEORIGIN,
-  '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:GameOrigin)
-  })
-_sym_db.RegisterMessage(GameOrigin)
+  'Model' : _reflection.GeneratedProtocolMessageType('Model', (_message.Message,), {
+    'DESCRIPTOR' : _RESOURCE_MODEL,
+    '__module__' : 'czf_pb2'
+    # @@protoc_insertion_point(class_scope:Resource.Model)
+    })
+  ,
 
-Affinity = _reflection.GeneratedProtocolMessageType('Affinity', (_message.Message,), {
-  'DESCRIPTOR' : _AFFINITY,
+  'Program' : _reflection.GeneratedProtocolMessageType('Program', (_message.Message,), {
+    'DESCRIPTOR' : _RESOURCE_PROGRAM,
+    '__module__' : 'czf_pb2'
+    # @@protoc_insertion_point(class_scope:Resource.Program)
+    })
+  ,
+  'DESCRIPTOR' : _RESOURCE,
   '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:Affinity)
+  # @@protoc_insertion_point(class_scope:Resource)
   })
-_sym_db.RegisterMessage(Affinity)
+_sym_db.RegisterMessage(Resource)
+_sym_db.RegisterMessage(Resource.Model)
+_sym_db.RegisterMessage(Resource.Program)
 
-Model = _reflection.GeneratedProtocolMessageType('Model', (_message.Message,), {
-  'DESCRIPTOR' : _MODEL,
+State = _reflection.GeneratedProtocolMessageType('State', (_message.Message,), {
+
+  'Evaluation' : _reflection.GeneratedProtocolMessageType('Evaluation', (_message.Message,), {
+    'DESCRIPTOR' : _STATE_EVALUATION,
+    '__module__' : 'czf_pb2'
+    # @@protoc_insertion_point(class_scope:State.Evaluation)
+    })
+  ,
+
+  'Transition' : _reflection.GeneratedProtocolMessageType('Transition', (_message.Message,), {
+    'DESCRIPTOR' : _STATE_TRANSITION,
+    '__module__' : 'czf_pb2'
+    # @@protoc_insertion_point(class_scope:State.Transition)
+    })
+  ,
+  'DESCRIPTOR' : _STATE,
   '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:Model)
+  # @@protoc_insertion_point(class_scope:State)
   })
-_sym_db.RegisterMessage(Model)
+_sym_db.RegisterMessage(State)
+_sym_db.RegisterMessage(State.Evaluation)
+_sym_db.RegisterMessage(State.Transition)
+
+Trajectory = _reflection.GeneratedProtocolMessageType('Trajectory', (_message.Message,), {
+  'DESCRIPTOR' : _TRAJECTORY,
+  '__module__' : 'czf_pb2'
+  # @@protoc_insertion_point(class_scope:Trajectory)
+  })
+_sym_db.RegisterMessage(Trajectory)
+
+SearchHeader = _reflection.GeneratedProtocolMessageType('SearchHeader', (_message.Message,), {
+  'DESCRIPTOR' : _SEARCHHEADER,
+  '__module__' : 'czf_pb2'
+  # @@protoc_insertion_point(class_scope:SearchHeader)
+  })
+_sym_db.RegisterMessage(SearchHeader)
 
 Heartbeat = _reflection.GeneratedProtocolMessageType('Heartbeat', (_message.Message,), {
   'DESCRIPTOR' : _HEARTBEAT,
@@ -661,20 +804,6 @@ Heartbeat = _reflection.GeneratedProtocolMessageType('Heartbeat', (_message.Mess
   # @@protoc_insertion_point(class_scope:Heartbeat)
   })
 _sym_db.RegisterMessage(Heartbeat)
-
-JobRequest = _reflection.GeneratedProtocolMessageType('JobRequest', (_message.Message,), {
-  'DESCRIPTOR' : _JOBREQUEST,
-  '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:JobRequest)
-  })
-_sym_db.RegisterMessage(JobRequest)
-
-PreprocessRequest = _reflection.GeneratedProtocolMessageType('PreprocessRequest', (_message.Message,), {
-  'DESCRIPTOR' : _PREPROCESSREQUEST,
-  '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:PreprocessRequest)
-  })
-_sym_db.RegisterMessage(PreprocessRequest)
 
 SearchRequest = _reflection.GeneratedProtocolMessageType('SearchRequest', (_message.Message,), {
   'DESCRIPTOR' : _SEARCHREQUEST,
@@ -690,12 +819,12 @@ SearchResponse = _reflection.GeneratedProtocolMessageType('SearchResponse', (_me
   })
 _sym_db.RegisterMessage(SearchResponse)
 
-Trajectory = _reflection.GeneratedProtocolMessageType('Trajectory', (_message.Message,), {
-  'DESCRIPTOR' : _TRAJECTORY,
+JobRequest = _reflection.GeneratedProtocolMessageType('JobRequest', (_message.Message,), {
+  'DESCRIPTOR' : _JOBREQUEST,
   '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:Trajectory)
+  # @@protoc_insertion_point(class_scope:JobRequest)
   })
-_sym_db.RegisterMessage(Trajectory)
+_sym_db.RegisterMessage(JobRequest)
 
 Packet = _reflection.GeneratedProtocolMessageType('Packet', (_message.Message,), {
   'DESCRIPTOR' : _PACKET,
