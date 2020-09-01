@@ -1,26 +1,21 @@
 syntax = "proto3";
 
-message Resource {
-  message Model {
-    string name = 1;
-    int32 version = 2;
-    repeated bytes blobs = 3;
-  }
-  message Program {
-    string name = 1;
-    int32 version = 2;
-    bytes binary = 3;
-  }
-  oneof resource {
-    Model model = 1;
-    Program program = 2;
-  }
+message Node {
+  string identity = 1;
+  string hostname = 2;
+}
+
+message Model {
+  string name = 1;
+  int32 version = 2;
+  repeated bytes blobs = 3;
 }
 
 message State {
   message Evaluation {
-    float value = 1;
-    repeated float policy = 2;
+    bytes latent = 1;
+    float value = 2;
+    repeated float policy = 3;
   }
   message Transition {
     int32 action = 1;
@@ -29,7 +24,7 @@ message State {
   bytes serialize = 1;
   int32 current_player = 2;
   repeated int32 legal_actions = 3;
-  bytes observation_tensor = 4;
+  repeated float observation_tensor = 4;
   Evaluation evaluation = 5;
   Transition transition = 6;
 }
@@ -40,51 +35,45 @@ message Trajectory {
   repeated int32 returns = 2;
 }
 
-enum SearchType {
-  UNKNOWN = 0;
-  ALPHAZERO = 1;
-  MUZERO = 2;
-  MCTS = 3;
-}
-
-message SearchHeader {
-  // assigned by broker
-  string job_id = 1;
-  SearchType type = 2;
-  // [SearchRequest]  preferred worker
-  // [SearchResponse] the worker that handled this job
-  string worker = 3;
-  string client = 4;
-}
-
 message Heartbeat {}
 
-message SearchRequest {
-  SearchHeader header = 1;
-  int32 env_index = 2;
-  State state = 3;
-  Resource requirement = 4;
-}
-
-message SearchResponse {
-  SearchHeader header = 1;
-  int32 env_index = 2;
-  State.Evaluation evaluation = 3;
+message Job {
+  enum Operation {
+    UNKNOWN = 0;
+    ALPHAZERO_SEARCH = 1;
+    ALPHAZERO_OPTIMIZE = 2;
+    MUZERO_PREPROCESS = 3;
+    MUZERO_SEARCH = 4;
+    MUZERO_OPTIMIZE = 5;
+  }
+  message Payload {
+    State state = 1;
+    Trajectory trajectory = 2;
+  }
+  string id = 1;
+  Node initiator = 2;
+  Model model = 3;
+  repeated Operation procedure = 4;
+  int32 step = 5;
+  repeated Node workers = 6;
+  Payload payload = 7;
 }
 
 message JobRequest {
-  SearchType search_type = 1;
-  int32 count = 2;
+  Job.Operation operation = 1;
+  int32 capacity = 2;
 }
+
+message JobResponse { repeated Job jobs = 1; }
 
 message Packet {
   oneof payload {
     Heartbeat heartbeat = 1;
-    JobRequest job_request = 2;
-    SearchRequest search_request = 3;
-    SearchResponse search_response = 4;
-    Resource resource_request = 5;
-    Resource resource = 6;
-    Trajectory trajectory = 7;
+    Model model_request = 2;
+    Model model_response = 3;
+    Model model = 4;
+    JobRequest job_request = 5;
+    JobResponse job_response = 6;
+    Job job = 7;
   }
 }
