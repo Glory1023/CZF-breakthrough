@@ -32,7 +32,7 @@ message State {
 message Trajectory {
   repeated State states = 1;
   // returns for each player
-  repeated int32 returns = 2;
+  repeated float returns = 2;
 }
 
 message Heartbeat {}
