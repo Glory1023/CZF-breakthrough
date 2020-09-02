@@ -15,7 +15,7 @@ class SelfPlayer:
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
-        socket.setsockopt(zmq.IDENTITY, self.identity.encode())
+        socket.setsockopt_string(zmq.IDENTITY, self.identity)
         socket.connect('tcp://localhost:5555')
         self.socket = socket
 
