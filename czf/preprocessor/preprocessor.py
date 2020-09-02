@@ -11,12 +11,12 @@ import czf_pb2
 
 class Preprocessor:
     def __init__(self, suffix):
-        self.identity = f"preprocessor-{suffix}"
+        self.identity = f'preprocessor-{suffix}'
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
         socket.setsockopt(zmq.IDENTITY, self.identity.encode())
-        socket.connect("tcp://localhost:5555")
+        socket.connect('tcp://localhost:5555')
         self.socket = socket
 
         self.capacity = 128
@@ -46,7 +46,7 @@ class Preprocessor:
             packet = czf_pb2.Packet()
             packet.ParseFromString(raw)
 
-            if packet.WhichOneof("payload") == "preprocess_request":
+            if packet.WhichOneof('payload') == 'preprocess_request':
                 self.preprocess_requests.put_nowait(packet.preprocess_request)
 
     async def send_job_request(self):
@@ -93,16 +93,16 @@ class Preprocessor:
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--suffix", type=str, default=uuid4().hex)
+    parser.add_argument('--suffix', type=str, default=uuid4().hex)
     args = parser.parse_args()
 
     preprocessor = Preprocessor(args.suffix)
     await preprocessor.loop()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
-        print("\rterminated by ctrl-c")
+        print('\rterminated by ctrl-c')

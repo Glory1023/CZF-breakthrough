@@ -4,7 +4,7 @@ import czf_env
 
 
 def main():
-    game = czf_env.load_game("tic_tac_toe")
+    game = czf_env.load_game('tic_tac_toe')
     state = game.new_initial_state()
     while not state.is_terminal():
         legal_actions = state.legal_actions()
@@ -13,5 +13,5 @@ def main():
         print(state.serialize())
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

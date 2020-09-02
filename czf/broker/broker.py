@@ -18,7 +18,7 @@ class Broker:
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.ROUTER)
         socket.setsockopt(zmq.LINGER, 0)
-        socket.bind("tcp://*:5555")
+        socket.bind('tcp://*:5555')
         self.socket = socket
 
     async def loop(self):
@@ -34,7 +34,7 @@ class Broker:
             packet = czf_pb2.Packet()
             packet.ParseFromString(raw)
 
-            packet_type = packet.WhichOneof("payload")
+            packet_type = packet.WhichOneof('payload')
 
             if packet_type == 'heartbeat':
                 pass
@@ -80,9 +80,9 @@ async def main():
     await broker.loop()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
-        print("\rterminated by ctrl-c")
+        print('\rterminated by ctrl-c')

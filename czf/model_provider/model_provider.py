@@ -22,7 +22,7 @@ class ModelProvider:
         while True:
             identity, raw = await self.provider.recv_multipart()
             packet = czf_pb2.Packet.FromString(raw)
-            packet_type = packet.WhichOneof("payload")
+            packet_type = packet.WhichOneof('payload')
 
             if packet_type == 'model_request':
                 asyncio.create_task(self.send_model(identity, packet.model_request))
@@ -56,4 +56,4 @@ if __name__ == '__main__':
         asyncio.run(main())
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
-        print("\rterminated by ctrl-c")
+        print('\rterminated by ctrl-c')

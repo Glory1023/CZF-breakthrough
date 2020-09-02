@@ -11,12 +11,12 @@ import czf_pb2
 
 class SelfPlayer:
     def __init__(self, suffix):
-        self.identity = f"actor-{suffix}"
+        self.identity = f'actor-{suffix}'
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
         socket.setsockopt(zmq.IDENTITY, self.identity.encode())
-        socket.connect("tcp://localhost:5555")
+        socket.connect('tcp://localhost:5555')
         self.socket = socket
 
         self.capacity = 1280
@@ -65,16 +65,16 @@ class SelfPlayer:
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--suffix", type=str, default=uuid4().hex)
+    parser.add_argument('--suffix', type=str, default=uuid4().hex)
     args = parser.parse_args()
 
     self_player = SelfPlayer(args.suffix)
     await self_player.loop()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
-        print("\rterminated by ctrl-c")
+        print('\rterminated by ctrl-c')

@@ -10,12 +10,12 @@ import czf_pb2
 
 class GameServer:
     def __init__(self, suffix):
-        self.identity = f"game-server-{suffix}"
+        self.identity = f'game-server-{suffix}'
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
         socket.setsockopt(zmq.IDENTITY, self.identity.encode())
-        socket.connect("tcp://localhost:5555")
+        socket.connect('tcp://localhost:5555')
         self.socket = socket
 
     async def loop(self):
@@ -45,16 +45,16 @@ class GameServer:
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--suffix", type=str, default=uuid4().hex)
+    parser.add_argument('--suffix', type=str, default=uuid4().hex)
     args = parser.parse_args()
 
     game_server = GameServer(args.suffix)
     await game_server.loop()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
-        print("\rterminated by ctrl-c")
+        print('\rterminated by ctrl-c')
