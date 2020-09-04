@@ -6,7 +6,7 @@ import argparse
 from uuid import uuid4
 
 from .model_manager import LocalModelManager, RemoteModelManager
-import czf_pb2
+from czf.pb import czf_pb2
 
 
 class ModelProvider:

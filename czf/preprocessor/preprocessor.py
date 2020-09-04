@@ -6,7 +6,7 @@ import zmq.asyncio
 import argparse
 from uuid import uuid4
 
-import czf_pb2
+from czf.pb import czf_pb2
 
 
 class Preprocessor:
@@ -24,7 +24,7 @@ class Preprocessor:
         self.model_version = -1
 
         self.preprocess_requests = asyncio.Queue()
-        asyncio.ensure_future(self.send_job_request())
+        asyncio.create_task(self.send_job_request())
 
     async def loop(self):
         await asyncio.gather(
@@ -50,12 +50,11 @@ class Preprocessor:
                 self.preprocess_requests.put_nowait(packet.preprocess_request)
 
     async def send_job_request(self):
-        packet = czf_pb2.Packet()
-        job_request = packet.job_request
-        job_request.type = czf_pb2.JobRequest.Type.PREPROCESS
-        job_request.worker_status.vacancy = self.capacity - self.preprocess_requests.qsize()
-        job_request.worker_status.efficiency = self.efficiency
-        job_request.worker_status.model_version = self.model_version
+        packet = czf_pb2.Packet(
+            job_request=czf_pb2.JobRequest(
+                operation=czf_pb2.Job.Operation.MUZERO_PREPROCESS
+            )
+        )
         await self.send_packet(packet)
 
     async def job_scheduler(self):

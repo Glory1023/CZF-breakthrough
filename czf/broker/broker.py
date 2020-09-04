@@ -3,12 +3,13 @@ import time
 import zmq
 import asyncio
 import zmq.asyncio
+import argparse
 
-import czf_pb2
+from czf.pb import czf_pb2
 
 
 class Broker:
-    def __init__(self):
+    def __init__(self, args):
         self.preprocessors = dict()
         self.self_players = dict()
 
@@ -18,33 +19,21 @@ class Broker:
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.ROUTER)
         socket.setsockopt(zmq.LINGER, 0)
-        socket.bind('tcp://*:5555')
+        socket.bind(f'tcp://*:{args.listen}')
         self.socket = socket
 
     async def loop(self):
         await asyncio.gather(
-            self.recv_loop(),
-            self.request_dispatcher(self.preprocess_requests, self.preprocessors),
-            self.request_dispatcher(self.search_requests, self.self_players)
+            self.recv_loop()
         )
 
     async def recv_loop(self):
         while True:
             identity, raw = await self.socket.recv_multipart()
-            packet = czf_pb2.Packet()
-            packet.ParseFromString(raw)
+            packet = czf_pb2.Packet.FromString(raw)
 
             packet_type = packet.WhichOneof('payload')
-
-            if packet_type == 'heartbeat':
-                pass
-            elif packet_type == 'job_request':
-                self.add_worker(identity, packet.job_request)
-            elif packet_type == 'preprocess_request':
-                self.preprocess_requests.put_nowait(raw)
-            elif packet_type == 'search_request':
-                self.search_requests.put_nowait(raw)
-                print(packet)
+            print(packet)
 
     async def request_dispatcher(self, request_queue, worker_dict, wait_time=0.2):
         while True:
@@ -76,7 +65,10 @@ class Broker:
 
 
 async def main():
-    broker = Broker()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-l', '--listen', type=int, required=True)
+    args = parser.parse_args()
+    broker = Broker(args)
     await broker.loop()
 
 

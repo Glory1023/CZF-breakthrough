@@ -1,8 +1,8 @@
 syntax = "proto3";
 
 message Node {
-  string identity = 1;
-  string hostname = 2;
+  string hostname = 1;
+  string identity = 2;
 }
 
 message Model {
@@ -19,9 +19,9 @@ message State {
   }
   message Transition {
     int32 action = 1;
-    float reward = 2;
+    repeated float rewards = 2;
   }
-  bytes serialize = 1;
+  string serialize = 1;
   int32 current_player = 2;
   repeated int32 legal_actions = 3;
   repeated float observation_tensor = 4;
@@ -49,6 +49,7 @@ message Job {
   message Payload {
     State state = 1;
     Trajectory trajectory = 2;
+    int32 env_index = 3;
   }
   string id = 1;
   Node initiator = 2;

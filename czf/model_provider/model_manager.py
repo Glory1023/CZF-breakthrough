@@ -3,7 +3,7 @@ import asyncio
 import zmq.asyncio
 from pathlib import Path
 
-import czf_pb2
+from czf.pb import czf_pb2
 from .lru_cache import LRUCache
 
 
