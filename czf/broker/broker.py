@@ -1,20 +1,19 @@
 #! /usr/bin/env python3
+from struct import pack
 import time
 import zmq
 import asyncio
 import zmq.asyncio
 import argparse
+from collections import defaultdict
 
 from czf.pb import czf_pb2
 
 
 class Broker:
     def __init__(self, args):
-        self.preprocessors = dict()
-        self.self_players = dict()
-
-        self.preprocess_requests = asyncio.Queue()
-        self.search_requests = asyncio.Queue()
+        # self.jobs[operation]
+        self.jobs = defaultdict(asyncio.Queue)
 
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.ROUTER)
@@ -31,37 +30,34 @@ class Broker:
         while True:
             identity, raw = await self.socket.recv_multipart()
             packet = czf_pb2.Packet.FromString(raw)
-
-            packet_type = packet.WhichOneof('payload')
             print(packet)
+            packet_type = packet.WhichOneof('payload')
+            if packet_type == 'job':
+                job = packet.job
+                if job.step == len(job.procedure):
+                    self.socket.send_multipart([job.initiator.identity.encode(), raw])
+                else:
+                    operation = job.procedure[job.step]
+                    await self.jobs[operation].put(job)
+            elif packet_type == 'job_request':
+                job_request = packet.job_request
+                asyncio.create_task(self.dispatch_jobs(identity, job_request))
 
-    async def request_dispatcher(self, request_queue, worker_dict, wait_time=0.2):
-        while True:
-            requests = [await request_queue.get()]
-            deadline = time.time() + wait_time
-
-            while (timeout := deadline - time.time()) > 0:
-                try:
-                    request = await asyncio.wait_for(request_queue.get(), timeout=timeout)
-                    requests.append(request)
-                except asyncio.exceptions.TimeoutError:
-                    break
-
-            workers = sorted(worker_dict.items(), key=lambda item: (-item[1].efficiency, item[1].vacancy))
-            for identity, status in workers:
-                num_requests = min(status.vacancy, len(requests))
-                if num_requests <= 0:
-                    break
-                for _ in range(num_requests):
-                    request = requests.pop(0)
-                    await self.socket.send_multipart([identity, request])
-                worker_dict.pop(identity)
-
-    def add_worker(self, identity, job_request):
-        if job_request.type == czf_pb2.JobRequest.Type.PREPROCESS:
-            self.preprocessors[identity] = job_request.worker_status
-        elif job_request.type == czf_pb2.JobRequest.Type.SELF_PLAY:
-            self.self_players[identity] = job_request.worker_status
+    async def dispatch_jobs(self, worker, job_request, wait_time=0.2):
+        job_queue = self.jobs[job_request.operation]
+        packet = czf_pb2.Packet(
+            job_response=czf_pb2.JobResponse(
+                jobs=[await job_queue.get()]
+            )
+        )
+        deadline = time.time() + wait_time
+        while (timeout := deadline - time.time()) > 0:
+            try:
+                job = await asyncio.wait_for(job_queue.get(), timeout=timeout)
+                packet.job_response.jobs.append(job)
+            except asyncio.exceptions.TimeoutError:
+                break
+        await self.socket.send_multipart([worker, packet.SerializeToString()])
 
 
 async def main():

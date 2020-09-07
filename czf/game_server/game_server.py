@@ -45,11 +45,11 @@ class EnvManager:
         evaluated_state = job.payload.state
         policy = evaluated_state.evaluation.policy
         legal_actions_policy = [policy[action] for action in self.state.legal_actions]
-        chosen_action = random.choices(self.state.legal_actions, legal_actions_policy)
+        chosen_action = random.choices(self.state.legal_actions, legal_actions_policy)[0]
 
-        state = self.trajectory.state.add()
+        state = self.trajectory.states.add()
         state.current_player = self.state.current_player
-        state.observation_tensor = self.state.observation_tensor
+        state.observation_tensor[:] = self.state.observation_tensor
         state.evaluation.policy[:] = policy
 
         self.state.apply_action(chosen_action)
@@ -87,6 +87,7 @@ class GameServer:
             raw = await self.socket.recv()
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
+            print(packet)
             if packet_type == 'job':
                 job = packet.job
                 env_index = job.payload.env_index
@@ -105,12 +106,12 @@ class GameServer:
         job = czf_pb2.Job(
             procedure=[czf_pb2.Job.Operation.ALPHAZERO_OPTIMIZE],
             step=0,
-            workers=[''],
+            workers=[czf_pb2.Node()],
             payload=czf_pb2.Job.Payload(
                 trajectory=trajectory
             )
         )
-        await self.send_packet(job)
+        await self.send_job(job)
 
 
 async def main():
