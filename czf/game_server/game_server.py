@@ -1,14 +1,12 @@
-#! /usr/bin/env python3
-import zmq
+'''CZF Game Server'''
 import asyncio
-import zmq.asyncio
-import argparse
-import random
 import platform
-from uuid import uuid4
+import random
+import zmq
+import zmq.asyncio
+import czf_env
 
 from czf.pb import czf_pb2
-import czf_env
 
 
 class EnvManager:
@@ -33,9 +31,7 @@ class EnvManager:
             workers=self.workers,
             payload=czf_pb2.Job.Payload(
                 state=czf_pb2.State(serialize=self.state.serialize()),
-                env_index=self.server.envs.index(self)
-            )
-        )
+                env_index=self.server.envs.index(self)))
         await self.server.send_job(job)
 
     def on_job_completed(self, job: czf_pb2.Job):
@@ -44,8 +40,11 @@ class EnvManager:
 
         evaluated_state = job.payload.state
         policy = evaluated_state.evaluation.policy
-        legal_actions_policy = [policy[action] for action in self.state.legal_actions]
-        chosen_action = random.choices(self.state.legal_actions, legal_actions_policy)[0]
+        legal_actions_policy = [
+            policy[action] for action in self.state.legal_actions
+        ]
+        chosen_action = random.choices(self.state.legal_actions,
+                                       legal_actions_policy)[0]
 
         state = self.trajectory.states.add()
         state.current_player = self.state.current_player
@@ -68,10 +67,8 @@ class EnvManager:
 
 class GameServer:
     def __init__(self, args):
-        self.node = czf_pb2.Node(
-            hostname=platform.node(),
-            identity=f'game-server-{args.suffix}'
-        )
+        self.node = czf_pb2.Node(hostname=platform.node(),
+                                 identity=f'game-server-{args.suffix}')
         context = zmq.asyncio.Context.instance()
         socket = context.socket(zmq.DEALER)
         socket.setsockopt(zmq.LINGER, 0)
@@ -103,32 +100,8 @@ class GameServer:
         await self.send_packet(packet)
 
     async def send_optimize_job(self, trajectory: czf_pb2.Trajectory):
-        job = czf_pb2.Job(
-            procedure=[czf_pb2.Job.Operation.ALPHAZERO_OPTIMIZE],
-            step=0,
-            workers=[czf_pb2.Node()],
-            payload=czf_pb2.Job.Payload(
-                trajectory=trajectory
-            )
-        )
+        job = czf_pb2.Job(procedure=[czf_pb2.Job.Operation.ALPHAZERO_OPTIMIZE],
+                          step=0,
+                          workers=[czf_pb2.Node()],
+                          payload=czf_pb2.Job.Payload(trajectory=trajectory))
         await self.send_job(job)
-
-
-async def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-b', '--broker', type=str, required=True)
-    parser.add_argument('-g', '--game', type=str, required=True)
-    parser.add_argument('-n', '--num-env', type=int, required=True)
-    parser.add_argument('--suffix', type=str, default=uuid4().hex)
-    args = parser.parse_args()
-
-    game_server = GameServer(args)
-    await game_server.loop()
-
-
-if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        zmq.asyncio.Context.instance().destroy()
-        print('\rterminated by ctrl-c')

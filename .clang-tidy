@@ -1,0 +1,16 @@
+Checks: >
+    bugprone-*
+    clang-analyzer-*,
+    cppcoreguidelines-*,
+    google-*,
+    hicpp-*,
+    misc-*,
+    modernize-*,
+    performance-*,
+    readability-*,
+    -cppcoreguidelines-pro-bounds-constant-array-index,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -cppcoreguidelines-pro-type-member-init,
+    -hicpp-member-init,
+    -modernize-use-trailing-return-type,
+    -readability-magic-numbers

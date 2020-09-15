@@ -1,4 +1,7 @@
 .vscode/
+__pycache__
 build/
-bin/
-**/__pycache__/
+dist/
+wheel/
+wheelhouse/
+*.egg-info/

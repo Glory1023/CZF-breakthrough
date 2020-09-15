@@ -1,0 +1,6 @@
+[MESSAGES CONTROL]
+disable=
+    too-few-public-methods
+
+[TYPECHECK]
+generated-members=LINGER,ROUTER,DEALER,IDENTITY

@@ -1,11 +1,9 @@
-#! /usr/bin/env python3
-from struct import pack
+'''CZF Broker'''
+import asyncio
+from collections import defaultdict
 import time
 import zmq
-import asyncio
 import zmq.asyncio
-import argparse
-from collections import defaultdict
 
 from czf.pb import czf_pb2
 
@@ -58,19 +56,3 @@ class Broker:
             except asyncio.exceptions.TimeoutError:
                 break
         await self.socket.send_multipart([worker, packet.SerializeToString()])
-
-
-async def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--listen', type=int, required=True)
-    args = parser.parse_args()
-    broker = Broker(args)
-    await broker.loop()
-
-
-if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        zmq.asyncio.Context.instance().destroy()
-        print('\rterminated by ctrl-c')
