@@ -22,4 +22,4 @@ void WorkerManager::terminate() {
   threads_.clear();
 }
 
-} // namespace czf::workers
+}  // namespace czf::workers

@@ -44,6 +44,8 @@ class CMakeBuild(build_ext):
 
         cmake_args += ['-DCMAKE_BUILD_TYPE=' + cfg]
         build_args += ['--', '-j']
+        if self.parallel:
+            build_args.append(str(self.parallel))
 
         env = os.environ.copy()
         env['CXXFLAGS'] = '{} -DVERSION_INFO=\\"{}\\"'.format(

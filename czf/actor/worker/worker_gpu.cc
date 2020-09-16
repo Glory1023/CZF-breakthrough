@@ -14,4 +14,4 @@ void WorkerGPU::run() {
   }
 }
 
-} // namespace czf::workers
+}  // namespace czf::workers

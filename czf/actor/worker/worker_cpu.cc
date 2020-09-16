@@ -14,4 +14,4 @@ void WorkerCPU::run() {
   }
 }
 
-} // namespace czf::workers
+}  // namespace czf::workers

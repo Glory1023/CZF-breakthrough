@@ -3,7 +3,7 @@
 ## Install
 
 ```shell
-pip install ./czf
+pip install .
 ```
 
 ## Examples
@@ -21,3 +21,10 @@ czf-game-server -b 127.0.0.1:5566 -g tic_tac_toe -n 1
 ## Development
 
 - protoc 3.12.4
+
+```shell
+python setup.py build -g
+```
+
+- Format: `cmake --build $BUILD_DIR --target clangformat`
+- Test: `cmake --build $BUILD_DIR --target test`
