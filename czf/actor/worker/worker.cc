@@ -11,6 +11,7 @@ void WorkerManager::run() {
     threads_.emplace_back([this, worker] { worker->run(); });
   }
 }
+
 void WorkerManager::terminate() {
   for (auto &worker : workers_) {
     worker->terminate();
