@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 from setuptools import Extension, find_packages, setup
-from setuptools.command.build_ext import build_ext
+from setuptools.command.build_ext import build_ext as _build_ext
 
 
 class CMakeExtension(Extension):
@@ -14,7 +14,7 @@ class CMakeExtension(Extension):
         self.sourcedir = os.path.abspath(sourcedir)
 
 
-class CMakeBuild(build_ext):
+class CMakeBuild(_build_ext):
     '''CMake build extensions'''
     def run(self):
         try:
@@ -60,6 +60,26 @@ class CMakeBuild(build_ext):
             cwd=self.build_temp)
 
 
+class CMakeTestTarget(CMakeBuild):
+    '''CMake test target'''
+    def __init__(self, dist):
+        super().__init__(dist)
+        self.debug = True
+
+    def build_extension(self, ext):
+        super().build_extension(ext)
+        subprocess.check_call(['cmake', '--build', '.', '--target', 'test'],
+                              cwd=self.build_temp)
+
+
+class CMakeFormatTarget(CMakeBuild):
+    '''CMake format target'''
+    def build_extension(self, ext):
+        subprocess.check_call(
+            ['cmake', '--build', '.', '--target', 'clangformat'],
+            cwd=self.build_temp)
+
+
 with open('README.md') as fd:
     setup(
         name='czf',
@@ -71,7 +91,13 @@ with open('README.md') as fd:
         long_description_content_type='text/markdown',
         license='BSD-3-Clause',
         ext_modules=[CMakeExtension('czf_env')],
-        cmdclass=dict(build_ext=CMakeBuild),
+        cmdclass={
+            'build_ext': CMakeBuild,
+            'tests': CMakeTestTarget,
+            'format': CMakeFormatTarget,
+        },
+        test_suite='tests.test_module',
+        tests_require=['pytest'],
         zip_safe=False,
         install_requires=[
             'czf-env @ git+https://github.com/yhchen0906/czf_env'

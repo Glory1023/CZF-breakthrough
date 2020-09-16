@@ -26,5 +26,5 @@ czf-game-server -b 127.0.0.1:5566 -g tic_tac_toe -n 1
 python setup.py build -g
 ```
 
-- Format: `cmake --build $BUILD_DIR --target clangformat`
-- Test: `cmake --build $BUILD_DIR --target test`
+- Format: `python setup.py format`
+- Test: `python setup.py tests`
