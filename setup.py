@@ -80,6 +80,13 @@ class CMakeFormatTarget(CMakeBuild):
             cwd=self.build_temp)
 
 
+class CMakeProtoTarget(CMakeBuild):
+    '''CMake proto target'''
+    def build_extension(self, ext):
+        subprocess.check_call(['cmake', '--build', '.', '--target', 'proto'],
+                              cwd=self.build_temp)
+
+
 with open('README.md') as fd:
     setup(
         name='czf',
@@ -95,6 +102,7 @@ with open('README.md') as fd:
             'build_ext': CMakeBuild,
             'tests': CMakeTestTarget,
             'format': CMakeFormatTarget,
+            'proto': CMakeProtoTarget,
         },
         test_suite='tests.test_module',
         tests_require=['pytest'],
