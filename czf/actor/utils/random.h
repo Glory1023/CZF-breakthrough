@@ -2,9 +2,9 @@
 #include <limits>
 #include <random>
 
-namespace Utils::Random {
+namespace czf::actor::utils::random {
 class Splitmix {
-public:
+ public:
   using result_type = uint64_t;
   using seed_type = uint64_t;
   static constexpr seed_type default_seed = 1u;
@@ -42,12 +42,12 @@ public:
     return lhs.m_seed != rhs.m_seed;
   }
 
-private:
+ private:
   seed_type m_seed = default_seed;
 };
 
 class Xorshift {
-public:
+ public:
   using result_type = uint32_t;
   using seed_type = uint64_t;
   static constexpr seed_type default_seed = 0xc1f651c67c62c6e0ull;
@@ -86,7 +86,7 @@ public:
     return lhs.m_seed != rhs.m_seed;
   }
 
-private:
+ private:
   seed_type m_seed = default_seed;
 };
-} // namespace Utils::Random
+}  // namespace czf::actor::utils::random

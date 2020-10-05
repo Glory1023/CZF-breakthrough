@@ -5,9 +5,10 @@ from uuid import uuid4
 import zmq
 
 from czf.actor.actor import Actor
+from czf.actor import worker
 
 
-async def main():
+async def main(manager):
     '''czf.actor main program'''
     parser = argparse.ArgumentParser(__package__, description=__doc__)
     parser.add_argument('-g',
@@ -27,14 +28,21 @@ async def main():
                         default=uuid4().hex)
     args = parser.parse_args()
 
-    actor = Actor(args)
+    actor = Actor(args, manager)
     await actor.loop()
 
 
 def run_main():
     '''Run main program in asyncio'''
+    num_cpu_workers, num_gpu_workers = 1, 1
+    manager = worker.WorkerManager()
+    for _ in range(num_cpu_workers):
+        manager.register_worker(worker.WorkerCPU())
+    for _ in range(num_gpu_workers):
+        manager.register_worker(worker.WorkerGPU())
+    manager.run()
     try:
-        asyncio.run(main())
+        asyncio.run(main(manager))
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
         print('\rterminated by ctrl-c')

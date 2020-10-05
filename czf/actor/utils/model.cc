@@ -1,10 +1,10 @@
-#include "model.hpp"
+#include "utils/model.h"
 
 #include <torch/cuda.h>
 #include <torch/script.h>
 #include <torch/utils.h>
 
-namespace Mcts {
+namespace czf::actor::mcts {
 
 size_t Model::get_cuda_device_count() { return torch::cuda::device_count(); }
 
@@ -20,8 +20,8 @@ void Model::load(const std::string &filename, size_t device_id) {
 
 void Model::resize_batch(size_t batch_size) {
   const auto bsize = static_cast<long>(batch_size);
-  state_ = torch::empty({bsize, 1, 1});
-  action_ = torch::empty({bsize, 1});
+  state_ = torch::empty({bsize, 1, 1});  // NOLINT
+  action_ = torch::empty({bsize, 1});    // NOLINT
   output_.resize(batch_size);
 }
 
@@ -59,4 +59,4 @@ ForwardResult Model::get_result(size_t batch_index) const {
   return output_[batch_index];
 }
 
-}  // namespace Mcts
+}  // namespace czf::actor::mcts

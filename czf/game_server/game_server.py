@@ -30,7 +30,12 @@ class EnvManager:
             step=0,
             workers=self.workers,
             payload=czf_pb2.Job.Payload(
-                state=czf_pb2.State(serialize=self.state.serialize()),
+                state=czf_pb2.State(
+                    serialize=self.state.serialize(),
+                    legal_actions=self.state.legal_actions,
+                    observation_tensor=self.state.observation_tensor,
+                    observation_tensor_shape=self.server.game.
+                    observation_tensor_shape),
                 env_index=self.server.envs.index(self)))
         await self.server.send_job(job)
 

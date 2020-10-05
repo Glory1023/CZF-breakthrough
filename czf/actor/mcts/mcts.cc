@@ -1,10 +1,10 @@
-#include "mcts.hpp"
+#include "mcts/mcts.h"
 
 #include <memory>
 
-#include "config.hpp"
+#include "utils/config.h"
 
-namespace Mcts {
+namespace czf::actor::mcts {
 
 void TreeInfo::update(float value) {
   min_value = std::min(value, min_value);
@@ -12,7 +12,8 @@ void TreeInfo::update(float value) {
 }
 
 float MctsInfo::get_normalized_value(const TreeInfo &tree_info) const {
-  const auto &maxv = tree_info.max_value, &minv = tree_info.min_value;
+  const auto &maxv = tree_info.max_value;
+  const auto &minv = tree_info.min_value;
   return (maxv > minv) ? value : (value - minv) / (maxv - minv);
 }
 
@@ -28,8 +29,8 @@ float MctsInfo::update(float z) {
 bool NodeInfo::has_children() const { return children != nullptr; }
 
 void NodeInfo::expand() {
-  // TODO: legal actions
-  children = std::make_unique<std::list<Node>>();
+  // TODO(chengscott): legal actions
+  children = std::make_unique<std::vector<Node>>();
   children->resize(GameOption::ActionDim);
 }
 
@@ -42,7 +43,7 @@ float Node::get_value() const { return mcts_info_.value; }
 const ForwardInfo &Node::get_forward_info() const { return forward_info_; }
 
 Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) const {
-  float selected_score = -2.f;
+  float selected_score = -2.F;
   size_t selected_count = 1;
   Node *selected_child = nullptr;
   for (auto &child : *node_info_.children) {
@@ -50,7 +51,8 @@ Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) const {
     float score = child.mcts_info_.get_normalized_value(tree_info) +
                   MctsOption::C_PUCT *
                       mcts_info_.policy[child.node_info_.action] *
-                      mcts_info_.sqrt_visits / (1 + child.mcts_info_.visits);
+                      mcts_info_.sqrt_visits /
+                      static_cast<float>(1 + child.mcts_info_.visits);
     // argmax
     if (score > (selected_score - BuildOption::FloatEps)) {
       if (score > (selected_score + BuildOption::FloatEps)) {
@@ -72,6 +74,14 @@ Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) const {
 
 void Node::expand_children() { node_info_.expand(); }
 
+void Node::expand_dirichlet(PRNG &rng) {
+  // only add dirichlet noise to first-visit root children
+  auto *parent = node_info_.parent;
+  if (parent != nullptr && parent->node_info_.parent == nullptr) {
+    parent->add_dirichlet_noise(rng);
+  }
+}
+
 void Node::set_forward_result(ForwardResult &result) {
   // r, s = g(s', a)
   forward_info_.state = result.state;
@@ -83,9 +93,25 @@ void Node::set_forward_result(ForwardResult &result) {
 
 float Node::update(float z) { return mcts_info_.update(z); }
 
+void Node::add_dirichlet_noise(PRNG &rng) {
+  size_t size = node_info_.children_size;
+  float noise[4];
+  std::gamma_distribution<float> gamma(MctsOption::DirichletParam);
+  float sum = 0.F;
+  for (size_t i = 0; i < size; ++i) {
+    noise[i] = gamma(rng);
+    sum += noise[i];
+  }
+  const constexpr auto eps = MctsOption::DirichletEpsilon;
+  for (size_t i = 0; i < size; ++i) {
+    mcts_info_.policy[i] =
+        (1 - eps) * mcts_info_.policy[i] + eps * (noise[i] / sum);
+  }
+}
+
 const ForwardInfo &Tree::before_forward(PRNG &rng) {
   // selection
-  auto node = &tree_;
+  auto *node = &tree_;
   while (node->has_children()) {
     node = node->select_child(tree_info_, rng);
   }
@@ -95,7 +121,7 @@ const ForwardInfo &Tree::before_forward(PRNG &rng) {
 
 void Tree::after_forward(ForwardResult result, PRNG &rng) {
   // expansion
-  auto node = current_node_;
+  auto *node = current_node_;
   node->set_forward_result(result);
   node->expand_children();
   node->expand_dirichlet(rng);
@@ -126,4 +152,4 @@ void TreeManager::run() {
     tree.after_forward(model.get_result(i), rng_);
   }
 }
-}  // namespace Mcts
+}  // namespace czf::actor::mcts

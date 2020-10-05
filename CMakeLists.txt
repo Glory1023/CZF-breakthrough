@@ -24,7 +24,8 @@ message(STATUS "ENABLE_CLANG_FORMAT: ${ENABLE_CLANG_FORMAT}")
 
 # clang-tidy
 if(ENABLE_CLANG_TIDY)
-  set(CMAKE_CXX_CLANG_TIDY "clang-tidy" "-config=")
+  set(CMAKE_CXX_CLANG_TIDY "clang-tidy" "-config=" "-extra-arg"
+                           "-fsized-deallocation")
 endif()
 
 # Test
@@ -38,7 +39,8 @@ endif()
 if(NOT COMMAND pybind11_add_module)
   add_subdirectory(third_party/pybind11)
 endif()
-include_directories(third_party/czf_env)
+include_directories(SYSTEM third_party/czf_env)
+include_directories(SYSTEM third_party/concurrentqueue)
 add_subdirectory(czf)
 
 # clang-format

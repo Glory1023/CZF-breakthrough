@@ -1,20 +1,25 @@
 #pragma once
-#include "config.hpp"
-#include "model.hpp"
-#include "random.hpp"
+#include <pybind11/pybind11.h>
+
 #include <array>
 #include <list>
 #include <memory>
 
-namespace Mcts {
-using PRNG = ::Utils::Random::Xorshift;
+#include "utils/config.h"
+#include "utils/model.h"
+#include "utils/random.h"
+
+namespace czf::actor::mcts {
+namespace py = ::pybind11;
+using PRNG = czf::actor::utils::random::Xorshift;
+using Action_t = int32_t;
 
 struct PolicyResult {
   size_t total_visits = 0u;
   std::array<size_t, GameOption::ActionDim> visits;
 
-  size_t get_best_move() const;
-  size_t get_softmax_move(PRNG &rng) const;
+  Action_t get_best_move() const;
+  Action_t get_softmax_move(PRNG &rng) const;
 };
 
 struct TreeInfo {
@@ -37,30 +42,35 @@ struct MctsInfo {
 class Node;
 
 struct NodeInfo {
-  size_t action;
+  Action_t action;
   Node *parent = nullptr;
-  std::unique_ptr<std::list<Node>> children = nullptr;
-  std::vector<size_t> legal_actions;
+  std::unique_ptr<std::vector<Node>> children = nullptr;
+  size_t children_size;
+  std::vector<Action_t> legal_actions;
 
   bool has_children() const;
   void expand();
 };
 
 class Node {
-public:
+ public:
   bool has_children() const;
   Node *get_parent() const;
   float get_value() const;
   const ForwardInfo &get_forward_info() const;
+  void construct_root(State obeservation, std::vector<Action_t> legal_actions) {
+    forward_info_.state = std::move(obeservation);
+    node_info_.legal_actions = std::move(legal_actions);
+  }
 
-public:
+ public:
   Node *select_child(const TreeInfo &, PRNG &) const;
   void expand_children();
   void expand_dirichlet(PRNG &);
   void set_forward_result(ForwardResult &);
   float update(float);
 
-private:
+ private:
   void add_dirichlet_noise(PRNG &);
 
   ForwardInfo forward_info_;
@@ -69,24 +79,32 @@ private:
 };
 
 class Tree {
-public:
+ public:
+  void construct_root(py::object job, State obeservation,
+                      std::vector<Action_t> legal_actions) {
+    job_ = std::move(job);
+    tree_.construct_root(std::move(obeservation), std::move(legal_actions));
+  }
+
+ public:
   const ForwardInfo &before_forward(PRNG &);
   void after_forward(ForwardResult, PRNG &);
 
-private:
+ private:
+  py::object job_;
   Node tree_, *current_node_;
   TreeInfo tree_info_;
 };
 
 class TreeManager {
-public:
+ public:
   void resize_batch();
   void run();
 
-private:
+ private:
   std::vector<Model> models_;
   std::vector<Tree> trees_;
   PRNG rng_;
 };
 
-} // namespace Mcts
+}  // namespace czf::actor::mcts

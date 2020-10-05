@@ -1,10 +1,12 @@
 #pragma once
-#include "config.hpp"
-#include <array>
 #include <torch/script.h>
+
+#include <array>
 #include <vector>
 
-namespace Mcts {
+#include "utils/config.h"
+
+namespace czf::actor::mcts {
 using State = torch::Tensor;
 
 struct ForwardInfo {
@@ -19,7 +21,7 @@ struct ForwardResult {
 };
 
 class Model {
-public:
+ public:
   static size_t get_cuda_device_count();
 
   void load(const std::string &, size_t);
@@ -32,10 +34,10 @@ public:
 
   ForwardResult get_result(size_t) const;
 
-private:
+ private:
   size_t device_id_;
   torch::jit::script::Module model_;
   torch::Tensor state_, action_;
   std::vector<ForwardResult> output_;
 };
-} // namespace Mcts
+}  // namespace czf::actor::mcts

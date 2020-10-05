@@ -1,5 +1,7 @@
 '''CZF Actor'''
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import numpy as np
 import platform
 import random
 import czf_env
@@ -10,7 +12,9 @@ from czf.pb import czf_pb2
 
 
 class Actor:
-    def __init__(self, args):
+    def __init__(self, args, manager):
+        self.manager = manager
+        self.executor = ThreadPoolExecutor(max_workers=1)
         self.jobs = asyncio.Queue()
         self.game = czf_env.load_game(args.game)
         self.node = czf_pb2.Node(hostname=platform.node(),
@@ -27,7 +31,8 @@ class Actor:
         asyncio.create_task(self.send_job_request())
 
     async def loop(self):
-        await asyncio.gather(self.recv_loop(), self.search_loop())
+        await asyncio.gather(self.recv_loop(), self.enqueue_loop(),
+                             self.dequeue_loop())
 
     async def recv_loop(self):
         while True:
@@ -38,18 +43,24 @@ class Actor:
             if packet_type == 'job_response':
                 asyncio.create_task(self.on_job_response(packet.job_response))
 
-    async def search_loop(self):
+    async def enqueue_loop(self):
+        loop = asyncio.get_event_loop()
         while True:
             job = await self.jobs.get()
             job.workers[job.step].CopyFrom(self.node)
             job.step += 1
-            policy = job.payload.state.evaluation.policy
-            policy[:] = [
-                random.random() for _ in range(self.game.num_distinct_actions)
-            ]
-            policy_sum = sum(policy)
-            for i in range(len(policy)):
-                policy[i] /= policy_sum
+            state = job.payload.state
+            self.manager.enqueue_job(job, np.array(state.observation_tensor),
+                                     np.array(state.observation_tensor_shape),
+                                     np.array(state.legal_actions))
+
+    async def dequeue_loop(self):
+        loop = asyncio.get_event_loop()
+        while True:
+            job = await loop.run_in_executor(self.executor,
+                                             self.manager.wait_dequeue_result)
+            print(job)
+            # job.payload.state.evaluation.policy = policy
             await self.send_packet(czf_pb2.Packet(job=job))
 
     async def on_job_response(self, job_response: czf_pb2.JobResponse) -> None:
