@@ -3,4 +3,5 @@ disable=
     too-few-public-methods
 
 [TYPECHECK]
+ignored-modules=czf_env
 generated-members=LINGER,ROUTER,DEALER,IDENTITY

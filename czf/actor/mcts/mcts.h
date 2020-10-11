@@ -1,6 +1,4 @@
 #pragma once
-#include <pybind11/pybind11.h>
-
 #include <array>
 #include <list>
 #include <memory>
@@ -10,7 +8,7 @@
 #include "utils/random.h"
 
 namespace czf::actor::mcts {
-namespace py = ::pybind11;
+
 using PRNG = czf::actor::utils::random::Xorshift;
 using Action_t = int32_t;
 
@@ -58,10 +56,9 @@ class Node {
   Node *get_parent() const;
   float get_value() const;
   const ForwardInfo &get_forward_info() const;
-  void construct_root(State obeservation, std::vector<Action_t> legal_actions) {
-    forward_info_.state = std::move(obeservation);
-    node_info_.legal_actions = std::move(legal_actions);
-  }
+
+ public:
+  void construct_root(State, std::vector<Action_t>);
 
  public:
   Node *select_child(const TreeInfo &, PRNG &) const;
@@ -80,31 +77,17 @@ class Node {
 
 class Tree {
  public:
-  void construct_root(py::object job, State obeservation,
-                      std::vector<Action_t> legal_actions) {
-    job_ = std::move(job);
-    tree_.construct_root(std::move(obeservation), std::move(legal_actions));
-  }
+  void before_forward(PRNG &);
+  void after_forward(PRNG &);
 
  public:
-  const ForwardInfo &before_forward(PRNG &);
-  void after_forward(ForwardResult, PRNG &);
+  void construct_root(State, std::vector<Action_t>);
+  const ForwardInfo &get_forward_info() const;
+  void set_forward_result(ForwardResult &);
 
  private:
-  py::object job_;
   Node tree_, *current_node_;
   TreeInfo tree_info_;
-};
-
-class TreeManager {
- public:
-  void resize_batch();
-  void run();
-
- private:
-  std::vector<Model> models_;
-  std::vector<Tree> trees_;
-  PRNG rng_;
 };
 
 }  // namespace czf::actor::mcts

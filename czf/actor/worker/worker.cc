@@ -1,12 +1,47 @@
 #include "worker.h"
 
+#include <iostream>
+
 namespace czf::actor::worker {
 
-void WorkerManager::register_worker(std::shared_ptr<Worker> worker) {
-  workers_.push_back(std::move(worker));
+void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker) {
+  if (!running_) {
+    running_ = true;
+    SeedPRNG rng{1};
+    for (size_t i = 0; i < num_cpu_worker; ++i) {
+      Seed_t seed = rng();
+      cpu_threads_.emplace_back([this, i, seed] { worker_cpu(i, seed); });
+    }
+    mcts::Model::prepare_nvrtc();
+    for (size_t i = 0; i < num_gpu_worker; ++i) {
+      Seed_t seed = rng();
+      gpu_threads_.emplace_back([this, i, seed] { worker_gpu(i, seed); });
+    }
+  }
 }
 
-void WorkerManager::enqueue_job(py::object job, py::buffer obs_buffer,
+void WorkerManager::terminate() {
+  if (running_) {
+    running_ = false;
+    // enqueue terminate job
+    for (const auto &thread : cpu_threads_) {
+      cpu_queue_.enqueue(Job{});
+    }
+    for (const auto &thread : gpu_threads_) {
+      gpu_queue_.enqueue(Job{});
+    }
+    result_queue_.enqueue(Job{});
+    // join threads
+    for (auto &thread : cpu_threads_) {
+      thread.join();
+    }
+    for (auto &thread : gpu_threads_) {
+      thread.join();
+    }
+  }
+}
+
+void WorkerManager::enqueue_job(py::object pyjob, py::buffer obs_buffer,
                                 py::buffer obs_shape_buffer,
                                 py::buffer legal_actions_buffer) {
   // observation
@@ -26,32 +61,47 @@ void WorkerManager::enqueue_job(py::object job, py::buffer obs_buffer,
   std::vector<int32_t> legal_actions{
       legal_actions_data, legal_actions_data + legal_actions_info.size};
 
-  mcts::Tree tree;
-  tree.construct_root(std::move(job), input, legal_actions);
-  cpu_queue_.enqueue(std::move(tree));
+  Job job{Job::Step::SELECT, {}, std::move(pyjob)};
+  job.tree.construct_root(input, legal_actions);
+  cpu_queue_.enqueue(std::move(job));
 }
 
 py::tuple WorkerManager::wait_dequeue_result() {
-  mcts::MctsInfo info;
-  result_queue_.wait_dequeue(info);
-  return py::make_tuple(info.policy, info.visits);
+  Job job;
+  result_queue_.wait_dequeue(job);
+  // const mcts::MctsInfo & info = job.tree.
+  // return py::make_tuple(info.policy, info.visits);
+  return py::make_tuple(0, 1);
 }
 
-void WorkerManager::run() {
-  for (auto &worker : workers_) {
-    threads_.emplace_back([this, worker] { worker->run(); });
+void WorkerManager::load_model(const std::string &path) {
+  std::cerr << "Load model from " << path << std::endl;
+}
+
+void WorkerManager::worker_cpu(size_t, Seed_t seed) {
+  PRNG rng{seed};
+  while (running_) {
+    Job job;
+    cpu_queue_.wait_dequeue(job);
+    if (job.next_step == Job::Step::TERMINATE) {
+      return;
+    }
+    if (job.next_step == Job::Step::SELECT) {
+      job.tree.before_forward(rng);
+    } else if (job.next_step == Job::Step::UPDATE) {
+      job.tree.after_forward(rng);
+    }
+    if (job.next_step == Job::Step::DONE) {
+      result_queue_.enqueue(std::move(job));
+    } else if (job.next_step == Job::Step::EVALUATE) {
+      gpu_queue_.enqueue(std::move(job));
+    }
   }
 }
 
-void WorkerManager::terminate() {
-  for (auto &worker : workers_) {
-    worker->terminate();
-  }
-  for (auto &thread : threads_) {
-    thread.join();
-  }
-  workers_.clear();
-  threads_.clear();
+void WorkerManager::worker_gpu(size_t index, Seed_t seed) {
+  ;
+  ;
 }
 
 }  // namespace czf::actor::worker

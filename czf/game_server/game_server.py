@@ -26,7 +26,7 @@ class EnvManager:
     async def send_search_job_request(self):
         job = czf_pb2.Job(
             model=self.model,
-            procedure=[czf_pb2.Job.Operation.ALPHAZERO_SEARCH],
+            procedure=[czf_pb2.Job.Operation.MUZERO_SEARCH],
             step=0,
             workers=self.workers,
             payload=czf_pb2.Job.Payload(
@@ -105,7 +105,7 @@ class GameServer:
         await self.send_packet(packet)
 
     async def send_optimize_job(self, trajectory: czf_pb2.Trajectory):
-        job = czf_pb2.Job(procedure=[czf_pb2.Job.Operation.ALPHAZERO_OPTIMIZE],
+        job = czf_pb2.Job(procedure=[czf_pb2.Job.Operation.MUZERO_OPTIMIZE],
                           step=0,
                           workers=[czf_pb2.Node()],
                           payload=czf_pb2.Job.Payload(trajectory=trajectory))

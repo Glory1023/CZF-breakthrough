@@ -1,25 +1,29 @@
 #include "utils/model.h"
 
+// #include <nvrtc.h>
 #include <torch/cuda.h>
 #include <torch/script.h>
 #include <torch/utils.h>
 
 namespace czf::actor::mcts {
 
-size_t Model::get_cuda_device_count() { return torch::cuda::device_count(); }
+void Model::prepare_nvrtc() {
+  /*nvrtcProgram prog;
+  nvrtcCreateProgram(&prog, " ", "dddddd", 0, nullptr, nullptr);
+  nvrtcDestroyProgram(&prog);*/
+}
 
 void Model::load(const std::string &filename, size_t device_id) {
   torch::init_num_threads();
   torch::set_num_threads(BuildOption::TorchNumIntraThread);
   torch::set_num_interop_threads(BuildOption::TorchNumInterThread);
-  // prepare_nvrtc();
   device_id_ = device_id;
   model_ = torch::jit::load(filename, torch::Device(torch::kCUDA, device_id));
   std::cerr << "> Load model on CUDA#" << device_id << std::endl;
 }
 
 void Model::resize_batch(size_t batch_size) {
-  const auto bsize = static_cast<long>(batch_size);
+  const auto bsize = static_cast<int64_t>(batch_size);
   state_ = torch::empty({bsize, 1, 1});  // NOLINT
   action_ = torch::empty({bsize, 1});    // NOLINT
   output_.resize(batch_size);

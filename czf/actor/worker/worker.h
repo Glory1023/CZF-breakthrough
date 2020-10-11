@@ -3,55 +3,54 @@
 #include <pybind11/pybind11.h>
 
 #include <atomic>
-#include <memory>
 #include <thread>
 #include <vector>
 
 #include "mcts/mcts.h"
 #include "utils/config.h"
+#include "utils/model.h"
+#include "utils/random.h"
 
 namespace czf::actor::worker {
 
 namespace py = ::pybind11;
 namespace mcts = ::czf::actor::mcts;
-using JobQueue = moodycamel::BlockingConcurrentQueue<mcts::Tree>;
-using ResultQueue = moodycamel::BlockingConcurrentQueue<mcts::MctsInfo>;
 
-class Worker {
- public:
-  virtual ~Worker(){};
-  virtual void run() = 0;
-  virtual void terminate() { running_ = false; };
-
- protected:
-  std::atomic_bool running_{true};
+struct Job {
+  enum class Step {
+    TERMINATE,
+    SELECT,
+    EVALUATE_ROOT,
+    EVALUATE,
+    UPDATE,
+    DONE
+  } next_step;
+  mcts::Tree tree;
+  py::object job;
 };
+
+using JobQueue = moodycamel::BlockingConcurrentQueue<Job>;
+using PRNG = ::czf::actor::utils::random::Xorshift;
+using SeedPRNG = ::czf::actor::utils::random::Splitmix;
+using Seed_t = PRNG::seed_type;
 
 class WorkerManager {
  public:
-  WorkerManager() = default;
-  ~WorkerManager() { terminate(); }
-  void register_worker(std::shared_ptr<Worker>);
+  void run(size_t, size_t);
+  void terminate();
   void enqueue_job(py::object, py::buffer, py::buffer, py::buffer);
   py::tuple wait_dequeue_result();
-  void run();
-  void terminate();
+  void load_model(const std::string&);
 
  private:
-  std::vector<std::shared_ptr<Worker>> workers_;
-  std::vector<std::thread> threads_;
-  JobQueue cpu_queue_, gpu_queue_;
-  ResultQueue result_queue_;
-};
+  void worker_cpu(size_t, Seed_t);
+  void worker_gpu(size_t, Seed_t);
 
-class WorkerCPU final : public Worker {
- public:
-  void run() override;
-};
-
-class WorkerGPU final : public Worker {
- public:
-  void run() override;
+ private:
+  std::atomic_bool running_{false};
+  std::vector<std::thread> cpu_threads_, gpu_threads_;
+  std::vector<mcts::Model> model_;
+  JobQueue cpu_queue_, gpu_queue_, result_queue_;
 };
 
 }  // namespace czf::actor::worker

@@ -42,6 +42,12 @@ float Node::get_value() const { return mcts_info_.value; }
 
 const ForwardInfo &Node::get_forward_info() const { return forward_info_; }
 
+void Node::construct_root(State obeservation,
+                          std::vector<Action_t> legal_actions) {
+  forward_info_.state = std::move(obeservation);
+  node_info_.legal_actions = std::move(legal_actions);
+}
+
 Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) const {
   float selected_score = -2.F;
   size_t selected_count = 1;
@@ -109,20 +115,18 @@ void Node::add_dirichlet_noise(PRNG &rng) {
   }
 }
 
-const ForwardInfo &Tree::before_forward(PRNG &rng) {
+void Tree::before_forward(PRNG &rng) {
   // selection
   auto *node = &tree_;
   while (node->has_children()) {
     node = node->select_child(tree_info_, rng);
   }
   current_node_ = node;
-  return node->get_forward_info();
 }
 
-void Tree::after_forward(ForwardResult result, PRNG &rng) {
+void Tree::after_forward(PRNG &rng) {
   // expansion
   auto *node = current_node_;
-  node->set_forward_result(result);
   node->expand_children();
   node->expand_dirichlet(rng);
   // update
@@ -134,6 +138,20 @@ void Tree::after_forward(ForwardResult result, PRNG &rng) {
   } while (node != nullptr);
 }
 
+void Tree::construct_root(State obeservation,
+                          std::vector<Action_t> legal_actions) {
+  tree_.construct_root(std::move(obeservation), std::move(legal_actions));
+}
+
+const ForwardInfo &Tree::get_forward_info() const {
+  return current_node_->get_forward_info();
+}
+
+void Tree::set_forward_result(ForwardResult &result) {
+  current_node_->set_forward_result(result);
+}
+
+/*
 void TreeManager::run() {
   const auto batch_size = trees_.size();
   const auto num_device = models_.size();
@@ -151,5 +169,6 @@ void TreeManager::run() {
     auto &model = models_[i % num_device];
     tree.after_forward(model.get_result(i), rng_);
   }
-}
+}*/
+
 }  // namespace czf::actor::mcts

@@ -22,7 +22,7 @@ struct ForwardResult {
 
 class Model {
  public:
-  static size_t get_cuda_device_count();
+  static void prepare_nvrtc();
 
   void load(const std::string &, size_t);
 
@@ -40,4 +40,5 @@ class Model {
   torch::Tensor state_, action_;
   std::vector<ForwardResult> output_;
 };
+
 }  // namespace czf::actor::mcts

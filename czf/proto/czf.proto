@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package czf.pb;
+
 message Node {
   string hostname = 1;
   string identity = 2;
@@ -43,9 +45,8 @@ message Job {
     UNKNOWN = 0;
     ALPHAZERO_SEARCH = 1;
     ALPHAZERO_OPTIMIZE = 2;
-    MUZERO_PREPROCESS = 3;
-    MUZERO_SEARCH = 4;
-    MUZERO_OPTIMIZE = 5;
+    MUZERO_SEARCH = 3;
+    MUZERO_OPTIMIZE = 4;
   }
   message Payload {
     State state = 1;

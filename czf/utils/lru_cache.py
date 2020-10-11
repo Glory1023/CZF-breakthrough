@@ -1,7 +1,9 @@
+'''LRU Cache'''
 from collections import OrderedDict
 
 
 class LRUCache(OrderedDict):
+    '''LRU Cache'''
     def __init__(self, *args, capacity: int, **kwargs):
         self.capacity = capacity
         super().__init__(*args, **kwargs)
