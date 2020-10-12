@@ -11,7 +11,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 include_directories(.)
 file(GLOB WORKERS_SRC "worker/*.cc")
 add_library(czf.workers OBJECT ${WORKERS_SRC})
-add_library(czf.mcts OBJECT mcts/mcts.cc utils/model.cc)
+add_library(czf.mcts OBJECT mcts/mcts.cc)
 
 # pybind11 module
 pybind11_add_module(worker module.cc $<TARGET_OBJECTS:czf.workers>

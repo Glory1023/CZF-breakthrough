@@ -4,8 +4,13 @@ game:
   observation_shape: [3, 3, 3]
 
 model:
-  channels: 32
-  blocks: 5
+  # h: representation function
+  h_blocks: 2
+  # g: dynamics function
+  g_blocks: 2
+  # f: prediction function
+  f_channels: 32
+  f_blocks: 2
   # Save a checkpoint every N steps.
   checkpoint_freq: 10
 

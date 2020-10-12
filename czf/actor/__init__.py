@@ -3,6 +3,7 @@ import argparse
 import asyncio
 from uuid import uuid4
 import zmq
+import torch
 
 from czf.actor.actor import Actor
 from czf.actor import worker
@@ -39,8 +40,9 @@ def run_main():
     parser.add_argument('-gpu', '--num_gpu_worker', type=int, default=1)
     args = parser.parse_args()
 
+    num_gpu = torch.cuda.device_count()
     worker_manager = worker.WorkerManager()
-    worker_manager.run(args.num_cpu_worker, args.num_gpu_worker)
+    worker_manager.run(args.num_cpu_worker, args.num_gpu_worker, num_gpu)
     try:
         asyncio.run(main(args, worker_manager))
     except KeyboardInterrupt:

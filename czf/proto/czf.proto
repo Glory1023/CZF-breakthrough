@@ -27,9 +27,8 @@ message State {
   int32 current_player = 2;
   repeated int32 legal_actions = 3;
   repeated float observation_tensor = 4;
-  repeated int64 observation_tensor_shape = 5;
-  Evaluation evaluation = 6;
-  Transition transition = 7;
+  Evaluation evaluation = 5;
+  Transition transition = 6;
 }
 
 message Trajectory {

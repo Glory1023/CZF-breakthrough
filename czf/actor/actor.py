@@ -13,11 +13,8 @@ from czf.pb import czf_pb2
 class Actor:
     '''Actor'''
     def __init__(self, args, worker_manager):
-        self.game = czf_env.load_game(args.game)
-        self.node = czf_pb2.Node(
-            hostname=platform.node(),
-            identity=f'actor-{args.suffix}',
-        )
+        #self.game = czf_env.load_game(args.game)
+        self.num_actons = 9  # TODO
         # job queue
         self.worker_manager = worker_manager
         self.jobs = asyncio.Queue()
@@ -28,6 +25,10 @@ class Actor:
             cache_size=8,
         )
         # connect to broker
+        self.node = czf_pb2.Node(
+            hostname=platform.node(),
+            identity=f'actor-{args.suffix}',
+        )
         self.socket = get_zmq_dealer(
             identity=self.node.identity,
             remote_address=args.broker,
@@ -57,38 +58,43 @@ class Actor:
             job.workers[job.step].CopyFrom(self.node)
             job.step += 1
             state = job.payload.state
+            # TODO: job.model
             self.worker_manager.enqueue_job(
-                job, np.array(state.observation_tensor),
-                np.array(state.observation_tensor_shape),
-                np.array(state.legal_actions))
+                job,
+                np.array(state.observation_tensor, dtype=np.float32),
+                np.array(state.legal_actions, dtype=np.int32),
+            )
 
     async def _dequeue_loop(self):
         '''a loop to dequeue from WorkerManager and send `Job`'''
         executor = ThreadPoolExecutor(max_workers=1)
         loop = asyncio.get_event_loop()
         while True:
-            job = await loop.run_in_executor(
+            job, total_visits, visits = await loop.run_in_executor(
                 executor, self.worker_manager.wait_dequeue_result)
-            print(job)
-            # job.payload.state.evaluation.policy = policy
+            assert (total_visits == sum(visits.values()))
+            policy = [0.] * self.num_actons
+            for action, visit in visits.items():
+                policy[action] = visit
+            job.payload.state.evaluation.policy[:] = policy
             await self.__send_packet(czf_pb2.Packet(job=job))
 
     def __load_model(self, model: czf_pb2.Model):
-        num_blobs = len(model.blobs)
-        tmp_files = [tempfile.NamedTemporaryFile() for _ in range(num_blobs)]
-        for tmp_file, blob in zip(tmp_files, model.blobs):
+        assert (len(model.blobs) == 1)
+        blob = model.blobs[0]
+        with tempfile.NamedTemporaryFile() as tmp_file:
             tmp_file.write(blob)
-        self.worker_manager.load_model([f.name for f in tmp_files])
-        for tmp_file in tmp_files:
-            tmp_file.close()
+            self.worker_manager.load_model(tmp_file.name)
 
     async def __initialize(self):
         '''initialize model and start to send job'''
         # load model
         model_version = await self.model_manager.get_latest_version('default')
+        print('Request Model:', model_version)
         model = await self.model_manager.get(
             czf_pb2.Model(name='default', version=model_version))
         self.__load_model(model)
+        print('Finish Load Model')
         # start to send job
         asyncio.create_task(self.__send_job_request())
 
