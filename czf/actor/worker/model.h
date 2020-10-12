@@ -23,6 +23,7 @@ class ModelManager {
   std::tuple<torch::Device, ModelPtr> get();
 
  private:
+  std::vector<torch::Device> forward_devices_;
   // models_[device][version]
   std::vector<std::array<ModelPtr, 2>> models_;
   std::atomic_int version_switch_{0}, device_switch_{0};

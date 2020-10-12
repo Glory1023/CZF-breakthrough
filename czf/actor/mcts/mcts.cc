@@ -21,11 +21,11 @@ float MctsInfo::get_normalized_value(const TreeInfo &tree_info) const {
   return (maxv >= minv) ? value : (value - minv) / (maxv - minv);
 }
 
-float MctsInfo::update(float z) {
-  // TODO: single / dual player !!!!!!
+float MctsInfo::update(bool same, float z) {
+  const auto w = same ? z : -z;
   ++visits;
   sqrt_visits = std::sqrt(visits);
-  value += (z - value) / visits;
+  value += (w - value) / visits;
   return reward + WorkerManager::mcts_option.discount * z;
 }
 
@@ -36,27 +36,19 @@ bool NodeInfo::can_select_child() const {
 void NodeInfo::expand(const std::vector<Action_t> &legal_actions) {
   has_selected = true;
   const auto size = legal_actions.size();
+  const auto child_player =
+      WorkerManager::game_info.is_two_player ? !is_root_player : is_root_player;
   children.resize(size);
   for (size_t i = 0; i < size; ++i) {
-    children[i].set_action(legal_actions[i]);
+    children[i].set_player_and_action(child_player, legal_actions[i]);
   }
 }
 
+void Node::set_player_and_action(bool player, size_t action) {
+  node_info_.is_root_player = player;
+  forward_info_.action = action;
+}
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
-
-float Node::get_value() const { return mcts_info_.value; }
-
-size_t Node::get_visits() const { return mcts_info_.visits; }
-
-std::unordered_map<Action_t, size_t> Node::get_children_visits() const {
-  std::unordered_map<Action_t, size_t> visits;
-  for (auto &child : node_info_.children) {
-    visits[child.forward_info_.action] = child.mcts_info_.visits;
-  }
-  return visits;
-}
-
-void Node::set_action(size_t action) { forward_info_.action = action; }
 
 Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) {
   float selected_score = -2.F;
@@ -121,10 +113,24 @@ void Node::set_forward_result(ForwardResult result) {
   mcts_info_.reward = result.reward;
   // p, v = f(s)
   mcts_info_.policy = std::move(result.policy);
-  mcts_info_.value = result.value;
+  mcts_info_.forward_value = result.value;
 }
 
-float Node::update(float z) { return mcts_info_.update(z); }
+float Node::get_forward_value() const { return mcts_info_.forward_value; }
+
+float Node::update(float z) {
+  return mcts_info_.update(node_info_.is_root_player, z);
+}
+
+size_t Node::get_visits() const { return mcts_info_.visits; }
+
+std::unordered_map<Action_t, size_t> Node::get_children_visits() const {
+  std::unordered_map<Action_t, size_t> visits;
+  for (auto &child : node_info_.children) {
+    visits[child.forward_info_.action] = child.mcts_info_.visits;
+  }
+  return visits;
+}
 
 void Tree::before_forward(PRNG &rng, const std::vector<Action_t> &all_actions) {
   // selection
@@ -142,7 +148,7 @@ void Tree::before_forward(PRNG &rng, const std::vector<Action_t> &all_actions) {
 
 void Tree::after_forward() {
   // update
-  auto z = current_node_->get_value();
+  auto z = current_node_->get_forward_value();
   tree_info_.update(z);
   const auto end = std::rend(selection_path_);
   for (auto it = std::rbegin(selection_path_); it != end; ++it) {
@@ -157,8 +163,6 @@ void Tree::expand_root(const std::vector<Action_t> &legal_actions) {
 
 void Tree::add_dirichlet_noise(PRNG &rng) { tree_.add_dirichlet_noise(rng); }
 
-size_t Tree::get_root_visits() const { return tree_.get_visits(); }
-
 ForwardInfo Tree::get_forward_input() const {
   Node *parent = selection_path_.size() > 1
                      ? selection_path_[selection_path_.size() - 2]
@@ -169,6 +173,8 @@ ForwardInfo Tree::get_forward_input() const {
 void Tree::set_forward_result(ForwardResult result) {
   current_node_->set_forward_result(std::move(result));
 }
+
+size_t Tree::get_root_visits() const { return tree_.get_visits(); }
 
 TreeResult Tree::get_tree_result() {
   return {tree_.get_visits(), tree_.get_children_visits()};

@@ -13,6 +13,7 @@ struct GameInfo {
   std::vector<int64_t> state_shape;        // internal state shape
   std::vector<int32_t> all_actions;        // all possible actions
   size_t num_actions;                      // number of all possible actions
+  bool is_two_player = true;               // single-player or two-player
 };
 
 struct JobOption {

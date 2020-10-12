@@ -18,8 +18,8 @@ class Optimizer:
             'traced_model_path', 'traced_model')
         trajectory_path = storage_path / config['optimizer'].get(
             'trajectory_path', 'trajectory')
-        for p in (model_path, traced_model_path, trajectory_path):
-            Path(p).mkdir(parents=True, exist_ok=True)
+        for path in (model_path, traced_model_path, trajectory_path):
+            Path(path).mkdir(parents=True, exist_ok=True)
         # model provider
         self.model_peers = set()  # peers to receive the model
         self.model_provider = LocalModelManager(

@@ -2,29 +2,24 @@
 import asyncio
 from collections import defaultdict
 import time
-import zmq
-import zmq.asyncio
 
 from czf.pb import czf_pb2
+from czf.utils import get_zmq_router
 
 
 class Broker:
+    '''Broker'''
     def __init__(self, args):
         # self.jobs[operation]
         self.jobs = defaultdict(asyncio.Queue)
-
-        context = zmq.asyncio.Context.instance()
-        socket = context.socket(zmq.ROUTER)
-        socket.setsockopt(zmq.LINGER, 0)
-        socket.bind(f'tcp://*:{args.listen}')
-        self.socket = socket
+        self.socket = get_zmq_router(listen_port=args.listen)
 
     async def loop(self):
-        await asyncio.gather(
-            self.recv_loop()
-        )
+        '''main loop'''
+        await asyncio.gather(self._recv_loop())
 
-    async def recv_loop(self):
+    async def _recv_loop(self):
+        '''a loop to receive `Job` and `JobRequest`'''
         while True:
             identity, raw = await self.socket.recv_multipart()
             packet = czf_pb2.Packet.FromString(raw)
@@ -33,21 +28,21 @@ class Broker:
             if packet_type == 'job':
                 job = packet.job
                 if job.step == len(job.procedure):
-                    self.socket.send_multipart([job.initiator.identity.encode(), raw])
+                    self.socket.send_multipart(
+                        [job.initiator.identity.encode(), raw])
                 else:
                     operation = job.procedure[job.step]
                     await self.jobs[operation].put(job)
             elif packet_type == 'job_request':
                 job_request = packet.job_request
-                asyncio.create_task(self.dispatch_jobs(identity, job_request))
+                asyncio.create_task(self.__dispatch_jobs(
+                    identity, job_request))
 
-    async def dispatch_jobs(self, worker, job_request, wait_time=0.2):
+    async def __dispatch_jobs(self, worker, job_request, wait_time=0.2):
+        '''helper to send a `JobResponse`'''
         job_queue = self.jobs[job_request.operation]
-        packet = czf_pb2.Packet(
-            job_response=czf_pb2.JobResponse(
-                jobs=[await job_queue.get()]
-            )
-        )
+        packet = czf_pb2.Packet(job_response=czf_pb2.JobResponse(
+            jobs=[await job_queue.get()]))
         deadline = time.time() + wait_time
         while (timeout := deadline - time.time()) > 0:
             try:

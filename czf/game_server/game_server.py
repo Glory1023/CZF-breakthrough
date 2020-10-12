@@ -2,8 +2,6 @@
 import asyncio
 import platform
 import random
-import zmq
-import zmq.asyncio
 import czf_env
 
 from czf.pb import czf_pb2
