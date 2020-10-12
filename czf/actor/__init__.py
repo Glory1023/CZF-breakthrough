@@ -2,8 +2,9 @@
 import argparse
 import asyncio
 from uuid import uuid4
-import zmq
+import czf_env
 import torch
+import zmq
 
 from czf.actor.actor import Actor
 from czf.actor import worker
@@ -40,8 +41,16 @@ def run_main():
     parser.add_argument('-gpu', '--num_gpu_worker', type=int, default=1)
     args = parser.parse_args()
 
-    num_gpu = torch.cuda.device_count()
     worker_manager = worker.WorkerManager()
+    # config
+    game = czf_env.load_game(args.game)
+    worker_manager.game_info.observation_shape = game.observation_tensor_shape
+    worker_manager.game_info.state_shape = game.observation_tensor_shape
+    worker_manager.game_info.num_actions = game.num_distinct_actions
+    worker_manager.game_info.all_actions = list(
+        range(game.num_distinct_actions))
+    # run
+    num_gpu = torch.cuda.device_count()
     worker_manager.run(args.num_cpu_worker, args.num_gpu_worker, num_gpu)
     try:
         asyncio.run(main(args, worker_manager))

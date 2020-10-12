@@ -4,7 +4,6 @@ from concurrent.futures import ThreadPoolExecutor
 import platform
 import tempfile
 import numpy as np
-import czf_env
 
 from czf.utils import get_zmq_dealer, RemoteModelManager
 from czf.pb import czf_pb2
@@ -13,8 +12,6 @@ from czf.pb import czf_pb2
 class Actor:
     '''Actor'''
     def __init__(self, args, worker_manager):
-        #self.game = czf_env.load_game(args.game)
-        self.num_actons = 9  # TODO
         # job queue
         self.worker_manager = worker_manager
         self.jobs = asyncio.Queue()
@@ -72,15 +69,15 @@ class Actor:
         while True:
             job, total_visits, visits = await loop.run_in_executor(
                 executor, self.worker_manager.wait_dequeue_result)
-            assert (total_visits == sum(visits.values()))
-            policy = [0.] * self.num_actons
+            assert total_visits == sum(visits.values())
+            policy = [0.] * self.worker_manager.game_info.num_actions
             for action, visit in visits.items():
                 policy[action] = visit
             job.payload.state.evaluation.policy[:] = policy
             await self.__send_packet(czf_pb2.Packet(job=job))
 
     def __load_model(self, model: czf_pb2.Model):
-        assert (len(model.blobs) == 1)
+        assert len(model.blobs) == 1
         blob = model.blobs[0]
         with tempfile.NamedTemporaryFile() as tmp_file:
             tmp_file.write(blob)

@@ -13,14 +13,6 @@ using State_t = std::vector<float>;
 using Action_t = int32_t;
 using Policy_t = std::vector<float>;
 
-struct MctsOption {
-  float C_PUCT = 1.25F,          // pUCT constant
-      dirichlet_alpha = .03F,    // Dir(a)
-      dirichlet_epsilon = .25F,  // (1 - eps) * p + eps * Dir(a);
-      discount = 1.F             // reward discount factor
-      ;
-};
-
 struct TreeInfo {
   float min_value = std::numeric_limits<float>::max(),
         max_value = std::numeric_limits<float>::lowest();
@@ -105,9 +97,6 @@ class Node {
 };
 
 class Tree {
- public:
-  static MctsOption option;
-
  public:
   /** Mcts selection & expansion */
   void before_forward(PRNG &, const std::vector<Action_t> &);

@@ -6,6 +6,7 @@
 #include <thread>
 #include <vector>
 
+#include "utils/config.h"
 #include "utils/random.h"
 #include "worker/job.h"
 #include "worker/model.h"
@@ -19,8 +20,9 @@ using Seed_t = PRNG::seed_type;
 
 class WorkerManager {
  public:
-  static JobOption option;
+  static JobOption job_option;
   static GameInfo game_info;
+  static MctsOption mcts_option;
 
  public:
   /** run cpu & gpu workers */
@@ -31,7 +33,7 @@ class WorkerManager {
   void enqueue_job(py::object, py::buffer, py::buffer);
   /** dequeue a result from the job queue */
   py::tuple wait_dequeue_result();
-  /** Load model from file */
+  /** load model from file */
   void load_model(const std::string&);
 
  private:

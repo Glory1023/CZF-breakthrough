@@ -13,13 +13,13 @@ using ModelPtr = std::shared_ptr<Model>;
 
 class ModelManager {
  public:
-  /** Initialize NVRTC (used by PyTorch) */
+  /** initialize NVRTC (used by PyTorch) */
   static void prepare_nvrtc();
-  /** Resize the number of model */
+  /** resize the number of model */
   void resize(size_t);
-  /** Load a model from the path */
+  /** load a model from the path */
   void load(const std::string &);
-  /** Get the pointer to a model */
+  /** get the pointer to a model */
   std::tuple<torch::Device, ModelPtr> get();
 
  private:

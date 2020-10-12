@@ -4,8 +4,11 @@
 #include <memory>
 
 #include "utils/config.h"
+#include "worker/worker.h"
 
 namespace czf::actor::mcts {
+
+using czf::actor::worker::WorkerManager;
 
 void TreeInfo::update(float value) {
   min_value = std::min(value, min_value);
@@ -23,7 +26,7 @@ float MctsInfo::update(float z) {
   ++visits;
   sqrt_visits = std::sqrt(visits);
   value += (z - value) / visits;
-  return reward + Tree::option.discount * z;
+  return reward + WorkerManager::mcts_option.discount * z;
 }
 
 bool NodeInfo::can_select_child() const {
@@ -62,7 +65,7 @@ Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) {
   for (auto &child : node_info_.children) {
     // calculate pUCT score
     float score = child.mcts_info_.get_normalized_value(tree_info) +
-                  Tree::option.C_PUCT *
+                  WorkerManager::mcts_option.C_PUCT *
                       mcts_info_.policy[child.forward_info_.action] *
                       mcts_info_.sqrt_visits /
                       static_cast<float>(1 + child.mcts_info_.visits);
@@ -92,13 +95,14 @@ void Node::expand_children(const std::vector<Action_t> &legal_actions) {
 void Node::add_dirichlet_noise(PRNG &rng) {
   size_t size = node_info_.children.size();
   std::vector<float> noise(size);
-  std::gamma_distribution<float> gamma(Tree::option.dirichlet_alpha);
+  std::gamma_distribution<float> gamma(
+      WorkerManager::mcts_option.dirichlet_alpha);
   float sum = 0.F;
   for (size_t i = 0; i < size; ++i) {
     noise[i] = gamma(rng);
     sum += noise[i];
   }
-  const auto eps = Tree::option.dirichlet_epsilon;
+  const auto eps = WorkerManager::mcts_option.dirichlet_epsilon;
   for (size_t i = 0; i < size; ++i) {
     mcts_info_.policy[i] =
         (1 - eps) * mcts_info_.policy[i] + eps * (noise[i] / sum);
@@ -121,8 +125,6 @@ void Node::set_forward_result(ForwardResult result) {
 }
 
 float Node::update(float z) { return mcts_info_.update(z); }
-
-MctsOption Tree::option;
 
 void Tree::before_forward(PRNG &rng, const std::vector<Action_t> &all_actions) {
   // selection

@@ -4,12 +4,11 @@
 
 #include <iostream>
 
-#include "utils/config.h"
-
 namespace czf::actor::worker {
 
-JobOption WorkerManager::option;
+JobOption WorkerManager::job_option;
 GameInfo WorkerManager::game_info;
+MctsOption WorkerManager::mcts_option;
 
 void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
                         size_t num_gpu_root_worker, size_t num_gpu) {
@@ -113,7 +112,7 @@ void WorkerManager::worker_cpu(Seed_t seed) {
           // std::cerr << "update" << std::endl;
           job->tree.after_forward();
           job->step = job->tree.get_root_visits() >=
-                              WorkerManager::option.simulation_count
+                              WorkerManager::job_option.simulation_count
                           ? Job::Step::DONE
                           : Job::Step::SELECT;
           break;
@@ -148,7 +147,7 @@ void WorkerManager::worker_gpu(Seed_t seed, bool is_root) {
     // collect jobs
     auto timeout = std::chrono::duration<double>::max();
     std::chrono::steady_clock::time_point deadline;
-    for (int i = 0; i < WorkerManager::option.batch_size && timeout > zero;
+    for (int i = 0; i < WorkerManager::job_option.batch_size && timeout > zero;
          ++i, timeout = deadline - std::chrono::steady_clock::now()) {
       std::unique_ptr<Job> job;
       if (queue.wait_dequeue_timed(job, timeout)) {
