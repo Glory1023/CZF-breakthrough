@@ -25,6 +25,8 @@ struct TreeInfo {
 struct TreeResult {
   size_t total_visits;                          // simulation counts
   std::unordered_map<Action_t, size_t> visits;  // child visit counts
+  float value                                   // root forward value
+      ;
 };
 
 struct ForwardInfo {
@@ -39,11 +41,11 @@ struct ForwardResult {
 };
 
 struct MctsInfo {
-  size_t visits = 0;          // visit counts
-  float sqrt_visits = 0.F;    // square root of visit count
-  float forward_value = 0.F,  // forward value
-      value = 0.F,            // Mcts Q-value
-      reward = 0.F            // reward of the dynamics
+  size_t visits = 0;        // visit counts
+  float sqrt_visits = 0.F;  // square root of visit count
+  float reward = 0.F,       // reward of the dynamics
+      value = 0.F,          // Mcts Q-value
+      forward_value = 0.F   // forward value
       ;
   Policy_t policy;
 
@@ -70,7 +72,7 @@ struct NodeInfo {
 class Node {
  public:
   /** set player and action */
-  void set_player_and_action(bool, size_t);
+  void set_player_and_action(bool, Action_t);
 
  public:
   /** check if the node can select child */
@@ -79,6 +81,8 @@ class Node {
   Node *select_child(const TreeInfo &, PRNG &);
   /** expand children according to legal actions */
   void expand_children(const std::vector<Action_t> &);
+  /** normalize policy by legal actions (only applies to the root node) */
+  void normalize_policy();
   /** add Dirichlet noise to the policy (only applies to the root node) */
   void add_dirichlet_noise(PRNG &);
   /** get the forward state */
@@ -110,13 +114,15 @@ class Tree {
   void after_forward();
 
  public:
-  /** expand root legal actions */
+  /** select and expand root legal actions */
   void expand_root(const std::vector<Action_t> &);
+  /** normalize root policy by legal actions */
+  void normalize_root_policy();
   /** add Dirichlet noise to the the root node */
-  void add_dirichlet_noise(PRNG &);
-  /** get the forward input */
+  void add_dirichlet_noise_to_root(PRNG &);
+  /** get the forward input of current node */
   ForwardInfo get_forward_input() const;
-  /** set the forward result */
+  /** set the forward result to current node */
   void set_forward_result(ForwardResult);
   /** get the root simulation counts */
   size_t get_root_visits() const;

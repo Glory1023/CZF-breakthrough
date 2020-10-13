@@ -16,14 +16,16 @@ class LocalModelManager:
         self.storage = Path(storage)
         self.storage.mkdir(parents=True, exist_ok=True)
 
-    def get(self, model: czf_pb2.Model) -> czf_pb2.Model:
+    def get(self, model: czf_pb2.ModelInfo) -> czf_pb2.Model:
         '''get the `Model` from storage'''
         key = (model.name, model.version)
         if key not in self._cache:
             model_dir = self.storage / model.name
             model_path = model_dir / f'{model.version:05d}.pt'
-            model.blobs[:] = [model_path.read_bytes()]
-            self._cache[key] = model
+            self._cache[key] = czf_pb2.Model(
+                info=model,
+                blobs=[model_path.read_bytes()],
+            )
         return self._cache[key]
 
     def get_latest_version(self, name: str) -> int:
@@ -44,7 +46,7 @@ class RemoteModelManager:
                                        remote_address=upstream)
         asyncio.create_task(self._recv_loop())
 
-    def get(self, model: czf_pb2.Model) -> czf_pb2.Model:
+    def get(self, model: czf_pb2.ModelInfo) -> czf_pb2.Model:
         '''get the `Model` from upstream'''
         key = (model.name, model.version)
         if key not in self._cache:
@@ -58,7 +60,7 @@ class RemoteModelManager:
             self._latest_version[name] = asyncio.Future()
             asyncio.create_task(
                 self.__send_model_request(
-                    czf_pb2.Model(
+                    czf_pb2.ModelInfo(
                         name=name,
                         version=-1,
                     )))
@@ -71,7 +73,7 @@ class RemoteModelManager:
             packet_type = packet.WhichOneof('payload')
             if packet_type == 'model_response':
                 model = packet.model_response
-                name, version = model.name, model.version
+                name, version = model.info.name, model.info.version
                 latest_version = self._latest_version.get(name, -1)
                 if asyncio.isfuture(latest_version):
                     self._latest_version[name].set_result(version)
@@ -85,7 +87,7 @@ class RemoteModelManager:
                 model = packet.model
                 self._latest_version[model.name] = model.version
 
-    async def __send_model_request(self, model: czf_pb2.Model):
+    async def __send_model_request(self, model: czf_pb2.ModelInfo):
         '''helper to send a `Model`'''
         packet = czf_pb2.Packet(model_request=model)
         await self.__send_packet(packet)

@@ -9,31 +9,37 @@ model:
   # g: dynamics function
   g_blocks: 2
   # f: prediction function
+  f_in_channels: 3
   f_channels: 32
   f_blocks: 2
-  # Save a checkpoint every N steps.
-  checkpoint_freq: 10
 
 optimizer:
   learning_rate: 0.01
-  weight_decay: 0.001
+  momentum: 0.9
+  weight_decay: 1.e-4
+  nesterov: True
   # Train the model when there are N newly generated states.
   frequency: 1000
   # How many states to store in the replay buffer.
-  replay_buffer_size: 10000
+  replay_buffer_size: 20000
   # How many times to reuse each state in the replay buffer.
-  replay_buffer_reuse: 4
+  replay_buffer_reuse: 1
   # How many states to learn from per batch.
-  batch_size: 500
+  batch_size: 200
+  # save a checkpoint every N steps.
+  checkpoint_freq: 10
 
 mcts:
-  # PUCT exploration constant.
+  # pUCT exploration constant
   c_puct: 1.25
-  # How many MCTS simulations to run for each step.
+  # MCTS simulation counts
   simulation_count: 400
+  # discount factor of return
   discount_factor: 1.
+  # nstep of the return
+  nstep: 10
   dirichlet:
-    # What dirichlet noise alpha to use.
-    alpha: 1.0
-    # What dirichlet noise epsilon to use.
+    # Dir(alpha)
+    alpha: 0.03
+    # (1 - epsilon) * policy + epsilon * Dir(a);
     epsilon: 0.25

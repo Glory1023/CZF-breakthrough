@@ -26,7 +26,7 @@ class ModelManager {
   std::vector<torch::Device> forward_devices_;
   // models_[device][version]
   std::vector<std::array<ModelPtr, 2>> models_;
-  std::atomic_int version_switch_{0}, device_switch_{0};
+  std::atomic_size_t version_switch_{0u}, device_switch_{0u};
 };
 
 }  // namespace czf::actor::worker

@@ -44,14 +44,14 @@ void NodeInfo::expand(const std::vector<Action_t> &legal_actions) {
   }
 }
 
-void Node::set_player_and_action(bool player, size_t action) {
+void Node::set_player_and_action(bool player, Action_t action) {
   node_info_.is_root_player = player;
   forward_info_.action = action;
 }
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
 Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) {
-  float selected_score = -2.F;
+  float selected_score = std::numeric_limits<float>::lowest();
   size_t selected_count = 1;
   Node *selected_child = nullptr;
   for (auto &child : node_info_.children) {
@@ -82,6 +82,16 @@ Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) {
 
 void Node::expand_children(const std::vector<Action_t> &legal_actions) {
   node_info_.expand(legal_actions);
+}
+
+void Node::normalize_policy() {
+  float sum = 0.F;
+  for (const auto &child : node_info_.children) {
+    sum += mcts_info_.policy[child.forward_info_.action];
+  }
+  for (const auto &child : node_info_.children) {
+    mcts_info_.policy[child.forward_info_.action] /= sum;
+  }
 }
 
 void Node::add_dirichlet_noise(PRNG &rng) {
@@ -126,7 +136,7 @@ size_t Node::get_visits() const { return mcts_info_.visits; }
 
 std::unordered_map<Action_t, size_t> Node::get_children_visits() const {
   std::unordered_map<Action_t, size_t> visits;
-  for (auto &child : node_info_.children) {
+  for (const auto &child : node_info_.children) {
     visits[child.forward_info_.action] = child.mcts_info_.visits;
   }
   return visits;
@@ -158,10 +168,15 @@ void Tree::after_forward() {
 }
 
 void Tree::expand_root(const std::vector<Action_t> &legal_actions) {
+  selection_path_.emplace_back(&tree_);
   tree_.expand_children(legal_actions);
 }
 
-void Tree::add_dirichlet_noise(PRNG &rng) { tree_.add_dirichlet_noise(rng); }
+void Tree::normalize_root_policy() { tree_.normalize_policy(); }
+
+void Tree::add_dirichlet_noise_to_root(PRNG &rng) {
+  tree_.add_dirichlet_noise(rng);
+}
 
 ForwardInfo Tree::get_forward_input() const {
   Node *parent = selection_path_.size() > 1
@@ -174,10 +189,14 @@ void Tree::set_forward_result(ForwardResult result) {
   current_node_->set_forward_result(std::move(result));
 }
 
-size_t Tree::get_root_visits() const { return tree_.get_visits(); }
+size_t Tree::get_root_visits() const {
+  // the first root expansion is not counted
+  return tree_.get_visits() - 1;
+}
 
 TreeResult Tree::get_tree_result() {
-  return {tree_.get_visits(), tree_.get_children_visits()};
+  return {tree_.get_visits(), tree_.get_children_visits(),
+          tree_.get_forward_value()};
 }
 
 }  // namespace czf::actor::mcts

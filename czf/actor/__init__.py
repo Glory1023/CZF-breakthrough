@@ -13,7 +13,10 @@ from czf.actor import worker
 async def main(args, worker_manager):
     '''czf.actor main program'''
     actor = Actor(args, worker_manager)
-    await actor.loop()
+    try:
+        await actor.loop()
+    except asyncio.CancelledError:
+        worker_manager.terminate()
 
 
 def run_main():
@@ -51,7 +54,12 @@ def run_main():
         range(game.num_distinct_actions))
     # run
     num_gpu = torch.cuda.device_count()
-    worker_manager.run(args.num_cpu_worker, args.num_gpu_worker, num_gpu)
+    worker_manager.run(
+        num_cpu_worker=args.num_cpu_worker,
+        num_gpu_worker=args.num_gpu_worker,
+        num_gpu_root_worker=1,
+        num_gpu=num_gpu,
+    )
     try:
         asyncio.run(main(args, worker_manager))
     except KeyboardInterrupt:

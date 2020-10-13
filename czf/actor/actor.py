@@ -55,7 +55,7 @@ class Actor:
             job.workers[job.step].CopyFrom(self.node)
             job.step += 1
             state = job.payload.state
-            # TODO: job.model
+            # assert job.model.version == -1
             self.worker_manager.enqueue_job(
                 job,
                 np.array(state.observation_tensor, dtype=np.float32),
@@ -67,12 +67,15 @@ class Actor:
         executor = ThreadPoolExecutor(max_workers=1)
         loop = asyncio.get_event_loop()
         while True:
-            job, total_visits, visits = await loop.run_in_executor(
+            job, *result = await loop.run_in_executor(
                 executor, self.worker_manager.wait_dequeue_result)
-            assert total_visits == sum(visits.values())
+            if job is None:
+                return
+            # assert total_visits == sum(visits.values())
+            value, total_visits, visits = result
             policy = [0.] * self.worker_manager.game_info.num_actions
             for action, visit in visits.items():
-                policy[action] = visit
+                policy[action] = visit / total_visits
             job.payload.state.evaluation.policy[:] = policy
             await self.__send_packet(czf_pb2.Packet(job=job))
 
@@ -87,11 +90,9 @@ class Actor:
         '''initialize model and start to send job'''
         # load model
         model_version = await self.model_manager.get_latest_version('default')
-        print('Request Model:', model_version)
         model = await self.model_manager.get(
-            czf_pb2.Model(name='default', version=model_version))
+            czf_pb2.ModelInfo(name='default', version=model_version))
         self.__load_model(model)
-        print('Finish Load Model')
         # start to send job
         asyncio.create_task(self.__send_job_request())
 

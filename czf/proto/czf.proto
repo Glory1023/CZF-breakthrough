@@ -2,44 +2,68 @@ syntax = "proto3";
 
 package czf.pb;
 
+// a message to identify the resource of a node
 message Node {
-  string hostname = 1;
-  string identity = 2;
+  // unique identity
+  string identity = 1;
+  // hostname (may be duplicated)
+  string hostname = 2;
 }
 
-message Model {
+// a message for model identity
+message ModelInfo {
+  // model name
   string name = 1;
+  // model version
   int32 version = 2;
-  repeated bytes blobs = 3;
 }
 
+// a message to transfer model
+message Model {
+  // model identity
+  ModelInfo info = 1;
+  // list of model binary
+  repeated bytes blobs = 2;
+}
+
+// a general State message
 message State {
+  // a message for evaluation result (actor)
   message Evaluation {
-    bytes latent = 1;
-    float value = 2;
-    repeated float policy = 3;
+    // root forward value
+    float value = 1;
+    // MCTS root policy (used to determine action)
+    repeated float policy = 2;
+    // MCTS root children's average value
+    float average_value = 3;
   }
+  // a message for game transition (game_server)
   message Transition {
-    int32 action = 1;
-    repeated float rewards = 2;
+    int32 current_player = 1;
+    int32 action = 2;
+    repeated float rewards = 3;
   }
-  string serialize = 1;
-  int32 current_player = 2;
-  repeated int32 legal_actions = 3;
-  repeated float observation_tensor = 4;
-  Evaluation evaluation = 5;
-  Transition transition = 6;
+  // unordered legal actions
+  repeated int32 legal_actions = 1;
+  // flatten observation tensor
+  repeated float observation_tensor = 2;
+  // serialized game state (only used by AlphaZero)
+  string serialize = 3;
+  // evaluation result
+  Evaluation evaluation = 4;
+  // game transition
+  Transition transition = 5;
 }
 
-message Trajectory {
-  repeated State states = 1;
-  // returns for each player
-  repeated float returns = 2;
-}
+// a collection of sequential states
+message Trajectory { repeated State states = 1; }
 
+// a message to heartbeat
 message Heartbeat {}
 
+// a general Job message
 message Job {
+  // operation types for a job
   enum Operation {
     UNKNOWN = 0;
     ALPHAZERO_SEARCH = 1;
@@ -48,32 +72,42 @@ message Job {
     MUZERO_OPTIMIZE = 4;
   }
   message Payload {
-    State state = 1;
-    Trajectory trajectory = 2;
-    int32 env_index = 3;
+    int32 env_index = 1;
+    State state = 2;
+    Trajectory trajectory = 3;
   }
-  string id = 1;
+  // unique identity
+  string identity = 1;
+  // game_server
   Node initiator = 2;
-  Model model = 3;
+  // the model used for the job
+  ModelInfo model = 3;
+  // all operations for the job
   repeated Operation procedure = 4;
+  // current index of operations for the job
   int32 step = 5;
+  // all workers that has handled the job
   repeated Node workers = 6;
   Payload payload = 7;
 }
 
+// a message to request for job
 message JobRequest {
   Job.Operation operation = 1;
   int32 capacity = 2;
 }
 
+// a collection of finished job messages
 message JobResponse { repeated Job jobs = 1; }
 
+// a general Packet message
 message Packet {
+  // with one of the following payload
   oneof payload {
     Heartbeat heartbeat = 1;
-    Model model_request = 2;
+    ModelInfo model_request = 2;
     Model model_response = 3;
-    Model model = 4;
+    ModelInfo model = 4;
     JobRequest job_request = 5;
     JobResponse job_response = 6;
     Job job = 7;

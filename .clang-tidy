@@ -8,6 +8,7 @@ Checks: >
     modernize-*,
     performance-*,
     readability-*,
+    -clang-analyzer-optin.cplusplus.VirtualCall,
     -cppcoreguidelines-pro-bounds-constant-array-index,
     -cppcoreguidelines-avoid-magic-numbers,
     -cppcoreguidelines-pro-type-member-init,

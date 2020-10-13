@@ -24,7 +24,7 @@ void ModelManager::resize(size_t size) {
 }
 
 void ModelManager::load(const std::string& path) {
-  int new_version = version_switch_ ^ 1;
+  size_t new_version = version_switch_ ^ 1;  // NOLINT
   size_t num_devices = forward_devices_.size();
   for (size_t i = 0; i < num_devices; ++i) {
     models_[i][new_version] =
@@ -35,7 +35,7 @@ void ModelManager::load(const std::string& path) {
 
 std::tuple<torch::Device, ModelPtr> ModelManager::get() {
   size_t num_devices = forward_devices_.size();
-  int idx = (device_switch_++) % num_devices;
+  size_t idx = (device_switch_++) % num_devices;
   if (idx == 0) {
     device_switch_ -= num_devices;
   }
