@@ -83,8 +83,8 @@ class RemoteModelManager:
                 if key not in self._cache:
                     self._cache[key] = asyncio.Future()
                 self._cache[key].set_result(model)
-            elif packet_type == 'model':
-                model = packet.model
+            elif packet_type == 'model_info':
+                model = packet.model_info
                 self._latest_version[model.name] = model.version
 
     async def __send_model_request(self, model: czf_pb2.ModelInfo):

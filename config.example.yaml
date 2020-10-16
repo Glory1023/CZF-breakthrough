@@ -1,23 +1,25 @@
 game:
   name: 'tic_tac_toe'
+  num_player: 2
   actions: 9
   observation_shape: [3, 3, 3]
 
 model:
   # h: representation function
   h_blocks: 2
+  h_channels: 3
   # g: dynamics function
   g_blocks: 2
   # f: prediction function
-  f_in_channels: 3
-  f_channels: 32
   f_blocks: 2
+  f_channels: 32
 
 optimizer:
   learning_rate: 0.01
   momentum: 0.9
   weight_decay: 1.e-4
   nesterov: True
+  rollout_steps: 5
   # Train the model when there are N newly generated states.
   frequency: 1000
   # How many states to store in the replay buffer.

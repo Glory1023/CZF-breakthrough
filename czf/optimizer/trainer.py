@@ -3,6 +3,7 @@ import os
 import torch
 from torch.utils.data import DataLoader
 
+from czf.optimizer.dataloader import RolloutBatch
 from czf.optimizer.nn import MuZero
 
 
@@ -16,30 +17,32 @@ class Trainer:
         for path in (self._model_dir, self._traced_model_dir):
             path.mkdir(parents=True, exist_ok=True)
         # game
-        observation_tensor_shape = config['game']['observation_shape']
+        observation_shape = config['game']['observation_shape']
         action_dim = config['game']['actions']
         # model
         model_config = config['model']
-        f_in_channels = model_config.get('f_in_channels', 128)
+        h_channels = model_config.get('h_channels', 128)
         self._model = MuZero(
-            observation_tensor_shape=observation_tensor_shape,
+            observation_shape=observation_shape,
             action_dim=action_dim,
-            h_blocks=model_config.get('h_blocks', 128),
-            g_blocks=model_config.get('g_blocks', 128),
-            f_in_channels=f_in_channels,
+            h_blocks=model_config.get('h_blocks', 3),
+            h_channels=h_channels,
+            g_blocks=model_config.get('g_blocks', 2),
+            r_heads=model_config.get('r_heads', 1),
+            f_blocks=model_config.get('f_blocks', 3),
             f_channels=model_config.get('f_channels', 128),
-            f_blocks=model_config.get('f_blocks', 128),
             v_heads=model_config.get('v_heads', 1),
         ).to(self._device)
-        self._input_obs = torch.rand(1, *observation_tensor_shape).to(
-            self._device)
-        self._input_state = torch.rand(
-            f_in_channels, *observation_tensor_shape).to(self._device)
+        _, height, width = observation_shape
+        self._input_obs = torch.rand(1, *observation_shape).to(self._device)
+        self._input_state = torch.rand(1, h_channels, height,
+                                       width).to(self._device)
         self._input_action = torch.rand(1, 1).to(self._device)
         # optimizer
         self._replay_buffer_reuse = config['optimizer']['replay_buffer_reuse']
         self._replay_retention = config['optimizer'][
             'replay_buffer_size'] / config['optimizer']['frequency']
+        self._rollout_steps = config['optimizer']['rollout_steps']
         self._batch_size = config['optimizer']['batch_size']
         self._optimizer = torch.optim.SGD(
             self._model.parameters(),
@@ -56,42 +59,54 @@ class Trainer:
 
     def train(self, replay_buffer):
         '''optimize the model and increment model version'''
-        p_criterion = lambda p_targets, p_logits: ((
-            -p_targets * torch.log_softmax(p_logits, dim=1)).sum(dim=1).mean())
-        v_criterion = lambda v_targets, v_logits: ((
-            -v_targets * torch.log_softmax(v_logits, dim=1)).sum(dim=1).mean())
-        #policy_loss = (-target_policy * (1e-8 + policy).log()).sum(dim=1).mean()
-        #value_loss = torch.nn.MSELoss()(target_value, value)
+        p_criterion = lambda target_policy, policy: (
+            (-target_policy * (1e-8 + policy).log()).sum(dim=1).mean())
+        v_criterion = torch.nn.MSELoss()
+        r_criterion = torch.nn.MSELoss()
         states_to_train = int(
             len(replay_buffer) / self._replay_retention *
             self._replay_buffer_reuse)
         dataloader = DataLoader(
             dataset=replay_buffer,
             batch_size=self._batch_size,
+            collate_fn=RolloutBatch,
             shuffle=True,
         )
         self._model.train()
+        gradient_scale = 1 / float(self._rollout_steps)
         num_trained_states = 0
-        for observation_tensor, target_policy, target_value in dataloader:
-            num_trained_states += len(observation_tensor)
-            # the last batch might need to drop some inputs
-            drop = num_trained_states - states_to_train
-            if drop > 0:
-                num_trained_states -= drop
-                observation_tensor = observation_tensor[drop:]
-                target_policy = target_policy[drop:]
-                target_value = target_value[drop:]
-            if len(observation_tensor) == 0:
-                break
+        for rollout in dataloader:
+            observation = rollout.observation
+            transition = rollout.transition
+            num_trained_states += len(observation)
             # prepare inputs
-            observation_tensor = observation_tensor.to(self._device)
-            target_policy = target_policy.to(self._device)
-            target_value = target_value.to(self._device)
+            observation = observation.to(self._device)
+            transition = [t.to(self._device) for t in transition]
             # forward
-            policy, value = self._model.forward(observation_tensor)
-            policy_loss = p_criterion(target_policy, policy)
-            value_loss = p_criterion(target_value, value)
-            loss = policy_loss + value_loss
+            state = self._model.forward_representation(observation)
+            loss = 0
+            for i in range(0, len(transition), 5):
+                target_policy, target_value, mask, *action_reward = transition[
+                    i:i + 5]
+                policy, value = self._model.forward(state)
+                state.register_hook(lambda grad: grad * .5)
+                state = state[mask.nonzero(as_tuple=True)]
+                if action_reward:
+                    action, _ = action_reward
+                    state, reward = self._model.forward_dynamics(state, action)
+                # loss
+                print(target_policy.shape, policy.shape)
+                p_loss = p_criterion(target_policy, policy)
+                v_loss = v_criterion(target_value, value)
+                loss_i = p_loss + v_loss
+                if action_reward:
+                    _, target_reward = action_reward
+                    r_loss = r_criterion(target_reward, reward)
+                    loss_i += r_loss
+                print('step: {:2d}, policy loss: {:.3f}, value loss: {:.3f}'.
+                      format(i, p_loss.item(), v_loss.item()))
+                loss_i.register_hook(lambda grad: grad * gradient_scale)
+                loss += loss_i
             # optimize
             self._optimizer.zero_grad()
             loss.backward()

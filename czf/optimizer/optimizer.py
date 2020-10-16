@@ -30,7 +30,11 @@ class Optimizer:
         self._socket = get_zmq_router(listen_port=args.listen)
         # replay buffer
         self._replay_buffer = ReplayBuffer(
+            num_player=config['game']['num_player'],
             observation_shape=config['game']['observation_shape'],
+            kstep=config['optimizer']['rollout_steps'],
+            nstep=config['mcts']['nstep'],
+            discount_factor=config['mcts']['discount_factor'],
             capacity=config['optimizer']['replay_buffer_size'],
             train_freq=config['optimizer']['frequency'],
         )
@@ -49,9 +53,9 @@ class Optimizer:
             if packet_type == 'model_request':
                 asyncio.create_task(
                     self.__on_model_request(identity, packet.model_request))
-            elif packet_type == 'trajectory':
+            elif packet_type == 'trajectory_batch':
                 asyncio.create_task(
-                    self.__on_recv_trajectory(packet.trajectory))
+                    self.__on_recv_trajectory(packet.trajectory_batch))
 
     async def __on_model_request(self, identity: str,
                                  model: czf_pb2.ModelInfo):
@@ -63,18 +67,20 @@ class Optimizer:
         await self.__send_packet(identity,
                                  czf_pb2.Packet(model_response=response_model))
 
-    async def __on_recv_trajectory(self, trajectory: czf_pb2.Trajectory):
+    async def __on_recv_trajectory(self,
+                                   trajectory_batch: czf_pb2.TrajectoryBatch):
         '''store trajectory'''
-        self._replay_buffer.add_trajectory(trajectory)
+        for trajectory in trajectory_batch.trajectories:
+            self._replay_buffer.add_trajectory(trajectory)
         if self._replay_buffer.is_ready():
-            self._trainer.train()
+            self._trainer.train(self._replay_buffer)
             self._trainer.save_model()
             await self.__notify_model_update(self._trainer.model_name,
                                              self._trainer.model_version)
 
     async def __notify_model_update(self, name, version):
         '''notify model update to peers'''
-        raw = czf_pb2.Packet(model=czf_pb2.ModelInfo(
+        raw = czf_pb2.Packet(model_info=czf_pb2.ModelInfo(
             name=name,
             version=version,
         )).SerializeToString()

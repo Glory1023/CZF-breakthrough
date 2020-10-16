@@ -230,11 +230,11 @@ void WorkerManager::worker_gpu(Seed_t seed, bool is_root) {
                                 policy_ptr + policy_size};  // NOLINT
       jobs[i]->result.value = value_ptr[0];                 // NOLINT
       jobs[i]->tree.set_forward_result(std::move(jobs[i]->result));
-      jobs[i]->tree.normalize_root_policy();
-      jobs[i]->step = Job::Step::UPDATE;
       if (is_root) {
+        jobs[i]->tree.normalize_root_policy();
         jobs[i]->tree.add_dirichlet_noise_to_root(rng);
       }
+      jobs[i]->step = Job::Step::UPDATE;
     }
     cpu_queue_.enqueue_bulk(std::make_move_iterator(jobs.begin()), jobs.size());
     jobs.clear();

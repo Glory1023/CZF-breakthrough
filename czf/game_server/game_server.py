@@ -110,8 +110,13 @@ class GameServer:
         # game envs
         self.game = czf_env.load_game(args.game)
         self.envs = [EnvManager(self) for _ in range(args.num_env)]
+        # trajectory upstream
+        self._upstream = get_zmq_dealer(
+            identity=self._node.identity,
+            remote_address=args.upstream,
+        )
         # connect to broker
-        self._socket = get_zmq_dealer(
+        self._broker = get_zmq_dealer(
             identity=self._node.identity,
             remote_address=args.broker,
         )
@@ -119,7 +124,7 @@ class GameServer:
     async def loop(self):
         '''main loop'''
         while True:
-            raw = await self._socket.recv()
+            raw = await self._broker.recv()
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
             #print(packet)
@@ -134,19 +139,12 @@ class GameServer:
         packet = czf_pb2.Packet(job=job)
         await self.__send_packet(packet)
 
-    async def send_optimize_job(
-            self,
-            trajectory: czf_pb2.Trajectory,
-            optimizor=czf_pb2.Job.Operation.MUZERO_OPTIMIZE):
-        '''helper to send a `Job` to optimizor'''
-        job = czf_pb2.Job(
-            procedure=[optimizor],
-            step=0,
-            workers=[czf_pb2.Node()],
-            payload=czf_pb2.Job.Payload(trajectory=trajectory),
-        )
-        await self.send_job(job)
+    async def send_optimize_job(self, trajectory: czf_pb2.Trajectory):
+        '''helper to send a `Trajectory` to optimizer'''
+        packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
+            trajectories=[trajectory]))
+        await self._upstream.send(packet.SerializeToString())
 
     async def __send_packet(self, packet: czf_pb2.Packet):
         '''helper to send a `Packet`'''
-        await self._socket.send(packet.SerializeToString())
+        await self._broker.send(packet.SerializeToString())

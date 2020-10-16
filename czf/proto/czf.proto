@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package czf.pb;
 
+// a message to heartbeat
+message Heartbeat {}
+
 // a message to identify the resource of a node
 message Node {
   // unique identity
@@ -55,26 +58,17 @@ message State {
   Transition transition = 5;
 }
 
-// a collection of sequential states
-message Trajectory { repeated State states = 1; }
-
-// a message to heartbeat
-message Heartbeat {}
-
 // a general Job message
 message Job {
   // operation types for a job
   enum Operation {
     UNKNOWN = 0;
     ALPHAZERO_SEARCH = 1;
-    ALPHAZERO_OPTIMIZE = 2;
-    MUZERO_SEARCH = 3;
-    MUZERO_OPTIMIZE = 4;
+    MUZERO_SEARCH = 2;
   }
   message Payload {
     int32 env_index = 1;
     State state = 2;
-    Trajectory trajectory = 3;
   }
   // unique identity
   string identity = 1;
@@ -97,19 +91,26 @@ message JobRequest {
   int32 capacity = 2;
 }
 
-// a collection of finished job messages
-message JobResponse { repeated Job jobs = 1; }
+// a collection of Job messages
+message JobBatch { repeated Job jobs = 1; }
+
+// a collection of sequential states
+message Trajectory { repeated State states = 1; }
+
+// a collection of Trajectory messages
+message TrajectoryBatch { repeated Trajectory trajectories = 1; }
 
 // a general Packet message
 message Packet {
   // with one of the following payload
   oneof payload {
     Heartbeat heartbeat = 1;
-    ModelInfo model_request = 2;
-    Model model_response = 3;
-    ModelInfo model = 4;
+    ModelInfo model_info = 2;
+    ModelInfo model_request = 3;
+    Model model_response = 4;
     JobRequest job_request = 5;
-    JobResponse job_response = 6;
+    JobBatch job_batch = 6;
     Job job = 7;
+    TrajectoryBatch trajectory_batch = 8;
   }
 }

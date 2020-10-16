@@ -104,10 +104,15 @@ void Node::add_dirichlet_noise(PRNG &rng) {
     noise[i] = gamma(rng);
     sum += noise[i];
   }
+  if (sum < std::numeric_limits<float>::min()) {
+    return;
+  }
   const auto eps = WorkerManager::mcts_option.dirichlet_epsilon;
-  for (size_t i = 0; i < size; ++i) {
-    mcts_info_.policy[i] =
-        (1 - eps) * mcts_info_.policy[i] + eps * (noise[i] / sum);
+  size_t i = 0;
+  for (const auto &child : node_info_.children) {
+    mcts_info_.policy[child.forward_info_.action] =
+        (1 - eps) * mcts_info_.policy[child.forward_info_.action] +
+        eps * (noise[i++] / sum);
   }
 }
 

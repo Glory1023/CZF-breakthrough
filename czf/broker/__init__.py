@@ -14,7 +14,7 @@ async def main():
                         type=int,
                         required=True,
                         metavar='port',
-                        help='broker listen port')
+                        help='broker listen port. e.g., 5566')
     args = parser.parse_args()
     broker = Broker(args)
     await broker.loop()
