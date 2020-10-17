@@ -17,6 +17,7 @@ namespace py = ::pybind11;
 using PRNG = ::czf::actor::utils::random::Xorshift;
 using SeedPRNG = ::czf::actor::utils::random::Splitmix;
 using Seed_t = PRNG::seed_type;
+using Clock_t = std::chrono::steady_clock;
 
 class WorkerManager {
  public:

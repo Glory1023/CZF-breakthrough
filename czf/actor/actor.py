@@ -42,7 +42,7 @@ class Actor:
         while True:
             raw = await self._broker.recv()
             packet = czf_pb2.Packet.FromString(raw)
-            print(packet)
+            #print(packet)
             packet_type = packet.WhichOneof('payload')
             if packet_type == 'job_batch':
                 asyncio.create_task(self.__on_job_batch(packet.job_batch))
@@ -75,6 +75,7 @@ class Actor:
             policy = [0.] * self._worker_manager.game_info.num_actions
             for action, visit in visits.items():
                 policy[action] = visit / total_visits
+            job.payload.state.evaluation.value = value
             job.payload.state.evaluation.policy[:] = policy
             await self.__send_packet(czf_pb2.Packet(job=job))
 

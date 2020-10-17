@@ -62,9 +62,9 @@ message State {
 message Job {
   // operation types for a job
   enum Operation {
-    UNKNOWN = 0;
-    ALPHAZERO_SEARCH = 1;
-    MUZERO_SEARCH = 2;
+    UNKNOWN = 0;           // Unknown
+    ALPHAZERO_SEARCH = 1;  // AlphaZero Search
+    MUZERO_SEARCH = 2;     // MuZero Search
   }
   message Payload {
     int32 env_index = 1;

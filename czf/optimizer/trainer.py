@@ -95,7 +95,6 @@ class Trainer:
                     action, _ = action_reward
                     state, reward = self._model.forward_dynamics(state, action)
                 # loss
-                print(target_policy.shape, policy.shape)
                 p_loss = p_criterion(target_policy, policy)
                 v_loss = v_criterion(target_value, value)
                 loss_i = p_loss + v_loss
@@ -104,7 +103,7 @@ class Trainer:
                     r_loss = r_criterion(target_reward, reward)
                     loss_i += r_loss
                 print('step: {:2d}, policy loss: {:.3f}, value loss: {:.3f}'.
-                      format(i, p_loss.item(), v_loss.item()))
+                      format(i // 5, p_loss.item(), v_loss.item()))
                 loss_i.register_hook(lambda grad: grad * gradient_scale)
                 loss += loss_i
             # optimize

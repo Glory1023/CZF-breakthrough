@@ -3,8 +3,9 @@ import argparse
 import asyncio
 import os
 from uuid import uuid4
-import czf_env
+from pathlib import Path
 import torch
+import yaml
 import zmq
 
 from czf.actor.actor import Actor
@@ -22,13 +23,10 @@ async def main(args, worker_manager):
 
 def run_main():
     '''Run main program in asyncio'''
-    num_gpu = torch.cuda.device_count()
     num_cpu = os.cpu_count()
+    num_gpu = torch.cuda.device_count()
     parser = argparse.ArgumentParser(__package__, description=__doc__)
-    parser.add_argument('-g',
-                        '--game',
-                        metavar='game_name',
-                        help='czf_env game name')
+    parser.add_argument('-f', '--config', required=True, help='config file')
     parser.add_argument('-b',
                         '--broker',
                         required=True,
@@ -50,15 +48,33 @@ def run_main():
                         type=int,
                         default=1)
     args = parser.parse_args()
-
+    # WorkerManager
     worker_manager = worker.WorkerManager()
-    # config
-    game = czf_env.load_game(args.game)
-    worker_manager.game_info.observation_shape = game.observation_tensor_shape
-    worker_manager.game_info.state_shape = game.observation_tensor_shape
-    worker_manager.game_info.num_actions = game.num_distinct_actions
+    config = yaml.safe_load(Path(args.config).read_text())
+    # GameInfo
+    worker_manager.game_info.observation_shape = config['game'][
+        'observation_shape']
+    worker_manager.game_info.state_shape = config['game']['state_shape']
+    worker_manager.game_info.num_actions = config['game']['actions']
     worker_manager.game_info.all_actions = list(
-        range(game.num_distinct_actions))
+        range(config['game']['actions']))
+    worker_manager.game_info.two_player = (config['game'].get('num_player',
+                                                              2) == 2)
+    # JobOption
+    worker_manager.job_option.seed = config['mcts'].get('seed', 1)
+    worker_manager.job_option.timeout_us = config['mcts'].get(
+        'timeout_us', 1000)
+    worker_manager.job_option.batch_size = config['mcts']['batch_size']
+    worker_manager.job_option.simulation_count = config['mcts'][
+        'simulation_count']
+    # MctsOption
+    worker_manager.mcts_option.C_PUCT = config['mcts']['c_puct']
+    worker_manager.mcts_option.dirichlet_alpha = config['mcts']['dirichlet'][
+        'alpha']
+    worker_manager.mcts_option.dirichlet_epsilon = config['mcts']['dirichlet'][
+        'epsilon']
+    worker_manager.mcts_option.discount = config['mcts'].get('discount', 1.)
+
     # run
     worker_manager.run(
         num_cpu_worker=args.num_cpu_worker,

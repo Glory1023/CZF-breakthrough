@@ -2,6 +2,9 @@ game:
   name: 'tic_tac_toe'
   num_player: 2
   actions: 9
+  # [h_channels, H, W]
+  state_shape: [3, 3, 3]
+  # [C, H, W]
   observation_shape: [3, 3, 3]
 
 model:
@@ -32,13 +35,19 @@ optimizer:
   checkpoint_freq: 10
 
 mcts:
+  # random number seed
+  seed: 1
+  # GPU wait max timeout (microseconds)
+  timeout_us: 1000
+  # GPU max batch size
+  batch_size: 200
+  # Mcts simulation counts
+  simulation_count: 400
   # pUCT exploration constant
   c_puct: 1.25
-  # MCTS simulation counts
-  simulation_count: 400
-  # discount factor of return
+  # discount factor of the return
   discount_factor: 1.
-  # nstep of the return
+  # n-step of the return
   nstep: 10
   dirichlet:
     # Dir(alpha)

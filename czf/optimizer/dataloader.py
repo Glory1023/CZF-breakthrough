@@ -49,6 +49,7 @@ class ReplayBuffer(Dataset):
 
     def __getitem__(self, index):
         rollout = list(islice(self._buffer, index, index + self._kstep))
+        # o, [(p, v, m, a, r)]
         result = [rollout[0].observation]
         for transition in rollout:
             result.extend([transition.policy, transition.value])
@@ -57,6 +58,7 @@ class ReplayBuffer(Dataset):
                 break
             result.extend(
                 [torch.tensor(1), transition.action, transition.reward])
+        result[-3:] = [torch.tensor(0), None, None]
         return result
 
     def is_ready(self):
@@ -68,7 +70,7 @@ class ReplayBuffer(Dataset):
 
     def add_trajectory(self, trajectory: czf_pb2.Trajectory):
         '''add trajectory to the replay buffer'''
-        print('add', len(trajectory.states), 'positions')
+        #print('add', len(trajectory.states), 'positions')
         self._num_games += len(trajectory.states)
         # from the terminal state to the initial state
         nstep, gamma = self._nstep, self._discount_factor

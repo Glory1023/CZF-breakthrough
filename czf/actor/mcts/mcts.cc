@@ -47,6 +47,7 @@ void NodeInfo::expand(const std::vector<Action_t> &legal_actions) {
 void Node::set_player_and_action(bool player, Action_t action) {
   node_info_.is_root_player = player;
   forward_info_.action = action;
+  mcts_info_.action_index = static_cast<size_t>(action);
 }
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
@@ -58,12 +59,12 @@ Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) {
     // calculate pUCT score
     float score = child.mcts_info_.get_normalized_value(tree_info) +
                   WorkerManager::mcts_option.C_PUCT *
-                      mcts_info_.policy[child.forward_info_.action] *
+                      mcts_info_.policy[child.mcts_info_.action_index] *
                       mcts_info_.sqrt_visits /
                       static_cast<float>(1 + child.mcts_info_.visits);
     // argmax
-    if (score > (selected_score - BuildOption::FloatEps)) {
-      if (score > (selected_score + BuildOption::FloatEps)) {
+    if (score > (selected_score - BuildOption::kFloatEps)) {
+      if (score > (selected_score + BuildOption::kFloatEps)) {
         // select the child with the current max score
         selected_score = score;
         selected_child = &child;
@@ -87,10 +88,10 @@ void Node::expand_children(const std::vector<Action_t> &legal_actions) {
 void Node::normalize_policy() {
   float sum = 0.F;
   for (const auto &child : node_info_.children) {
-    sum += mcts_info_.policy[child.forward_info_.action];
+    sum += mcts_info_.policy[child.mcts_info_.action_index];
   }
   for (const auto &child : node_info_.children) {
-    mcts_info_.policy[child.forward_info_.action] /= sum;
+    mcts_info_.policy[child.mcts_info_.action_index] /= sum;
   }
 }
 
@@ -110,8 +111,8 @@ void Node::add_dirichlet_noise(PRNG &rng) {
   const auto eps = WorkerManager::mcts_option.dirichlet_epsilon;
   size_t i = 0;
   for (const auto &child : node_info_.children) {
-    mcts_info_.policy[child.forward_info_.action] =
-        (1 - eps) * mcts_info_.policy[child.forward_info_.action] +
+    mcts_info_.policy[child.mcts_info_.action_index] =
+        (1 - eps) * mcts_info_.policy[child.mcts_info_.action_index] +
         eps * (noise[i++] / sum);
   }
 }

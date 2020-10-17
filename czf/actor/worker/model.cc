@@ -14,8 +14,8 @@ void ModelManager::prepare_nvrtc() {
 
 void ModelManager::resize(size_t size) {
   torch::init_num_threads();
-  torch::set_num_threads(BuildOption::TorchNumIntraThread);
-  torch::set_num_interop_threads(BuildOption::TorchNumInterThread);
+  torch::set_num_threads(BuildOption::kTorchNumIntraThread);
+  torch::set_num_interop_threads(BuildOption::kTorchNumInterThread);
   models_.resize(size);
   forward_devices_.clear();
   for (size_t i = 0; i < size; ++i) {

@@ -14,7 +14,7 @@ void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
                         size_t num_gpu_root_worker, size_t num_gpu) {
   if (!running_) {
     running_ = true;
-    SeedPRNG rng{1};
+    SeedPRNG rng{WorkerManager::job_option.seed};
     for (size_t i = 0; i < num_cpu_worker; ++i) {
       Seed_t seed = rng();
       cpu_threads_.emplace_back([this, seed] { worker_cpu(seed); });
@@ -81,6 +81,7 @@ void WorkerManager::enqueue_job(py::object pyjob, py::buffer obs_buffer,
 py::tuple WorkerManager::wait_dequeue_result() {
   std::unique_ptr<Job> job;
   result_queue_.wait_dequeue(job);
+  py::gil_scoped_acquire acquire;
   if (job == nullptr) {
     return py::make_tuple(py::none{}, py::none{});
   }
@@ -142,25 +143,29 @@ void WorkerManager::worker_cpu(Seed_t seed) {
 }
 
 void WorkerManager::worker_gpu(Seed_t seed, bool is_root) {
-  auto &queue = is_root ? gpu_root_queue_ : gpu_queue_;
   PRNG rng{seed};
+  auto &queue = is_root ? gpu_root_queue_ : gpu_queue_;
+  const auto &game_observation_shape =
+      is_root ? WorkerManager::game_info.observation_shape
+              : WorkerManager::game_info.state_shape;
   constexpr auto zero = std::chrono::duration<double>::zero();
+  const auto max_timeout =
+      std::chrono::microseconds(WorkerManager::job_option.timeout_us);
   while (running_) {
     std::vector<std::unique_ptr<Job>> jobs;
     // collect jobs
     auto timeout = std::chrono::duration<double>::max();
-    std::chrono::steady_clock::time_point deadline;
+    Clock_t::time_point deadline;
     for (size_t i = 0;
          i < WorkerManager::job_option.batch_size && timeout > zero;
-         ++i, timeout = deadline - std::chrono::steady_clock::now()) {
+         ++i, timeout = deadline - Clock_t::now()) {
       std::unique_ptr<Job> job;
       if (queue.wait_dequeue_timed(job, timeout)) {
-        if (job == nullptr) {
+        if (job == nullptr) {  // termination job
           return;
         }
-        if (jobs.empty()) {
-          deadline =
-              std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+        if (jobs.empty()) {  // set max timeout
+          deadline = Clock_t::now() + max_timeout;
         }
         jobs.push_back(std::move(job));
       } else {
@@ -170,7 +175,7 @@ void WorkerManager::worker_gpu(Seed_t seed, bool is_root) {
     // std::cerr << "gpu forward" << std::endl;
     // construct input tensor
     const size_t batch_size = jobs.size();
-    auto state_shape = WorkerManager::game_info.state_shape;
+    std::vector<int64_t> state_shape = game_observation_shape;
     state_shape.insert(state_shape.begin(), static_cast<int64_t>(batch_size));
     std::vector<float> state_vector;
     std::vector<float> action_vector;
@@ -204,8 +209,7 @@ void WorkerManager::worker_gpu(Seed_t seed, bool is_root) {
       auto batch_reward = results[1].toTensor().cpu();
       for (size_t i = 0; i < batch_size; ++i) {
         const auto idx = static_cast<int64_t>(i);
-        const auto &reward_ptr = batch_reward[idx].data_ptr<float>();
-        jobs[i]->result.reward = reward_ptr[0];  // NOLINT
+        jobs[i]->result.reward = batch_reward[idx].item<float>();
       }
     }
     auto batch_state = next_state_tensor.cpu();

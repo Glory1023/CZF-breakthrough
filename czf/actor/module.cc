@@ -18,10 +18,13 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
       .def_readwrite("observation_shape", &GameInfo::observation_shape)
       .def_readwrite("state_shape", &GameInfo::state_shape)
       .def_readwrite("all_actions", &GameInfo::all_actions)
-      .def_readwrite("num_actions", &GameInfo::num_actions);
+      .def_readwrite("num_actions", &GameInfo::num_actions)
+      .def_readwrite("two_player", &GameInfo::is_two_player);
   using czf::actor::JobOption;
   py::class_<JobOption>(m, "JobOption")
       .def(py::init<>())
+      .def_readwrite("seed", &JobOption::seed)
+      .def_readwrite("timeout_us", &JobOption::timeout_us)
       .def_readwrite("batch_size", &JobOption::batch_size)
       .def_readwrite("simulation_count", &JobOption::simulation_count);
   using czf::actor::MctsOption;
@@ -40,7 +43,8 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
       .def("enqueue_job", &WorkerManager::enqueue_job, "job"_a, "observation"_a,
            "legal_actions"_a)
       .def("wait_dequeue_result", &WorkerManager::wait_dequeue_result,
-           py::call_guard<py::gil_scoped_release>())
+           py::call_guard<py::gil_scoped_release>(),
+           py::return_value_policy::move)
       .def("load_model", &WorkerManager::load_model, "path"_a)
       .def_readwrite_static("job_option", &WorkerManager::job_option)
       .def_readwrite_static("game_info", &WorkerManager::game_info)
