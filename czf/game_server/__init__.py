@@ -25,7 +25,7 @@ async def main():
                         '--upstream',
                         required=True,
                         metavar='host:port',
-                        help='optimizer address. e.g., 127.0.0.1:5577')
+                        help='learner address. e.g., 127.0.0.1:5577')
     parser.add_argument('--suffix',
                         metavar='unique_id',
                         help='unique id of the game server',

@@ -1,6 +1,6 @@
 from torch import nn
 
-from czf.optimizer.nn import ResNet
+from czf.learner.nn import ResNet
 
 
 class AlphaZero(nn.Module):

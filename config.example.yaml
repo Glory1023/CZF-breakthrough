@@ -13,26 +13,29 @@ model:
   h_channels: 3
   # g: dynamics function
   g_blocks: 2
+  r_heads: 1
   # f: prediction function
   f_blocks: 2
   f_channels: 32
+  v_heads: 1
 
-optimizer:
-  learning_rate: 0.01
-  momentum: 0.9
-  weight_decay: 1.e-4
-  nesterov: True
+learner:
   rollout_steps: 5
-  # Train the model when there are N newly generated states.
+  # train the model when there are N newly generated states.
   frequency: 1000
-  # How many states to store in the replay buffer.
+  # how many states to store in the replay buffer.
   replay_buffer_size: 20000
-  # How many times to reuse each state in the replay buffer.
+  # how many times to reuse each state in the replay buffer.
   replay_buffer_reuse: 1
-  # How many states to learn from per batch.
+  # how many states to learn from per batch.
   batch_size: 200
   # save a checkpoint every N steps.
   checkpoint_freq: 10
+  optimizer:
+    learning_rate: 0.01
+    momentum: 0.9
+    weight_decay: 1.e-4
+    nesterov: True
 
 mcts:
   # random number seed

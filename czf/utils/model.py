@@ -37,13 +37,14 @@ class LocalModelManager:
 
 class RemoteModelManager:
     '''Remote Model Manager'''
-    __slots__ = ['upstream', '_cache', '_latest_version']
+    __slots__ = ['has_new_model', 'upstream', '_cache', '_latest_version']
 
     def __init__(self, identity, upstream, cache_size):
         self._cache = LRUCache(capacity=cache_size)
         self._latest_version = {}
         self.upstream = get_zmq_dealer(identity=identity,
                                        remote_address=upstream)
+        self.has_new_model = False
         asyncio.create_task(self._recv_loop())
 
     def get(self, model: czf_pb2.ModelInfo) -> czf_pb2.Model:
@@ -85,6 +86,11 @@ class RemoteModelManager:
                 self._cache[key].set_result(model)
             elif packet_type == 'model_info':
                 model = packet.model_info
+                print('recv info', model.name, model.version)
+                latest_version = self._latest_version.get(name)
+                if isinstance(latest_version,
+                              int) and model.version > latest_version:
+                    self.has_new_model = True
                 self._latest_version[model.name] = model.version
 
     async def __send_model_request(self, model: czf_pb2.ModelInfo):

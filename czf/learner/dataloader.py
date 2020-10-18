@@ -41,6 +41,7 @@ class ReplayBuffer(Dataset):
         self._discount_factor = discount_factor
         self._train_freq = train_freq
         self._buffer = deque(maxlen=capacity)
+        self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
         self._num_games = 0
         self._ready = False
 
@@ -71,6 +72,7 @@ class ReplayBuffer(Dataset):
     def add_trajectory(self, trajectory: czf_pb2.Trajectory):
         '''add trajectory to the replay buffer'''
         #print('add', len(trajectory.states), 'positions')
+        self._pb_trajectory_batch.trajectories.add().CopyFrom(trajectory)
         self._num_games += len(trajectory.states)
         # from the terminal state to the initial state
         nstep, gamma = self._nstep, self._discount_factor
@@ -112,3 +114,10 @@ class ReplayBuffer(Dataset):
         if self._num_games >= self._train_freq:
             self._ready = True
             self._num_games -= self._train_freq
+
+    def save_trajectory(self, path, iteration):
+        '''save trajectory to path'''
+        trajectory_path = path / f'{iteration:05d}.pb'
+        trajectory_path.write_bytes(
+            self._pb_trajectory_batch.SerializeToString())
+        self._pb_trajectory_batch.Clear()

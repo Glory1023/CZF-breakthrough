@@ -1,15 +1,15 @@
-'''CZF Optimizer'''
+'''CZF Learner'''
 import argparse
 import asyncio
 from pathlib import Path
 import yaml
 import zmq.asyncio
 
-from czf.optimizer.optimizer import Optimizer
+from czf.learner.learner import Learner
 
 
 async def main():
-    '''czf.optimizer main program'''
+    '''czf.learner main program'''
     parser = argparse.ArgumentParser(__package__, description=__doc__)
     parser.add_argument('-f', '--config', required=True, help='config file')
     parser.add_argument('-s',
@@ -21,7 +21,7 @@ async def main():
                         type=int,
                         required=True,
                         metavar='port',
-                        help='optimizer listen port')
+                        help='learner listen port')
     parser.add_argument('-r',
                         '--restore',
                         action='store_true',
@@ -29,8 +29,8 @@ async def main():
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
-    optimizer = Optimizer(args, config)
-    await optimizer.loop()
+    learner = Learner(args, config)
+    await learner.loop()
 
 
 def run_main():

@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 
-from czf.optimizer.nn import ResNet
+from czf.learner.nn import ResNet
 
 
 class MuZero(nn.Module):

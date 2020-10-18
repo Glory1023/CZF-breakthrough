@@ -1,30 +1,29 @@
-'''CZF Optimizer'''
+'''CZF Learner'''
 import asyncio
 from pathlib import Path
 
-from czf.optimizer.trainer import Trainer
-from czf.optimizer.dataloader import ReplayBuffer
+from czf.learner.trainer import Trainer
+from czf.learner.dataloader import ReplayBuffer
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_router, LocalModelManager
 
 
-class Optimizer:
-    '''Optimizer'''
+class Learner:
+    '''Learner'''
     def __init__(self, args, config):
         # create directories
         storage_path = Path(args.storage_dir)
-        model_path = storage_path / config['optimizer'].get(
-            'model_path', 'model')
-        traced_model_path = storage_path / config['optimizer'].get(
-            'traced_model_path', 'traced_model')
-        trajectory_path = storage_path / config['optimizer'].get(
-            'trajectory_path', 'trajectory')
-        for path in (model_path, traced_model_path, trajectory_path):
+        checkpoint_path = storage_path / 'checkpoint'
+        model_path = storage_path / 'model'
+        log_path = storage_path / 'log'
+        self._trajectory_path = storage_path / 'trajectory'
+        for path in (checkpoint_path, model_path, log_path,
+                     self._trajectory_path):
             Path(path).mkdir(parents=True, exist_ok=True)
         # model provider
         self._model_peers = set()  # peers to receive the model
         self._model_provider = LocalModelManager(
-            storage=traced_model_path,
+            storage=model_path,
             cache_size=8,
         )
         self._socket = get_zmq_router(listen_port=args.listen)
@@ -32,15 +31,17 @@ class Optimizer:
         self._replay_buffer = ReplayBuffer(
             num_player=config['game']['num_player'],
             observation_shape=config['game']['observation_shape'],
-            kstep=config['optimizer']['rollout_steps'],
+            kstep=config['learner']['rollout_steps'],
             nstep=config['mcts']['nstep'],
             discount_factor=config['mcts']['discount_factor'],
-            capacity=config['optimizer']['replay_buffer_size'],
-            train_freq=config['optimizer']['frequency'],
+            capacity=config['learner']['replay_buffer_size'],
+            train_freq=config['learner']['frequency'],
         )
         # trainer
-        self._trainer = Trainer(args, config, model_path, traced_model_path)
-        self._trainer.save_model(trace=True)
+        self._trainer = Trainer(args, config, checkpoint_path, model_path,
+                                log_path)
+        self._checkpoint_freq = config['learner']['checkpoint_freq']
+        self._trainer.save_model()
 
     async def loop(self):
         '''main loop'''
@@ -73,13 +74,17 @@ class Optimizer:
         for trajectory in trajectory_batch.trajectories:
             self._replay_buffer.add_trajectory(trajectory)
         if self._replay_buffer.is_ready():
+            self._replay_buffer.save_trajectory(self._trajectory_path,
+                                                self._trainer.iteration)
             self._trainer.train(self._replay_buffer)
-            self._trainer.save_model()
+            save_ckpt = (self._trainer.iteration % self._checkpoint_freq == 0)
+            self._trainer.save_model(save_ckpt)
             await self.__notify_model_update(self._trainer.model_name,
-                                             self._trainer.model_version)
+                                             self._trainer.iteration)
 
     async def __notify_model_update(self, name, version):
         '''notify model update to peers'''
+        print('notify model', name, 'iteration', version)
         raw = czf_pb2.Packet(model_info=czf_pb2.ModelInfo(
             name=name,
             version=version,

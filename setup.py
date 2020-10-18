@@ -116,7 +116,8 @@ with open('README.md') as fd:
                 'czf-actor = czf.actor:run_main',
                 'czf-broker = czf.broker:run_main',
                 'czf-game-server = czf.game_server:run_main',
-                'czf-optimizer = czf.optimizer:run_main',
+                'czf-model-provider = czf.model_provider:run_main',
+                'czf-learner = czf.learner:run_main',
             ],
         },
         classifiers=[

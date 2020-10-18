@@ -77,23 +77,30 @@ class Actor:
                 policy[action] = visit / total_visits
             job.payload.state.evaluation.value = value
             job.payload.state.evaluation.policy[:] = policy
-            await self.__send_packet(czf_pb2.Packet(job=job))
+            asyncio.create_task(self.__send_packet(czf_pb2.Packet(job=job)))
+            #if self._model_manager.has_new_model:
+            #    asyncio.create_task(self.__load_latest_model())
 
     def __load_model(self, model: czf_pb2.Model):
         '''WorkerManager load model'''
         assert len(model.blobs) == 1
+        print('load model', model.info.name, 'iteration', model.info.version)
         blob = model.blobs[0]
         with tempfile.NamedTemporaryFile() as tmp_file:
             tmp_file.write(blob)
             self._worker_manager.load_model(tmp_file.name)
 
-    async def __initialize(self):
-        '''initialize model and start to send job'''
-        # load model
+    async def __load_latest_model(self):
+        '''load the latest model'''
         model_version = await self._model_manager.get_latest_version('default')
         model = await self._model_manager.get(
             czf_pb2.ModelInfo(name='default', version=model_version))
         self.__load_model(model)
+
+    async def __initialize(self):
+        '''initialize model and start to send job'''
+        # load the latest model
+        await self.__load_latest_model()
         # start to send job
         asyncio.create_task(self.__send_job_request())
 
