@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <memory>
+#include <random>
 
 #include "utils/config.h"
 #include "worker/worker.h"
@@ -51,7 +52,7 @@ void Node::set_player_and_action(bool player, Action_t action) {
 }
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
-Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) {
+Node *Node::select_child(const TreeInfo &tree_info, RNG_t &rng) {
   float selected_score = std::numeric_limits<float>::lowest();
   size_t selected_count = 1;
   Node *selected_child = nullptr;
@@ -72,7 +73,7 @@ Node *Node::select_child(const TreeInfo &tree_info, PRNG &rng) {
       } else {
         // select one child with same scores
         ++selected_count;
-        if ((rng() % selected_count) == 0) {
+        if (rng(selected_count) == 0) {
           selected_child = &child;
         }
       }
@@ -95,7 +96,7 @@ void Node::normalize_policy() {
   }
 }
 
-void Node::add_dirichlet_noise(PRNG &rng) {
+void Node::add_dirichlet_noise(RNG_t &rng) {
   size_t size = node_info_.children.size();
   std::vector<float> noise(size);
   std::gamma_distribution<float> gamma(
@@ -148,7 +149,8 @@ std::unordered_map<Action_t, size_t> Node::get_children_visits() const {
   return visits;
 }
 
-void Tree::before_forward(PRNG &rng, const std::vector<Action_t> &all_actions) {
+void Tree::before_forward(RNG_t &rng,
+                          const std::vector<Action_t> &all_actions) {
   // selection
   auto *node = &tree_;
   selection_path_.clear();
@@ -180,7 +182,7 @@ void Tree::expand_root(const std::vector<Action_t> &legal_actions) {
 
 void Tree::normalize_root_policy() { tree_.normalize_policy(); }
 
-void Tree::add_dirichlet_noise_to_root(PRNG &rng) {
+void Tree::add_dirichlet_noise_to_root(RNG_t &rng) {
   tree_.add_dirichlet_noise(rng);
 }
 

@@ -47,6 +47,7 @@ if(NOT COMMAND pybind11_add_module)
   add_subdirectory(third_party/pybind11)
 endif()
 include_directories(SYSTEM third_party/concurrentqueue)
+include_directories(SYSTEM third_party/pcg-cpp/include)
 add_subdirectory(czf)
 
 # clang-format

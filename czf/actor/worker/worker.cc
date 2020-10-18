@@ -3,6 +3,7 @@
 #include <pybind11/stl.h>
 
 #include <iostream>
+#include <random>
 
 namespace czf::actor::worker {
 
@@ -14,19 +15,22 @@ void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
                         size_t num_gpu_root_worker, size_t num_gpu) {
   if (!running_) {
     running_ = true;
-    SeedPRNG rng{WorkerManager::job_option.seed};
+    const auto seed = WorkerManager::job_option.seed;
     for (size_t i = 0; i < num_cpu_worker; ++i) {
-      Seed_t seed = rng();
-      cpu_threads_.emplace_back([this, seed] { worker_cpu(seed); });
+      const Seed_t stream = 100U + i;
+      cpu_threads_.emplace_back(
+          [this, seed, stream] { worker_cpu(seed, stream); });
     }
     ModelManager::prepare_nvrtc();
     for (size_t i = 0; i < num_gpu_worker; ++i) {
-      Seed_t seed = rng();
-      gpu_threads_.emplace_back([this, seed] { worker_gpu(seed, false); });
+      const Seed_t stream = 200U + i;
+      gpu_threads_.emplace_back(
+          [this, seed, stream] { worker_gpu(seed, stream, false); });
     }
     for (size_t i = 0; i < num_gpu_root_worker; ++i) {
-      Seed_t seed = rng();
-      gpu_root_threads_.emplace_back([this, seed] { worker_gpu(seed, true); });
+      const Seed_t stream = 300U + i;
+      gpu_root_threads_.emplace_back(
+          [this, seed, stream] { worker_gpu(seed, stream, true); });
     }
     model_manager.resize(num_gpu);
   }
@@ -94,8 +98,8 @@ void WorkerManager::load_model(const std::string &path) {
   model_manager.load(path);
 }
 
-void WorkerManager::worker_cpu(Seed_t seed) {
-  PRNG rng{seed};
+void WorkerManager::worker_cpu(Seed_t seed, Seed_t stream) {
+  RNG_t rng{seed, stream};
   while (running_) {
     // dequeue a job
     std::unique_ptr<Job> job;
@@ -142,8 +146,8 @@ void WorkerManager::worker_cpu(Seed_t seed) {
   }
 }
 
-void WorkerManager::worker_gpu(Seed_t seed, bool is_root) {
-  PRNG rng{seed};
+void WorkerManager::worker_gpu(Seed_t seed, Seed_t stream, bool is_root) {
+  RNG_t rng{seed, stream};
   auto &queue = is_root ? gpu_root_queue_ : gpu_queue_;
   const auto &game_observation_shape =
       is_root ? WorkerManager::game_info.observation_shape

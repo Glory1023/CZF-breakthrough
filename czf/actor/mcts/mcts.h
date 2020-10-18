@@ -4,11 +4,10 @@
 #include <vector>
 
 #include "utils/config.h"
-#include "utils/random.h"
 
 namespace czf::actor::mcts {
 
-using PRNG = czf::actor::utils::random::Xorshift;
+using RNG_t = czf::actor::RNG_t;
 using State_t = std::vector<float>;
 using Action_t = int32_t;
 using Policy_t = std::vector<float>;
@@ -80,13 +79,13 @@ class Node {
   /** check if the node can select child */
   bool can_select_child() const;
   /** select a child according to the pUCT score */
-  Node *select_child(const TreeInfo &, PRNG &);
+  Node *select_child(const TreeInfo &, RNG_t &);
   /** expand children according to legal actions */
   void expand_children(const std::vector<Action_t> &);
   /** normalize policy by legal actions (only applies to the root node) */
   void normalize_policy();
   /** add Dirichlet noise to the policy (only applies to the root node) */
-  void add_dirichlet_noise(PRNG &);
+  void add_dirichlet_noise(RNG_t &);
   /** get the forward state */
   const State_t &get_forward_state() const;
   /** get the forward action */
@@ -111,7 +110,7 @@ class Node {
 class Tree {
  public:
   /** Mcts selection & expansion */
-  void before_forward(PRNG &, const std::vector<Action_t> &);
+  void before_forward(RNG_t &, const std::vector<Action_t> &);
   /** Mcts update */
   void after_forward();
 
@@ -121,7 +120,7 @@ class Tree {
   /** normalize root policy by legal actions */
   void normalize_root_policy();
   /** add Dirichlet noise to the the root node */
-  void add_dirichlet_noise_to_root(PRNG &);
+  void add_dirichlet_noise_to_root(RNG_t &);
   /** get the forward input of current node */
   ForwardInfo get_forward_input() const;
   /** set the forward result to current node */

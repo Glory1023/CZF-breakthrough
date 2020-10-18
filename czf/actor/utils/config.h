@@ -1,7 +1,10 @@
 #pragma once
+#include <pcg_random.hpp>
 #include <vector>
 
 namespace czf::actor {
+
+using RNG_t = pcg32;
 
 namespace BuildOption {
 const constexpr int kTorchNumIntraThread = 1;  // PyTorch intra-threads
@@ -26,6 +29,10 @@ struct JobOption {
 };
 
 struct MctsOption {
+  // TODO: TreeInfo min & max value
+  // float tree_min_value = std::numeric_limits<float>::max(),
+  //      tree_max_value = std::numeric_limits<float>::lowest();
+  // Mcts
   float C_PUCT,           // pUCT constant
       dirichlet_alpha,    // Dir(alpha)
       dirichlet_epsilon,  // (1 - eps) * p + eps * Dir(a);

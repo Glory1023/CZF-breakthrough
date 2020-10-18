@@ -7,16 +7,14 @@
 #include <vector>
 
 #include "utils/config.h"
-#include "utils/random.h"
 #include "worker/job.h"
 #include "worker/model.h"
 
 namespace czf::actor::worker {
 
 namespace py = ::pybind11;
-using PRNG = ::czf::actor::utils::random::Xorshift;
-using SeedPRNG = ::czf::actor::utils::random::Splitmix;
-using Seed_t = PRNG::seed_type;
+using RNG_t = czf::actor::RNG_t;
+using Seed_t = RNG_t::state_type;
 using Clock_t = std::chrono::steady_clock;
 
 class WorkerManager {
@@ -38,8 +36,8 @@ class WorkerManager {
   void load_model(const std::string&);
 
  private:
-  void worker_cpu(Seed_t);
-  void worker_gpu(Seed_t, bool);
+  void worker_cpu(Seed_t, Seed_t);
+  void worker_gpu(Seed_t, Seed_t, bool);
 
  private:
   std::atomic_bool running_{false};

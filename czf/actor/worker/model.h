@@ -1,8 +1,10 @@
 #pragma once
 #include <torch/script.h>
 
+#include <array>
 #include <atomic>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <vector>
 
