@@ -1,12 +1,12 @@
 [submodule "third_party/pybind11"]
 	path = third_party/pybind11
 	url = https://github.com/pybind/pybind11.git
-[submodule "third_party/czf_env"]
-	path = third_party/czf_env
-	url = git@github.com:yhchen0906/czf_env.git
-[submodule "third_party/catch2"]
-	path = third_party/catch2
-	url = https://github.com/catchorg/Catch2.git
 [submodule "third_party/concurrentqueue"]
 	path = third_party/concurrentqueue
 	url = https://github.com/cameron314/concurrentqueue
+[submodule "third_party/pcg-cpp"]
+	path = third_party/pcg-cpp
+	url = https://github.com/imneme/pcg-cpp
+[submodule "third_party/catch2"]
+	path = third_party/catch2
+	url = https://github.com/catchorg/Catch2.git
