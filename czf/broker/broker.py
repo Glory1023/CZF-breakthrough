@@ -1,10 +1,9 @@
 '''CZF Broker'''
 import asyncio
 from collections import defaultdict
-import time
 
 from czf.pb import czf_pb2
-from czf.utils import get_zmq_router
+from czf.utils import get_zmq_router, timer
 
 
 class Broker:
@@ -41,8 +40,7 @@ class Broker:
         job_queue = self._jobs[job_request.operation]
         packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(
             jobs=[await job_queue.get()]))
-        deadline = time.time() + wait_time
-        while (timeout := deadline - time.time()) > 0:
+        for timeout in timer(wait_time):
             try:
                 job = await asyncio.wait_for(job_queue.get(), timeout=timeout)
                 packet.job_batch.jobs.append(job)

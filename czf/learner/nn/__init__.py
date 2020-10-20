@@ -4,8 +4,8 @@ from czf.learner.nn.alphazero import AlphaZero
 from czf.learner.nn.muzero import MuZero
 
 __all__ = [
-    BasicBlock,
-    ResNet,
-    AlphaZero,
-    MuZero,
+    'BasicBlock',
+    'ResNet',
+    'AlphaZero',
+    'MuZero',
 ]

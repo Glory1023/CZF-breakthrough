@@ -44,7 +44,7 @@ class RemoteModelManager:
         self._latest_version = {}
         self.upstream = get_zmq_dealer(identity=identity,
                                        remote_address=upstream)
-        self.has_new_model = False
+        self.has_new_model = asyncio.Event()
         asyncio.create_task(self._recv_loop())
 
     def get(self, model: czf_pb2.ModelInfo) -> czf_pb2.Model:
@@ -55,16 +55,16 @@ class RemoteModelManager:
             asyncio.create_task(self.__send_model_request(model))
         return self._cache[key]
 
-    def get_latest_version(self, name: str):
+    async def get_latest_version(self, name: str) -> int:
         '''get the latest model version by `name`'''
         if name not in self._latest_version:
             self._latest_version[name] = asyncio.Future()
-            asyncio.create_task(
-                self.__send_model_request(
-                    czf_pb2.ModelInfo(
-                        name=name,
-                        version=-1,
-                    )))
+            await self.__send_model_request(
+                czf_pb2.ModelInfo(
+                    name=name,
+                    version=-1,
+                ))
+            return await self._latest_version[name]
         return self._latest_version[name]
 
     async def _recv_loop(self):
@@ -86,11 +86,10 @@ class RemoteModelManager:
                 self._cache[key].set_result(model)
             elif packet_type == 'model_info':
                 model = packet.model_info
-                print('recv info', model.name, model.version)
                 latest_version = self._latest_version.get(name)
                 if isinstance(latest_version,
                               int) and model.version > latest_version:
-                    self.has_new_model = True
+                    self.has_new_model.set()
                 self._latest_version[model.name] = model.version
 
     async def __send_model_request(self, model: czf_pb2.ModelInfo):

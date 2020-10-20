@@ -43,12 +43,6 @@ void WorkerManager::terminate() {
     for ([[maybe_unused]] const auto &thread : cpu_threads_) {
       cpu_queue_.enqueue(nullptr);
     }
-    for ([[maybe_unused]] const auto &thread : gpu_threads_) {
-      gpu_queue_.enqueue(nullptr);
-    }
-    for ([[maybe_unused]] const auto &thread : gpu_threads_) {
-      gpu_root_queue_.enqueue(nullptr);
-    }
     result_queue_.enqueue(nullptr);
     // join threads
     for (auto &thread : cpu_threads_) {
@@ -153,28 +147,16 @@ void WorkerManager::worker_gpu(Seed_t seed, Seed_t stream, bool is_root) {
       is_root ? WorkerManager::game_info.observation_shape
               : WorkerManager::game_info.state_shape;
   constexpr auto zero = std::chrono::duration<double>::zero();
-  const auto max_timeout =
+  const auto timeout =
       std::chrono::microseconds(WorkerManager::job_option.timeout_us);
+  std::vector<std::unique_ptr<Job>> jobs;
+  jobs.reserve(WorkerManager::job_option.batch_size);
   while (running_) {
-    std::vector<std::unique_ptr<Job>> jobs;
     // collect jobs
-    auto timeout = std::chrono::duration<double>::max();
-    Clock_t::time_point deadline;
-    for (size_t i = 0;
-         i < WorkerManager::job_option.batch_size && timeout > zero;
-         ++i, timeout = deadline - Clock_t::now()) {
-      std::unique_ptr<Job> job;
-      if (queue.wait_dequeue_timed(job, timeout)) {
-        if (job == nullptr) {  // termination job
-          return;
-        }
-        if (jobs.empty()) {  // set max timeout
-          deadline = Clock_t::now() + max_timeout;
-        }
-        jobs.push_back(std::move(job));
-      } else {
-        break;
-      }
+    queue.wait_dequeue_bulk_timed(std::back_inserter(jobs), jobs.capacity(),
+                                  timeout);
+    if (jobs.empty()) {
+      continue;
     }
     // std::cerr << "gpu forward" << std::endl;
     // construct input tensor

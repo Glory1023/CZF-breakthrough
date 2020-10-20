@@ -38,8 +38,8 @@ class Learner:
             train_freq=config['learner']['frequency'],
         )
         # trainer
-        self._trainer = Trainer(args, config, checkpoint_path, model_path,
-                                log_path)
+        self._trainer = Trainer(config, checkpoint_path, model_path, log_path,
+                                args.restore)
         self._checkpoint_freq = config['learner']['checkpoint_freq']
         self._trainer.save_model()
 

@@ -35,7 +35,7 @@ class Actor:
     async def loop(self):
         '''main loop'''
         await asyncio.gather(self._recv_job_batch_loop(), self._enqueue_loop(),
-                             self._dequeue_loop())
+                             self._dequeue_loop(), self._load_model_loop())
 
     async def _recv_job_batch_loop(self):
         '''a loop to receive `JobBatch`'''
@@ -78,8 +78,13 @@ class Actor:
             job.payload.state.evaluation.value = value
             job.payload.state.evaluation.policy[:] = policy
             asyncio.create_task(self.__send_packet(czf_pb2.Packet(job=job)))
-            #if self._model_manager.has_new_model:
-            #    asyncio.create_task(self.__load_latest_model())
+
+    async def _load_model_loop(self):
+        '''a loop to load the latest model'''
+        while True:
+            await self._model_manager.has_new_model.wait()
+            self._model_manager.has_new_model.clear()
+            await self.__load_latest_model()
 
     def __load_model(self, model: czf_pb2.Model):
         '''WorkerManager load model'''

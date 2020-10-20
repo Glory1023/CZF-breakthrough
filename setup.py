@@ -87,6 +87,19 @@ class CMakeProtoTarget(CMakeBuild):
                               cwd=self.build_temp)
 
 
+class CMakeBuildDocs(CMakeBuild):
+    '''CMake build docs'''
+    def build_extension(self, ext):
+        if not os.path.exists(self.build_temp):
+            os.makedirs(self.build_temp)
+        cfg = 'Debug' if self.debug else 'Release'
+        subprocess.check_call(
+            ['cmake', ext.sourcedir, '-DCMAKE_BUILD_TYPE=' + cfg],
+            cwd=self.build_temp)
+        subprocess.check_call(['cmake', '--build', '.', '--target', 'sphinx'],
+                              cwd=self.build_temp)
+
+
 with open('README.md') as fd:
     setup(
         name='czf',
@@ -100,6 +113,7 @@ with open('README.md') as fd:
         ext_modules=[CMakeExtension('czf_env')],
         cmdclass={
             'build_ext': CMakeBuild,
+            'build_docs': CMakeBuildDocs,
             'tests': CMakeTestTarget,
             'format': CMakeFormatTarget,
             'proto': CMakeProtoTarget,

@@ -82,21 +82,8 @@ class EnvManager:
                 self._server.send_optimize_job(self._trajectory))
             self.reset()
 
-        if len(self._state.legal_actions) == 1:
-            # choose the only action
-            policy = self._zero_policy[:]
-            policy[self._state.legal_actions[0]] = 1.
-            job = czf_pb2.Job(payload=czf_pb2.Job.Payload(
-                state=czf_pb2.State(
-                    observation_tensor=self._state.observation_tensor,
-                    evaluation=czf_pb2.State.Evaluation(policy=list(policy)),
-                ),
-                env_index=self._server.envs.index(self),
-            ))
-            asyncio.create_task(self.on_job_completed(job))
-        else:
-            # send a search job
-            asyncio.create_task(self.send_search_job_request())
+        # send a search job
+        asyncio.create_task(self.send_search_job_request())
 
 
 class GameServer:

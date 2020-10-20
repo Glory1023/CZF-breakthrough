@@ -11,7 +11,7 @@ from czf.learner.nn import MuZero
 
 class Trainer:
     '''Trainer'''
-    def __init__(self, args, config, checkpoint_path, model_path, log_path):
+    def __init__(self, config, checkpoint_path, model_path, log_path, restore):
         self._device = 'cuda'
         self.model_name, self.iteration = 'default', 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -55,7 +55,7 @@ class Trainer:
         )
         self._summary_writer = SummaryWriter(log_dir=log_path)
         # restore the latest model
-        if args.restore:
+        if restore:
             state_dict = torch.load(self._ckpt_dir / 'latest.pt')
             self.iteration = state_dict['iteration']
             self._model.load_state_dict(state_dict['model'])
@@ -110,10 +110,11 @@ class Trainer:
                     r_loss_i = r_criterion(target_reward, reward)
                     r_loss.append(r_loss_i.item())
                     loss_i += r_loss_i
-                #print('step: {:2d}, policy loss: {:.3f}, value loss: {:.3f}'.
-                #      format(i // 5, p_loss_i.item(), v_loss_i.item()))
-                loss_i.register_hook(lambda grad: grad * gradient_scale)
+                if i > 0:
+                    loss_i.register_hook(lambda grad: grad * gradient_scale)
                 loss += loss_i
+            print('policy loss: {:.3f}, value loss: {:.3f}'.format(
+                np.mean(p_loss), np.mean(v_loss)))
             # optimize
             self._optimizer.zero_grad()
             loss.backward()
