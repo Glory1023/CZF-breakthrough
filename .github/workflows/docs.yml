@@ -21,8 +21,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install breathe Sphinx sphinx-copybutton sphinx_rtd_theme
         pip install zmq tensorboard
+        pip install torch==1.6.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
     - name: Build & Commit Docs
       run: |
+        export CMAKE_PREFIX_PATH=`python3 -c 'import torch; print(torch.__path__[0] + "/share/cmake/Torch")'`
         python setup.py build_docs
         git fetch origin
         git checkout gh-pages
