@@ -7,48 +7,53 @@
 
 namespace czf::actor::mcts {
 
-using RNG_t = czf::actor::RNG_t;
-using State_t = std::vector<float>;
-using Action_t = int32_t;
-using Policy_t = std::vector<float>;
+using RNG_t = czf::actor::RNG_t;  ///< the type for the random number generator
+using State_t = std::vector<float>;   ///< the type of a state
+using Action_t = int32_t;             ///< the type of an action
+using Policy_t = std::vector<float>;  ///< the type of a policy
 
 struct TreeInfo {
-  /** min & max q value on tree */
-  float min_value = std::numeric_limits<float>::max(),
-        max_value = std::numeric_limits<float>::lowest();
+  float min_value = std::numeric_limits<float>::max(),  ///< min q value on tree
+      max_value =
+          std::numeric_limits<float>::lowest();  ///< max q value on tree
 
   /** update the min & max value on tree */
   void update(float);
 };
 
 struct TreeResult {
-  size_t total_visits;                          // simulation counts
-  std::unordered_map<Action_t, size_t> visits;  // child visit counts
-  float value                                   // root forward value
-      ;
+  size_t total_visits;                          ///< simulation counts
+  std::unordered_map<Action_t, size_t> visits;  ///< child visit counts
+  float value;                                  ///< root forward value
 };
 
 struct ForwardInfo {
+  /** \f$f(\textbf{observation})\f$ or \f$g(\textbf{state}, \text{action})\f$ */
   State_t state;
+  /** \f$g(\text{state}, \textbf{action})\f$ */
   Action_t action;
 };
 
 struct ForwardResult {
+  /// \f$\textbf{next_state}, \text{reward} = g(\text{state}, \text{action})\f$
   State_t state;
+  /** \f$\textbf{policy}, \text{value} =f(\text{state})\f$ */
   Policy_t policy;
-  float value, reward;
+  float value,  ///< \f$\text{policy}, \textbf{value} =f(\text{state})\f$
+      reward;   /**< \f$\text{next_state}, \textbf{reward} = g(\text{state},
+                   \text{action})\f$ */
 };
 
 struct MctsInfo {
-  size_t action_index,  // action index in the parent policy (usually equals to
-                        // the forward action)
-      visits = 0;       // visit counts
-  float sqrt_visits = 0.F;  // square root of visit count
-  float reward = 0.F,       // reward of the dynamics
-      value = 0.F,          // Mcts Q-value
-      forward_value = 0.F   // forward value
+  size_t action_index, /**< action index in the parent policy (usually equals to
+                          the forward action)*/
+      visits = 0;      ///< visit counts
+  float sqrt_visits = 0.F;  ///< square root of visit count
+  float reward = 0.F,       ///< reward of the dynamics
+      value = 0.F,          ///< Mcts Q-value
+      forward_value = 0.F   ///< forward value
       ;
-  Policy_t policy;
+  Policy_t policy;  ///< policy of children
 
   /** get value normalized by `TreeInfo` */
   float get_normalized_value(const TreeInfo &) const;
@@ -59,10 +64,9 @@ struct MctsInfo {
 class Node;
 
 struct NodeInfo {
-  std::vector<Node> children;  // children of the node
-  bool has_selected = false,   // check if the node has been expanded (selected)
-      is_root_player = true    // check if the same player as the root node
-      ;
+  std::vector<Node> children;  ///< children of the node
+  bool has_selected = false,   ///< check if the node has been expanded
+      is_root_player = true;   ///< check if the same player as the root node
 
   /** check if the node can select child */
   bool can_select_child() const;
@@ -131,9 +135,8 @@ class Tree {
   TreeResult get_tree_result();
 
  private:
-  Node tree_,                  // the root node
-      *current_node_ = &tree_  // current node visitor
-      ;
+  Node tree_,                   ///< the root node
+      *current_node_ = &tree_;  ///< current node visitor
   /** Mcts selection path (from root to current node)*/
   std::vector<Node *> selection_path_;
   TreeInfo tree_info_;

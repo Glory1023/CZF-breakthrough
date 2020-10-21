@@ -13,9 +13,8 @@
 namespace czf::actor::worker {
 
 namespace py = ::pybind11;
-using RNG_t = czf::actor::RNG_t;
-using Seed_t = RNG_t::state_type;
-using Clock_t = std::chrono::steady_clock;
+using RNG_t = czf::actor::RNG_t;   ///< the type for the random number generator
+using Seed_t = RNG_t::state_type;  ///< the type of random seed
 
 class WorkerManager {
  public:

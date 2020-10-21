@@ -10,8 +10,8 @@
 
 namespace czf::actor::worker {
 
-using Model = torch::jit::script::Module;
-using ModelPtr = std::shared_ptr<Model>;
+using Model = torch::jit::script::Module;  ///< the type of a model
+using ModelPtr = std::shared_ptr<Model>;   ///< the type of a pointer to model
 
 class ModelManager {
  public:

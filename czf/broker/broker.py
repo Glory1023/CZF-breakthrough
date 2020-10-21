@@ -20,7 +20,10 @@ class Broker:
     async def _recv_loop(self):
         '''a loop to receive `Job` and `JobRequest`'''
         while True:
-            identity, raw = await self._socket.recv_multipart()
+            identity, *raw = await self._socket.recv_multipart()
+            if len(raw) != 1:  # prevent wrong connections (not from czf)
+                continue
+            raw = raw[0]
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
             if packet_type == 'job':
