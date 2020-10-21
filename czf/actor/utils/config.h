@@ -24,8 +24,7 @@ struct JobOption {
   uint64_t seed;              ///< random number seed
   size_t timeout_us = 1000u,  ///< GPU wait max timeout (microseconds)
       batch_size,             ///< GPU max batch size
-      simulation_count        ///< Mcts simulation counts
-      ;
+      simulation_count;       ///< Mcts simulation counts
 };
 
 struct MctsOption {
@@ -36,8 +35,7 @@ struct MctsOption {
   float C_PUCT,           ///< pUCT constant
       dirichlet_alpha,    ///< Dir(alpha)
       dirichlet_epsilon,  ///< (1 - eps) * p + eps * Dir(a);
-      discount = 1.F      ///< discount factor of the return
-      ;
+      discount = 1.F;     ///< discount factor of the return
 };
 
 }  // namespace czf::actor

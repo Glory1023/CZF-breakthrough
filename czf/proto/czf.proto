@@ -29,8 +29,8 @@ message Model {
   repeated bytes blobs = 2;
 }
 
-// a general State message
-message State {
+// a message of the state of worker
+message WorkerState {
   // a message for evaluation result (actor)
   message Evaluation {
     // root forward value
@@ -68,7 +68,7 @@ message Job {
   }
   message Payload {
     int32 env_index = 1;
-    State state = 2;
+    WorkerState state = 2;
   }
   // unique identity
   string identity = 1;
@@ -95,7 +95,7 @@ message JobRequest {
 message JobBatch { repeated Job jobs = 1; }
 
 // a collection of sequential states
-message Trajectory { repeated State states = 1; }
+message Trajectory { repeated WorkerState states = 1; }
 
 // a collection of Trajectory messages
 message TrajectoryBatch { repeated Trajectory trajectories = 1; }

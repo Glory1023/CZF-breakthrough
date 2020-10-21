@@ -146,7 +146,6 @@ void WorkerManager::worker_gpu(Seed_t seed, Seed_t stream, bool is_root) {
   const auto &game_observation_shape =
       is_root ? WorkerManager::game_info.observation_shape
               : WorkerManager::game_info.state_shape;
-  constexpr auto zero = std::chrono::duration<double>::zero();
   const auto timeout =
       std::chrono::microseconds(WorkerManager::job_option.timeout_us);
   std::vector<std::unique_ptr<Job>> jobs;

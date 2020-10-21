@@ -38,7 +38,7 @@ class EnvManager:
             step=0,
             workers=self._workers,
             payload=czf_pb2.Job.Payload(
-                state=czf_pb2.State(
+                state=czf_pb2.WorkerState(
                     legal_actions=self._state.legal_actions,
                     observation_tensor=self._state.observation_tensor,
                     serialize=self._state.serialize(),

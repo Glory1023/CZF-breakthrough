@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\tczf.proto\x12\x06\x63zf.pb\"\x0b\n\tHeartbeat\"*\n\x04Node\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x10\n\x08hostname\x18\x02 \x01(\t\"*\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\"7\n\x05Model\x12\x1f\n\x04info\x18\x01 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\xb4\x02\n\x05State\x12\x15\n\rlegal_actions\x18\x01 \x03(\x05\x12\x1a\n\x12observation_tensor\x18\x02 \x03(\x02\x12\x11\n\tserialize\x18\x03 \x01(\t\x12,\n\nevaluation\x18\x04 \x01(\x0b\x32\x18.czf.pb.State.Evaluation\x12,\n\ntransition\x18\x05 \x01(\x0b\x32\x18.czf.pb.State.Transition\x1a\x42\n\nEvaluation\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\x12\x15\n\raverage_value\x18\x03 \x01(\x02\x1a\x45\n\nTransition\x12\x16\n\x0e\x63urrent_player\x18\x01 \x01(\x05\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\x05\x12\x0f\n\x07rewards\x18\x03 \x03(\x02\"\xd6\x02\n\x03Job\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x1f\n\tinitiator\x18\x02 \x01(\x0b\x32\x0c.czf.pb.Node\x12 \n\x05model\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12(\n\tprocedure\x18\x04 \x03(\x0e\x32\x15.czf.pb.Job.Operation\x12\x0c\n\x04step\x18\x05 \x01(\x05\x12\x1d\n\x07workers\x18\x06 \x03(\x0b\x32\x0c.czf.pb.Node\x12$\n\x07payload\x18\x07 \x01(\x0b\x32\x13.czf.pb.Job.Payload\x1a:\n\x07Payload\x12\x11\n\tenv_index\x18\x01 \x01(\x05\x12\x1c\n\x05state\x18\x02 \x01(\x0b\x32\r.czf.pb.State\"A\n\tOperation\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x14\n\x10\x41LPHAZERO_SEARCH\x10\x01\x12\x11\n\rMUZERO_SEARCH\x10\x02\"H\n\nJobRequest\x12(\n\toperation\x18\x01 \x01(\x0e\x32\x15.czf.pb.Job.Operation\x12\x10\n\x08\x63\x61pacity\x18\x02 \x01(\x05\"%\n\x08JobBatch\x12\x19\n\x04jobs\x18\x01 \x03(\x0b\x32\x0b.czf.pb.Job\"+\n\nTrajectory\x12\x1d\n\x06states\x18\x01 \x03(\x0b\x32\r.czf.pb.State\";\n\x0fTrajectoryBatch\x12(\n\x0ctrajectories\x18\x01 \x03(\x0b\x32\x12.czf.pb.Trajectory\"\xdc\x02\n\x06Packet\x12&\n\theartbeat\x18\x01 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12\'\n\nmodel_info\x18\x02 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12*\n\rmodel_request\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12\'\n\x0emodel_response\x18\x04 \x01(\x0b\x32\r.czf.pb.ModelH\x00\x12)\n\x0bjob_request\x18\x05 \x01(\x0b\x32\x12.czf.pb.JobRequestH\x00\x12%\n\tjob_batch\x18\x06 \x01(\x0b\x32\x10.czf.pb.JobBatchH\x00\x12\x1a\n\x03job\x18\x07 \x01(\x0b\x32\x0b.czf.pb.JobH\x00\x12\x33\n\x10trajectory_batch\x18\x08 \x01(\x0b\x32\x17.czf.pb.TrajectoryBatchH\x00\x42\t\n\x07payloadb\x06proto3'
+  serialized_pb=b'\n\tczf.proto\x12\x06\x63zf.pb\"\x0b\n\tHeartbeat\"*\n\x04Node\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x10\n\x08hostname\x18\x02 \x01(\t\"*\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\"7\n\x05Model\x12\x1f\n\x04info\x18\x01 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\xc6\x02\n\x0bWorkerState\x12\x15\n\rlegal_actions\x18\x01 \x03(\x05\x12\x1a\n\x12observation_tensor\x18\x02 \x03(\x02\x12\x11\n\tserialize\x18\x03 \x01(\t\x12\x32\n\nevaluation\x18\x04 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Evaluation\x12\x32\n\ntransition\x18\x05 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Transition\x1a\x42\n\nEvaluation\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\x12\x15\n\raverage_value\x18\x03 \x01(\x02\x1a\x45\n\nTransition\x12\x16\n\x0e\x63urrent_player\x18\x01 \x01(\x05\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\x05\x12\x0f\n\x07rewards\x18\x03 \x03(\x02\"\xdc\x02\n\x03Job\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x1f\n\tinitiator\x18\x02 \x01(\x0b\x32\x0c.czf.pb.Node\x12 \n\x05model\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12(\n\tprocedure\x18\x04 \x03(\x0e\x32\x15.czf.pb.Job.Operation\x12\x0c\n\x04step\x18\x05 \x01(\x05\x12\x1d\n\x07workers\x18\x06 \x03(\x0b\x32\x0c.czf.pb.Node\x12$\n\x07payload\x18\x07 \x01(\x0b\x32\x13.czf.pb.Job.Payload\x1a@\n\x07Payload\x12\x11\n\tenv_index\x18\x01 \x01(\x05\x12\"\n\x05state\x18\x02 \x01(\x0b\x32\x13.czf.pb.WorkerState\"A\n\tOperation\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x14\n\x10\x41LPHAZERO_SEARCH\x10\x01\x12\x11\n\rMUZERO_SEARCH\x10\x02\"H\n\nJobRequest\x12(\n\toperation\x18\x01 \x01(\x0e\x32\x15.czf.pb.Job.Operation\x12\x10\n\x08\x63\x61pacity\x18\x02 \x01(\x05\"%\n\x08JobBatch\x12\x19\n\x04jobs\x18\x01 \x03(\x0b\x32\x0b.czf.pb.Job\"1\n\nTrajectory\x12#\n\x06states\x18\x01 \x03(\x0b\x32\x13.czf.pb.WorkerState\";\n\x0fTrajectoryBatch\x12(\n\x0ctrajectories\x18\x01 \x03(\x0b\x32\x12.czf.pb.Trajectory\"\xdc\x02\n\x06Packet\x12&\n\theartbeat\x18\x01 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12\'\n\nmodel_info\x18\x02 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12*\n\rmodel_request\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12\'\n\x0emodel_response\x18\x04 \x01(\x0b\x32\r.czf.pb.ModelH\x00\x12)\n\x0bjob_request\x18\x05 \x01(\x0b\x32\x12.czf.pb.JobRequestH\x00\x12%\n\tjob_batch\x18\x06 \x01(\x0b\x32\x10.czf.pb.JobBatchH\x00\x12\x1a\n\x03job\x18\x07 \x01(\x0b\x32\x0b.czf.pb.JobH\x00\x12\x33\n\x10trajectory_batch\x18\x08 \x01(\x0b\x32\x17.czf.pb.TrajectoryBatchH\x00\x42\t\n\x07payloadb\x06proto3'
 )
 
 
@@ -49,8 +49,8 @@ _JOB_OPERATION = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=768,
-  serialized_end=833,
+  serialized_start=792,
+  serialized_end=857,
 )
 _sym_db.RegisterEnumDescriptor(_JOB_OPERATION)
 
@@ -197,30 +197,30 @@ _MODEL = _descriptor.Descriptor(
 )
 
 
-_STATE_EVALUATION = _descriptor.Descriptor(
+_WORKERSTATE_EVALUATION = _descriptor.Descriptor(
   name='Evaluation',
-  full_name='czf.pb.State.Evaluation',
+  full_name='czf.pb.WorkerState.Evaluation',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='value', full_name='czf.pb.State.Evaluation.value', index=0,
+      name='value', full_name='czf.pb.WorkerState.Evaluation.value', index=0,
       number=1, type=2, cpp_type=6, label=1,
       has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='policy', full_name='czf.pb.State.Evaluation.policy', index=1,
+      name='policy', full_name='czf.pb.WorkerState.Evaluation.policy', index=1,
       number=2, type=2, cpp_type=6, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='average_value', full_name='czf.pb.State.Evaluation.average_value', index=2,
+      name='average_value', full_name='czf.pb.WorkerState.Evaluation.average_value', index=2,
       number=3, type=2, cpp_type=6, label=1,
       has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
@@ -238,34 +238,34 @@ _STATE_EVALUATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=351,
-  serialized_end=417,
+  serialized_start=369,
+  serialized_end=435,
 )
 
-_STATE_TRANSITION = _descriptor.Descriptor(
+_WORKERSTATE_TRANSITION = _descriptor.Descriptor(
   name='Transition',
-  full_name='czf.pb.State.Transition',
+  full_name='czf.pb.WorkerState.Transition',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='current_player', full_name='czf.pb.State.Transition.current_player', index=0,
+      name='current_player', full_name='czf.pb.WorkerState.Transition.current_player', index=0,
       number=1, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='action', full_name='czf.pb.State.Transition.action', index=1,
+      name='action', full_name='czf.pb.WorkerState.Transition.action', index=1,
       number=2, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='rewards', full_name='czf.pb.State.Transition.rewards', index=2,
+      name='rewards', full_name='czf.pb.WorkerState.Transition.rewards', index=2,
       number=3, type=2, cpp_type=6, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -283,48 +283,48 @@ _STATE_TRANSITION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=419,
-  serialized_end=488,
+  serialized_start=437,
+  serialized_end=506,
 )
 
-_STATE = _descriptor.Descriptor(
-  name='State',
-  full_name='czf.pb.State',
+_WORKERSTATE = _descriptor.Descriptor(
+  name='WorkerState',
+  full_name='czf.pb.WorkerState',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='legal_actions', full_name='czf.pb.State.legal_actions', index=0,
+      name='legal_actions', full_name='czf.pb.WorkerState.legal_actions', index=0,
       number=1, type=5, cpp_type=1, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='observation_tensor', full_name='czf.pb.State.observation_tensor', index=1,
+      name='observation_tensor', full_name='czf.pb.WorkerState.observation_tensor', index=1,
       number=2, type=2, cpp_type=6, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='serialize', full_name='czf.pb.State.serialize', index=2,
+      name='serialize', full_name='czf.pb.WorkerState.serialize', index=2,
       number=3, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='evaluation', full_name='czf.pb.State.evaluation', index=3,
+      name='evaluation', full_name='czf.pb.WorkerState.evaluation', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='transition', full_name='czf.pb.State.transition', index=4,
+      name='transition', full_name='czf.pb.WorkerState.transition', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -333,7 +333,7 @@ _STATE = _descriptor.Descriptor(
   ],
   extensions=[
   ],
-  nested_types=[_STATE_EVALUATION, _STATE_TRANSITION, ],
+  nested_types=[_WORKERSTATE_EVALUATION, _WORKERSTATE_TRANSITION, ],
   enum_types=[
   ],
   serialized_options=None,
@@ -343,7 +343,7 @@ _STATE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=180,
-  serialized_end=488,
+  serialized_end=506,
 )
 
 
@@ -381,8 +381,8 @@ _JOB_PAYLOAD = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=708,
-  serialized_end=766,
+  serialized_start=726,
+  serialized_end=790,
 )
 
 _JOB = _descriptor.Descriptor(
@@ -455,8 +455,8 @@ _JOB = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=491,
-  serialized_end=833,
+  serialized_start=509,
+  serialized_end=857,
 )
 
 
@@ -494,8 +494,8 @@ _JOBREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=835,
-  serialized_end=907,
+  serialized_start=859,
+  serialized_end=931,
 )
 
 
@@ -526,8 +526,8 @@ _JOBBATCH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=909,
-  serialized_end=946,
+  serialized_start=933,
+  serialized_end=970,
 )
 
 
@@ -558,8 +558,8 @@ _TRAJECTORY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=948,
-  serialized_end=991,
+  serialized_start=972,
+  serialized_end=1021,
 )
 
 
@@ -590,8 +590,8 @@ _TRAJECTORYBATCH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=993,
-  serialized_end=1052,
+  serialized_start=1023,
+  serialized_end=1082,
 )
 
 
@@ -676,16 +676,16 @@ _PACKET = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=1055,
-  serialized_end=1403,
+  serialized_start=1085,
+  serialized_end=1433,
 )
 
 _MODEL.fields_by_name['info'].message_type = _MODELINFO
-_STATE_EVALUATION.containing_type = _STATE
-_STATE_TRANSITION.containing_type = _STATE
-_STATE.fields_by_name['evaluation'].message_type = _STATE_EVALUATION
-_STATE.fields_by_name['transition'].message_type = _STATE_TRANSITION
-_JOB_PAYLOAD.fields_by_name['state'].message_type = _STATE
+_WORKERSTATE_EVALUATION.containing_type = _WORKERSTATE
+_WORKERSTATE_TRANSITION.containing_type = _WORKERSTATE
+_WORKERSTATE.fields_by_name['evaluation'].message_type = _WORKERSTATE_EVALUATION
+_WORKERSTATE.fields_by_name['transition'].message_type = _WORKERSTATE_TRANSITION
+_JOB_PAYLOAD.fields_by_name['state'].message_type = _WORKERSTATE
 _JOB_PAYLOAD.containing_type = _JOB
 _JOB.fields_by_name['initiator'].message_type = _NODE
 _JOB.fields_by_name['model'].message_type = _MODELINFO
@@ -695,7 +695,7 @@ _JOB.fields_by_name['payload'].message_type = _JOB_PAYLOAD
 _JOB_OPERATION.containing_type = _JOB
 _JOBREQUEST.fields_by_name['operation'].enum_type = _JOB_OPERATION
 _JOBBATCH.fields_by_name['jobs'].message_type = _JOB
-_TRAJECTORY.fields_by_name['states'].message_type = _STATE
+_TRAJECTORY.fields_by_name['states'].message_type = _WORKERSTATE
 _TRAJECTORYBATCH.fields_by_name['trajectories'].message_type = _TRAJECTORY
 _PACKET.fields_by_name['heartbeat'].message_type = _HEARTBEAT
 _PACKET.fields_by_name['model_info'].message_type = _MODELINFO
@@ -733,7 +733,7 @@ DESCRIPTOR.message_types_by_name['Heartbeat'] = _HEARTBEAT
 DESCRIPTOR.message_types_by_name['Node'] = _NODE
 DESCRIPTOR.message_types_by_name['ModelInfo'] = _MODELINFO
 DESCRIPTOR.message_types_by_name['Model'] = _MODEL
-DESCRIPTOR.message_types_by_name['State'] = _STATE
+DESCRIPTOR.message_types_by_name['WorkerState'] = _WORKERSTATE
 DESCRIPTOR.message_types_by_name['Job'] = _JOB
 DESCRIPTOR.message_types_by_name['JobRequest'] = _JOBREQUEST
 DESCRIPTOR.message_types_by_name['JobBatch'] = _JOBBATCH
@@ -770,28 +770,28 @@ Model = _reflection.GeneratedProtocolMessageType('Model', (_message.Message,), {
   })
 _sym_db.RegisterMessage(Model)
 
-State = _reflection.GeneratedProtocolMessageType('State', (_message.Message,), {
+WorkerState = _reflection.GeneratedProtocolMessageType('WorkerState', (_message.Message,), {
 
   'Evaluation' : _reflection.GeneratedProtocolMessageType('Evaluation', (_message.Message,), {
-    'DESCRIPTOR' : _STATE_EVALUATION,
+    'DESCRIPTOR' : _WORKERSTATE_EVALUATION,
     '__module__' : 'czf_pb2'
-    # @@protoc_insertion_point(class_scope:czf.pb.State.Evaluation)
+    # @@protoc_insertion_point(class_scope:czf.pb.WorkerState.Evaluation)
     })
   ,
 
   'Transition' : _reflection.GeneratedProtocolMessageType('Transition', (_message.Message,), {
-    'DESCRIPTOR' : _STATE_TRANSITION,
+    'DESCRIPTOR' : _WORKERSTATE_TRANSITION,
     '__module__' : 'czf_pb2'
-    # @@protoc_insertion_point(class_scope:czf.pb.State.Transition)
+    # @@protoc_insertion_point(class_scope:czf.pb.WorkerState.Transition)
     })
   ,
-  'DESCRIPTOR' : _STATE,
+  'DESCRIPTOR' : _WORKERSTATE,
   '__module__' : 'czf_pb2'
-  # @@protoc_insertion_point(class_scope:czf.pb.State)
+  # @@protoc_insertion_point(class_scope:czf.pb.WorkerState)
   })
-_sym_db.RegisterMessage(State)
-_sym_db.RegisterMessage(State.Evaluation)
-_sym_db.RegisterMessage(State.Transition)
+_sym_db.RegisterMessage(WorkerState)
+_sym_db.RegisterMessage(WorkerState.Evaluation)
+_sym_db.RegisterMessage(WorkerState.Transition)
 
 Job = _reflection.GeneratedProtocolMessageType('Job', (_message.Message,), {
 
