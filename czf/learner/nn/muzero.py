@@ -28,8 +28,7 @@ class MuZero(nn.Module):
         self.dynamics = ResNet(h_channels + 1, g_blocks, h_channels)
         self.prediction = ResNet(h_channels, f_blocks, f_channels)
         # g: board action map
-        self.board = torch.nn.Parameter(torch.eye(height * width),
-                                        requires_grad=False)
+        self.register_buffer('board', torch.eye(height * width))
         # g => reward head
         self.reward_head_front = nn.Sequential(
             nn.Conv2d(in_channels=h_channels, out_channels=1, kernel_size=1),
@@ -62,6 +61,9 @@ class MuZero(nn.Module):
 
     def forward_representation(self, observation):
         x = self.representation(observation)
+        x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
+        x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
+        x = (x - x_min) / (x_max - x_min)
         return x
 
     def forward_dynamics(self, state, action):
@@ -69,6 +71,9 @@ class MuZero(nn.Module):
         board_action = self.board[action.long()].view(-1, 1, height, width)
         state = torch.cat((state, board_action), 1)
         x = self.dynamics(state)
+        x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
+        x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
+        x = (x - x_min) / (x_max - x_min)
         # reward head
         r = self.reward_head_front(x)
         r = r.view(-1, height * width)

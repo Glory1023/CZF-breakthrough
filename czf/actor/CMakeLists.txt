@@ -19,6 +19,14 @@ pybind11_add_module(worker module.cc $<TARGET_OBJECTS:czf.workers>
 target_link_libraries(worker PRIVATE ${TORCH_LIBRARIES})
 install(TARGETS worker LIBRARY DESTINATION czf/actor)
 
+# benchmark
+if(BUILD_BENCHMARK)
+  add_executable(benchmark benchmark.cc $<TARGET_OBJECTS:czf.workers>
+                           $<TARGET_OBJECTS:czf.mcts>)
+  target_link_libraries(benchmark PRIVATE pybind11::embed ${TORCH_LIBRARIES})
+  install(TARGETS benchmark LIBRARY DESTINATION czf/actor)
+endif()
+
 # test module
 add_test(NAME pybind-tests COMMAND ${Python3_EXECUTABLE} -m pytest
                                    ${PROJECT_SOURCE_DIR}/tests)

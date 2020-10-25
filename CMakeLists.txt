@@ -9,6 +9,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 # Option
 option(BUILD_TESTING "build tests" ON)
+option(BUILD_BENCHMARK "build benchmark" OFF)
 option(ENABLE_CLANG_TIDY "enable clang-tidy" ON)
 option(ENABLE_CLANG_FORMAT "enable clang-format" ON)
 set(GCC_WARNING_FLAGS
@@ -28,6 +29,7 @@ else()
 endif()
 
 message(STATUS "BUILD_TESTING: ${BUILD_TESTING}")
+message(STATUS "BUILD_BENCHMARK: ${BUILD_BENCHMARK}")
 message(STATUS "ENABLE_CLANG_TIDY: ${ENABLE_CLANG_TIDY}")
 message(STATUS "ENABLE_CLANG_FORMAT: ${ENABLE_CLANG_FORMAT}")
 

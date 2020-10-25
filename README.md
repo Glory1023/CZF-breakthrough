@@ -17,7 +17,13 @@ pip install .
 czf-actor -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml
 czf-learner -l 5577 -f game.yaml
 czf-broker -l 5566
-czf-game-server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -g tic_tac_toe -n 1
+czf-game-server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -e tic_tac_toe -n 64
+```
+
+### Evaluation Mode
+
+```shell
+czf-game-server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -e tic_tac_toe -n 1 --eval
 ```
 
 ## Development

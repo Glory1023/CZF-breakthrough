@@ -123,8 +123,9 @@ with open('README.md') as fd:
         zip_safe=False,
         install_requires=[
             'czf-env @ git+https://github.com/yhchen0906/czf_env',
-            'zmq',
+            'pyyaml',
             'tensorboard',
+            'zmq',
         ],
         packages=find_packages(exclude=['tests']),
         entry_points={

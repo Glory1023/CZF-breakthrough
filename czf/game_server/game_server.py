@@ -1,9 +1,7 @@
 '''CZF Game Server'''
 import asyncio
 import platform
-import random
 import czf_env
-import numpy as np
 
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_dealer
@@ -13,7 +11,9 @@ class EnvManager:
     '''Game Environment Manager'''
     def __init__(self, server):
         self._server = server
-        self._zero_policy = np.zeros(self._server.game.num_distinct_actions)
+        self._action_policy_fn = self._server.action_policy_fn
+        self._after_apply_callback = self._server.metric_callbacks.get(
+            'after_apply', None)
         self.reset()
         asyncio.create_task(self.send_search_job_request())
 
@@ -58,14 +58,8 @@ class EnvManager:
         legal_actions = self._state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
         num_moves = len(self._trajectory.states)
-        chosen_action = -1
-        if num_moves < 2:
-            # softmax move
-            chosen_action = random.choices(legal_actions,
-                                           legal_actions_policy)[0]
-        else:
-            # argmax move
-            chosen_action = legal_actions[np.argmax(legal_actions_policy)]
+        chosen_action = self._action_policy_fn(num_moves, legal_actions,
+                                               legal_actions_policy)
         # add to trajectory
         state = self._trajectory.states.add()
         state.observation_tensor[:] = evaluated_state.observation_tensor
@@ -74,6 +68,8 @@ class EnvManager:
         state.transition.action = chosen_action
         # apply action
         self._state.apply_action(chosen_action)
+        if self._after_apply_callback:
+            self._after_apply_callback(evaluated_state, self._state)
         # game transition
         state.transition.rewards[:] = self._state.rewards
 
@@ -88,21 +84,34 @@ class EnvManager:
 
 class GameServer:
     '''Game Server'''
-    def __init__(self, args):
+    def __init__(self, args, callbacks):
         self._node = czf_pb2.Node(
             identity=f'game-server-{args.suffix}',
             hostname=platform.node(),
         )
         self.model_name = 'default'
+        # server mode
+        self._is_evaluation = args.eval
+        if args.eval:
+            print('[Evaluation Mode]', self._node.identity)
+        else:
+            print('[Training Mode]', self._node.identity)
+        # callbacks
+        self.action_policy_fn = callbacks['action_policy']
+        self.metric_callbacks = callbacks.get('metric', {})
+        if self.metric_callbacks:
+            print('register callbacks:', list(self.metric_callbacks.keys()))
         # game envs
-        self.game = czf_env.load_game(args.game)
+        self.game = czf_env.load_game(args.env)
         self.envs = [EnvManager(self) for _ in range(args.num_env)]
         # trajectory upstream
+        print('connect to learner @', args.upstream)
         self._upstream = get_zmq_dealer(
             identity=self._node.identity,
             remote_address=args.upstream,
         )
         # connect to broker
+        print('connect to broker  @', args.broker)
         self._broker = get_zmq_dealer(
             identity=self._node.identity,
             remote_address=args.broker,
@@ -128,9 +137,10 @@ class GameServer:
 
     async def send_optimize_job(self, trajectory: czf_pb2.Trajectory):
         '''helper to send a `Trajectory` to optimizer'''
-        packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
-            trajectories=[trajectory]))
-        await self._upstream.send(packet.SerializeToString())
+        if not self._is_evaluation:
+            packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
+                trajectories=[trajectory]))
+            await self._upstream.send(packet.SerializeToString())
 
     async def __send_packet(self, packet: czf_pb2.Packet):
         '''helper to send a `Packet`'''

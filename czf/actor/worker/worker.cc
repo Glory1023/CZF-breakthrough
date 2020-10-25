@@ -3,6 +3,7 @@
 #include <pybind11/stl.h>
 
 #include <iostream>
+#include <numeric>
 #include <random>
 
 namespace czf::actor::worker {
@@ -57,18 +58,9 @@ void WorkerManager::terminate() {
   }
 }
 
-void WorkerManager::enqueue_job(py::object pyjob, py::buffer obs_buffer,
-                                py::buffer actions_buffer) {
-  // observation
-  py::buffer_info obs_info = obs_buffer.request();
-  auto *obs_data = static_cast<float *>(obs_info.ptr);
-  std::vector<float> observation{obs_data, obs_data + obs_info.size};  // NOLINT
-  // legal actions
-  py::buffer_info actions_info = actions_buffer.request();
-  const int32_t *actions_data = static_cast<int32_t *>(actions_info.ptr);
-  std::vector<int32_t> legal_actions{
-      actions_data, actions_data + actions_info.size};  // NOLINT
-  // enqueue job
+void WorkerManager::enqueue_job(py::object pyjob,
+                                std::vector<float> observation,
+                                const std::vector<int32_t> &legal_actions) {
   auto job = std::make_unique<Job>();
   job->job = std::move(pyjob);
   job->tree.set_forward_result({std::move(observation), {}, 0, 0});
@@ -142,29 +134,44 @@ void WorkerManager::worker_cpu(Seed_t seed, Seed_t stream) {
 
 void WorkerManager::worker_gpu(Seed_t seed, Seed_t stream, bool is_root) {
   RNG_t rng{seed, stream};
+  // jobs
   auto &queue = is_root ? gpu_root_queue_ : gpu_queue_;
-  const auto &game_observation_shape =
+  constexpr auto zero = std::chrono::duration<double>::zero();
+  const auto max_timeout =
+      std::chrono::microseconds(WorkerManager::job_option.timeout_us);
+  const auto max_batch_size = WorkerManager::job_option.batch_size;
+  std::vector<std::unique_ptr<Job>> jobs;
+  jobs.reserve(max_batch_size);
+  // inputs (NCHW)
+  std::vector<int64_t> state_shape =
       is_root ? WorkerManager::game_info.observation_shape
               : WorkerManager::game_info.state_shape;
-  const auto timeout =
-      std::chrono::microseconds(WorkerManager::job_option.timeout_us);
-  std::vector<std::unique_ptr<Job>> jobs;
-  jobs.reserve(WorkerManager::job_option.batch_size);
+  state_shape.insert(state_shape.begin(), static_cast<int64_t>(max_batch_size));
+  std::vector<float> state_vector;
+  state_vector.reserve(std::accumulate(state_shape.begin(), state_shape.end(),
+                                       1U, std::multiplies<>()));
+  std::vector<float> action_vector;
+  action_vector.reserve(max_batch_size);
   while (running_) {
     // collect jobs
-    queue.wait_dequeue_bulk_timed(std::back_inserter(jobs), jobs.capacity(),
-                                  timeout);
+    Clock_t::time_point deadline;
+    for (Clock_t::duration timeout = max_timeout;
+         jobs.size() < max_batch_size && timeout > zero;
+         timeout = deadline - Clock_t::now()) {
+      auto count = queue.wait_dequeue_bulk_timed(
+          std::back_inserter(jobs), max_batch_size - jobs.size(), timeout);
+      if (count == jobs.size()) {  // set the deadline in the first dequeue
+        deadline = Clock_t::now() + max_timeout;
+      }
+    }
     if (jobs.empty()) {
       continue;
     }
-    // std::cerr << "gpu forward" << std::endl;
     // construct input tensor
     const size_t batch_size = jobs.size();
-    std::vector<int64_t> state_shape = game_observation_shape;
-    state_shape.insert(state_shape.begin(), static_cast<int64_t>(batch_size));
-    std::vector<float> state_vector;
-    std::vector<float> action_vector;
-    action_vector.reserve(batch_size);
+    state_shape[0] = static_cast<int64_t>(batch_size);
+    state_vector.clear();
+    action_vector.clear();
     for (auto &job : jobs) {
       const auto &info = job->tree.get_forward_input();
       state_vector.insert(state_vector.end(), info.state.begin(),

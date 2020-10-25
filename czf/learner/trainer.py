@@ -41,6 +41,7 @@ class Trainer:
                                        width).to(self._device)
         self._input_action = torch.rand(1, 1).to(self._device)
         # optimizer
+        torch.backends.cudnn.benchmark = True
         self._replay_buffer_reuse = config['learner']['replay_buffer_reuse']
         self._replay_retention = config['learner'][
             'replay_buffer_size'] / config['learner']['frequency']
@@ -64,17 +65,20 @@ class Trainer:
     def train(self, replay_buffer):
         '''optimize the model and increment model version'''
         p_criterion = lambda target_policy, policy: (
-            (-target_policy * (1e-8 + policy).log()).sum(dim=1).mean())
-        v_criterion = torch.nn.MSELoss()
-        r_criterion = torch.nn.MSELoss()
+            (-target_policy * (1e-8 + policy).log()).sum(dim=1).sum())
+        v_criterion = torch.nn.MSELoss(reduction='sum')
+        r_criterion = torch.nn.MSELoss(reduction='sum')
+        scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach(
+        ) * (1 - scale))
         states_to_train = int(
             len(replay_buffer) / self._replay_retention *
             self._replay_buffer_reuse)
         dataloader = DataLoader(
             dataset=replay_buffer,
             batch_size=self._batch_size,
-            collate_fn=RolloutBatch,
             shuffle=True,
+            collate_fn=RolloutBatch,
+            pin_memory=True,
         )
         self._model.train()
         gradient_scale = 1 / float(self._rollout_steps)
@@ -88,33 +92,33 @@ class Trainer:
             transition = [t.to(self._device) for t in transition]
             # forward
             state = self._model.forward_representation(observation)
-            loss = 0
-            p_loss, v_loss, r_loss = [], [], []
+            total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
             for i in range(0, len(transition), 5):
-                target_policy, target_value, mask, *action_reward = transition[
+                target_policy, target_value, action, target_reward, mask = transition[
                     i:i + 5]
+                total_batch += len(state)
                 policy, value = self._model.forward(state)
-                state.register_hook(lambda grad: grad * .5)
+                state, reward = self._model.forward_dynamics(state, action)
                 state = state[mask.nonzero(as_tuple=True)]
-                if action_reward:
-                    action, _ = action_reward
-                    state, reward = self._model.forward_dynamics(state, action)
+                state = scale_gradient(state, 0.5)
                 # loss
                 p_loss_i = p_criterion(target_policy, policy)
                 v_loss_i = v_criterion(target_value, value)
-                loss_i = p_loss_i + v_loss_i
-                p_loss.append(p_loss_i.item())
-                v_loss.append(v_loss_i.item())
-                if action_reward:
-                    _, target_reward = action_reward
-                    r_loss_i = r_criterion(target_reward, reward)
-                    r_loss.append(r_loss_i.item())
-                    loss_i += r_loss_i
+                r_loss_i = r_criterion(target_reward, reward)
+                loss_i = p_loss_i + v_loss_i + r_loss_i
+                # TODO: batch gradient scale
                 if i > 0:
-                    loss_i.register_hook(lambda grad: grad * gradient_scale)
+                    loss_i = scale_gradient(loss_i, gradient_scale)
                 loss += loss_i
+                p_loss += p_loss_i.item()
+                v_loss += v_loss_i.item()
+                r_loss += r_loss_i.item()
+            loss /= total_batch
+            p_loss /= total_batch
+            v_loss /= total_batch
+            r_loss /= total_batch
             print('policy loss: {:.3f}, value loss: {:.3f}'.format(
-                np.mean(p_loss), np.mean(v_loss)))
+                p_loss, v_loss))
             # optimize
             self._optimizer.zero_grad()
             loss.backward()
@@ -125,9 +129,9 @@ class Trainer:
                 writer, step = self._summary_writer, self.iteration
                 writer.add_scalar('params/lr', lr, step)
                 writer.add_scalar('loss/', loss.item(), step)
-                writer.add_scalar('loss/policy', np.mean(p_loss), step)
-                writer.add_scalar('loss/value', np.mean(v_loss), step)
-                writer.add_scalar('loss/reward', np.mean(r_loss), step)
+                writer.add_scalar('loss/policy', p_loss, step)
+                writer.add_scalar('loss/value', v_loss, step)
+                writer.add_scalar('loss/reward', r_loss, step)
                 break
 
         self.iteration += 1

@@ -15,6 +15,7 @@ namespace czf::actor::worker {
 namespace py = ::pybind11;
 using RNG_t = czf::actor::RNG_t;   ///< the type for the random number generator
 using Seed_t = RNG_t::state_type;  ///< the type of random seed
+using Clock_t = std::chrono::steady_clock;  ///< the type for clock
 
 class WorkerManager {
  public:
@@ -28,7 +29,7 @@ class WorkerManager {
   /** terminate all workers */
   void terminate();
   /** enqueue a protobuf job to the job queue */
-  void enqueue_job(py::object, py::buffer, py::buffer);
+  void enqueue_job(py::object, std::vector<float>, const std::vector<int32_t>&);
   /** dequeue a result from the job queue */
   py::tuple wait_dequeue_result();
   /** load model from file */

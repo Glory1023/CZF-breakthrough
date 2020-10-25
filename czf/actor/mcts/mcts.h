@@ -48,12 +48,11 @@ struct MctsInfo {
   size_t action_index, /**< action index in the parent policy (usually equals to
                           the forward action)*/
       visits = 0;      ///< visit counts
-  float sqrt_visits = 0.F;  ///< square root of visit count
-  float reward = 0.F,       ///< reward of the dynamics
+  float sqrt_visits = 0.F,  ///< square root of visit count
+      reward = 0.F,         ///< reward of the dynamics
       value = 0.F,          ///< Mcts Q-value
-      forward_value = 0.F   ///< forward value
-      ;
-  Policy_t policy;  ///< policy of children
+      forward_value = 0.F;  ///< forward value
+  Policy_t policy;          ///< policy of children
 
   /** get value normalized by `TreeInfo` */
   float get_normalized_value(const TreeInfo &) const;
@@ -66,7 +65,8 @@ class Node;
 struct NodeInfo {
   std::vector<Node> children;  ///< children of the node
   bool has_selected = false,   ///< check if the node has been expanded
-      is_root_player = true;   ///< check if the same player as the root node
+      is_root_player = true;   /**< check if the current player to play is the
+                                  same as the root player to play */
 
   /** check if the node can select child */
   bool can_select_child() const;

@@ -1,4 +1,4 @@
-Welcome to czf_env's documentation!
+Welcome to czf's documentation!
 ===================================
 
 .. toctree::

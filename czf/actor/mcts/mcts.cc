@@ -50,6 +50,7 @@ void Node::set_player_and_action(bool player, Action_t action) {
   forward_info_.action = action;
   mcts_info_.action_index = static_cast<size_t>(action);
 }
+
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
 Node *Node::select_child(const TreeInfo &tree_info, RNG_t &rng) {
@@ -203,7 +204,7 @@ size_t Tree::get_root_visits() const {
 }
 
 TreeResult Tree::get_tree_result() {
-  return {tree_.get_visits(), tree_.get_children_visits(),
+  return {get_root_visits(), tree_.get_children_visits(),
           tree_.get_forward_value()};
 }
 

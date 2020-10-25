@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 from pathlib import Path
+import shutil
 import yaml
 import zmq.asyncio
 
@@ -29,6 +30,8 @@ async def main():
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
+    Path(args.storage_dir).mkdir(parents=True, exist_ok=True)
+    shutil.copy(Path(args.config), Path(args.storage_dir) / 'config.yaml')
     learner = Learner(args, config)
     await learner.loop()
 

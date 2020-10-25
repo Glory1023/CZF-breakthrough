@@ -50,16 +50,18 @@ class ReplayBuffer(Dataset):
 
     def __getitem__(self, index):
         rollout = list(islice(self._buffer, index, index + self._kstep + 1))
-        # o, [(p, v, m, a, r)]
+        # o, [(p, v, a, r, m)]
         result = [rollout[0].observation]
         for transition in rollout:
-            result.extend([transition.policy, transition.value])
+            result.extend([
+                transition.policy,
+                transition.value,
+                transition.action,
+                transition.reward,
+                torch.tensor(0 if transition.is_terminal else 1),
+            ])
             if transition.is_terminal:
-                result.extend([torch.tensor(0), None, None])
                 break
-            result.extend(
-                [torch.tensor(1), transition.action, transition.reward])
-        result[-3:] = [torch.tensor(0), None, None]
         return result
 
     def is_ready(self):
@@ -78,6 +80,7 @@ class ReplayBuffer(Dataset):
         nstep, gamma = self._nstep, self._discount_factor
         discounted_return = [[0] for _ in range(self._num_player)]
         values = [0]
+        buffer = []
         for i, state in enumerate(reversed(trajectory.states)):
             # monte carlo returns
             for player in range(self._num_player):
@@ -101,7 +104,7 @@ class ReplayBuffer(Dataset):
             reward = torch.tensor(
                 [state.transition.rewards[state.transition.current_player]])
             # (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
-            self._buffer.append(
+            buffer.append(
                 Transition(
                     observation=observation,
                     action=action,
@@ -110,6 +113,7 @@ class ReplayBuffer(Dataset):
                     reward=reward,
                     is_terminal=(i == 0),
                 ))
+        self._buffer.extend(reversed(buffer))
 
         if self._num_games >= self._train_freq:
             self._ready = True
