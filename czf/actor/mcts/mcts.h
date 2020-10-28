@@ -13,9 +13,8 @@ using Action_t = int32_t;             ///< the type of an action
 using Policy_t = std::vector<float>;  ///< the type of a policy
 
 struct TreeInfo {
-  float min_value = std::numeric_limits<float>::max(),  ///< min q value on tree
-      max_value =
-          std::numeric_limits<float>::lowest();  ///< max q value on tree
+  float min_value = -1.F,  ///< min q value on tree
+      max_value = 1.F;     ///< max q value on tree
 
   /** update the min & max value on tree */
   void update(float);
@@ -49,9 +48,9 @@ struct MctsInfo {
                           the forward action)*/
       visits = 0;      ///< visit counts
   float sqrt_visits = 0.F,  ///< square root of visit count
-      reward = 0.F,         ///< reward of the dynamics
+      reward,               ///< reward of the dynamics
       value = 0.F,          ///< Mcts Q-value
-      forward_value = 0.F;  ///< forward value
+      forward_value;        ///< forward value
   Policy_t policy;          ///< policy of children
 
   /** get value normalized by `TreeInfo` */
@@ -63,10 +62,10 @@ struct MctsInfo {
 class Node;
 
 struct NodeInfo {
-  std::vector<Node> children;  ///< children of the node
-  bool has_selected = false,   ///< check if the node has been expanded
-      is_root_player = true;   /**< check if the current player to play is the
-                                  same as the root player to play */
+  /// children of the node
+  std::vector<Node> children;
+  /// check if the current player to play is the same as the root player to play
+  bool is_root_player = true;
 
   /** check if the node can select child */
   bool can_select_child() const;
@@ -116,15 +115,11 @@ class Tree {
   /** Mcts selection & expansion */
   void before_forward(RNG_t &, const std::vector<Action_t> &);
   /** Mcts update */
-  void after_forward();
+  void after_forward(RNG_t &);
 
  public:
   /** select and expand root legal actions */
   void expand_root(const std::vector<Action_t> &);
-  /** normalize root policy by legal actions */
-  void normalize_root_policy();
-  /** add Dirichlet noise to the the root node */
-  void add_dirichlet_noise_to_root(RNG_t &);
   /** get the forward input of current node */
   ForwardInfo get_forward_input() const;
   /** set the forward result to current node */

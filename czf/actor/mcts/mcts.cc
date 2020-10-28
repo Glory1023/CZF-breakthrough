@@ -30,12 +30,9 @@ float MctsInfo::update(bool same, float z) {
   return reward + WorkerManager::mcts_option.discount * z;
 }
 
-bool NodeInfo::can_select_child() const {
-  return has_selected && !children.empty();
-}
+bool NodeInfo::can_select_child() const { return !children.empty(); }
 
 void NodeInfo::expand(const std::vector<Action_t> &legal_actions) {
-  has_selected = true;
   const auto size = legal_actions.size();
   const auto child_player =
       WorkerManager::game_info.is_two_player ? !is_root_player : is_root_player;
@@ -55,15 +52,19 @@ bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
 Node *Node::select_child(const TreeInfo &tree_info, RNG_t &rng) {
   float selected_score = std::numeric_limits<float>::lowest();
-  size_t selected_count = 1;
+  size_t selected_count = 1U;
   Node *selected_child = nullptr;
   for (auto &child : node_info_.children) {
     // calculate pUCT score
-    float score = child.mcts_info_.get_normalized_value(tree_info) +
-                  WorkerManager::mcts_option.C_PUCT *
-                      mcts_info_.policy[child.mcts_info_.action_index] *
-                      mcts_info_.sqrt_visits /
-                      static_cast<float>(1 + child.mcts_info_.visits);
+    const float child_value =
+        child.mcts_info_.visits == 0 ? -1.F : child.mcts_info_.value;
+    // child.mcts_info_.visits == 0 ? 0.F :
+    // child.mcts_info_.get_normalized_value(tree_info);
+    const float score =
+        child_value + WorkerManager::mcts_option.C_PUCT *
+                          mcts_info_.policy[child.mcts_info_.action_index] *
+                          mcts_info_.sqrt_visits /
+                          static_cast<float>(1 + child.mcts_info_.visits);
     // argmax
     if (score > (selected_score - BuildOption::kFloatEps)) {
       if (score > (selected_score + BuildOption::kFloatEps)) {
@@ -165,7 +166,11 @@ void Tree::before_forward(RNG_t &rng,
   node->expand_children(all_actions);
 }
 
-void Tree::after_forward() {
+void Tree::after_forward(RNG_t &rng) {
+  if (selection_path_.size() == 1) {
+    tree_.normalize_policy();
+    tree_.add_dirichlet_noise(rng);
+  }
   // update
   auto z = current_node_->get_forward_value();
   tree_info_.update(z);
@@ -179,12 +184,6 @@ void Tree::after_forward() {
 void Tree::expand_root(const std::vector<Action_t> &legal_actions) {
   selection_path_.emplace_back(&tree_);
   tree_.expand_children(legal_actions);
-}
-
-void Tree::normalize_root_policy() { tree_.normalize_policy(); }
-
-void Tree::add_dirichlet_noise_to_root(RNG_t &rng) {
-  tree_.add_dirichlet_noise(rng);
 }
 
 ForwardInfo Tree::get_forward_input() const {

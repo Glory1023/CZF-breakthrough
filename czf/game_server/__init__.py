@@ -11,7 +11,7 @@ from czf.game_server.game_server import GameServer
 
 def default_action_policy_fn(num_moves, legal_actions, legal_actions_policy):
     '''Default action policy: switch betweens softmax and argmax action policy'''
-    if num_moves < 4:
+    if num_moves < 10:
         return softmax_action_policy_fn(num_moves, legal_actions,
                                         legal_actions_policy)
     return argmax_action_policy_fn(num_moves, legal_actions,

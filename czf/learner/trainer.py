@@ -62,6 +62,12 @@ class Trainer:
             self._model.load_state_dict(state_dict['model'])
             self._optimizer.load_state_dict(state_dict['optimizer'])
 
+    def log_terminal_values(self, replay_buffer):
+        '''log terminal values for recent trajectories'''
+        values = replay_buffer.get_terminal_values()
+        writer, step = self._summary_writer, self.iteration
+        writer.add_scalars('game/value', values, step)
+
     def train(self, replay_buffer):
         '''optimize the model and increment model version'''
         p_criterion = lambda target_policy, policy: (

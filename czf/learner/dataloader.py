@@ -1,5 +1,5 @@
 '''CZF Dataloader'''
-from collections import deque, namedtuple
+from collections import Counter, deque, namedtuple
 from itertools import islice, zip_longest
 import torch
 from torch.utils.data import Dataset
@@ -118,6 +118,18 @@ class ReplayBuffer(Dataset):
         if self._num_games >= self._train_freq:
             self._ready = True
             self._num_games -= self._train_freq
+
+    def get_terminal_values(self):
+        '''get terminal values of recent trajectories'''
+        size = len(self._buffer)
+        values = Counter([
+            str(float(transition.value))
+            for transition in islice(self._buffer, size -
+                                     self._train_freq, size)
+            if transition.is_terminal
+        ])
+        total = sum(values.values())
+        return {k: v / total for k, v in values.items()}
 
     def save_trajectory(self, path, iteration):
         '''save trajectory to path'''

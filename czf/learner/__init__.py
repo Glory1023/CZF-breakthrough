@@ -30,8 +30,10 @@ async def main():
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
-    Path(args.storage_dir).mkdir(parents=True, exist_ok=True)
-    shutil.copy(Path(args.config), Path(args.storage_dir) / 'config.yaml')
+    storage_path = Path(args.storage_dir)
+    if not storage_path.exists():
+        storage_path.mkdir(parents=True, exist_ok=True)
+        shutil.copy(Path(args.config), storage_path / 'config.yaml')
     learner = Learner(args, config)
     await learner.loop()
 

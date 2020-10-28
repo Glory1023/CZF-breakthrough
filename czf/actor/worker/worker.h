@@ -14,7 +14,7 @@ namespace czf::actor::worker {
 
 namespace py = ::pybind11;
 using RNG_t = czf::actor::RNG_t;   ///< the type for the random number generator
-using Seed_t = RNG_t::state_type;  ///< the type of random seed
+using Seed_t = czf::actor::Seed_t;  ///< the type of random seed
 using Clock_t = std::chrono::steady_clock;  ///< the type for clock
 
 class WorkerManager {
@@ -37,7 +37,7 @@ class WorkerManager {
 
  private:
   void worker_cpu(Seed_t, Seed_t);
-  void worker_gpu(Seed_t, Seed_t, bool);
+  void worker_gpu(bool);
 
  private:
   std::atomic_bool running_{false};

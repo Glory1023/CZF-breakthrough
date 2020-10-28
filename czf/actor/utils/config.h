@@ -4,7 +4,8 @@
 
 namespace czf::actor {
 
-using RNG_t = pcg32;  ///< the type for the random number generator
+using RNG_t = pcg32;               ///< the type for the random number generator
+using Seed_t = RNG_t::state_type;  ///< the type of random seed
 
 namespace BuildOption {
 const constexpr int kTorchNumIntraThread = 1;  ///< PyTorch intra-threads
@@ -21,16 +22,15 @@ struct GameInfo {
 };
 
 struct JobOption {
-  uint64_t seed;              ///< random number seed
+  Seed_t seed;                ///< random number seed
   size_t timeout_us = 1000u,  ///< GPU wait max timeout (microseconds)
       batch_size,             ///< GPU max batch size
       simulation_count;       ///< Mcts simulation counts
 };
 
 struct MctsOption {
-  // TODO: TreeInfo min & max value
-  // float tree_min_value = std::numeric_limits<float>::max(),
-  //      tree_max_value = std::numeric_limits<float>::lowest();
+  // float tree_min_value,  ///< min q value on tree
+  //     tree_max_value;    ///< max q value on tree
   // Mcts
   float C_PUCT,           ///< pUCT constant
       dirichlet_alpha,    ///< Dir(alpha)
