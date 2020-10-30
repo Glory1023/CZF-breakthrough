@@ -29,9 +29,9 @@ message Model {
   repeated bytes blobs = 2;
 }
 
-// a message of the state of worker
+// a message of the state of a worker
 message WorkerState {
-  // a message for evaluation result (actor)
+  // a message for an evaluation result (Actor)
   message Evaluation {
     // root forward value
     float value = 1;
@@ -40,10 +40,13 @@ message WorkerState {
     // MCTS root children's average value
     float average_value = 3;
   }
-  // a message for game transition (game_server)
+  // a message for a game transition (GameServer)
   message Transition {
+    // current player to play
     int32 current_player = 1;
+    // action applied in the game
     int32 action = 2;
+    // immediate rewards after applying the action
     repeated float rewards = 3;
   }
   // unordered legal actions

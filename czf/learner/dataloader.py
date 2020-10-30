@@ -19,9 +19,10 @@ Transition = namedtuple('Transition', [
 class RolloutBatch:
     '''Rollout Batch'''
     def __init__(self, data):
-        transposed_data = list(self.__zip_discard(*data))
-        self.observation = torch.stack(transposed_data[0], 0)
-        self.transition = [torch.stack(d, 0) for d in transposed_data[1:] if d]
+        observation, scale, *transition = self.__zip_discard(*data)
+        self.observation = torch.stack(observation, 0)
+        self.scale = torch.stack(scale, 0)
+        self.transition = [torch.stack(d, 0) for d in transition if d]
 
     @staticmethod
     def __zip_discard(*iterables, sentinel=None):
@@ -49,20 +50,21 @@ class ReplayBuffer(Dataset):
         return len(self._buffer)
 
     def __getitem__(self, index):
-        rollout = list(islice(self._buffer, index, index + self._kstep + 1))
-        # o, [(p, v, a, r, m)]
-        result = [rollout[0].observation]
+        rollout = list(islice(self._buffer, index, index + self._kstep))
+        observation, kstep, transitions = rollout[0].observation, 0, []
         for transition in rollout:
-            result.extend([
-                transition.policy,
+            kstep += 1
+            transitions.extend([
                 transition.value,
+                torch.tensor(0 if transition.is_terminal else 1),
+                transition.policy,
                 transition.action,
                 transition.reward,
-                torch.tensor(0 if transition.is_terminal else 1),
             ])
             if transition.is_terminal:
                 break
-        return result
+        # o, s, [(v, m, p, a, r)]
+        return [observation, torch.tensor(1 / kstep), *transitions]
 
     def is_ready(self):
         '''check if replay buffer is ready'''
@@ -82,6 +84,23 @@ class ReplayBuffer(Dataset):
         values = [0]
         buffer = []
         for i, state in enumerate(reversed(trajectory.states)):
+            # tensor
+            observation = torch.tensor(state.observation_tensor).view(
+                self._observation_shape)
+            if i == 0:
+                terminal_value = torch.tensor([
+                    state.transition.rewards[state.transition.current_player]
+                ])
+                buffer.append(
+                    Transition(
+                        observation=observation,
+                        action=None,
+                        policy=None,
+                        value=terminal_value,
+                        reward=None,
+                        is_terminal=True,
+                    ))
+                continue
             # monte carlo returns
             for player in range(self._num_player):
                 rewards = state.transition.rewards
@@ -96,8 +115,6 @@ class ReplayBuffer(Dataset):
                     values[-nstep] -
                     discounted_return[player][-nstep - 1]) * gamma**nstep
             # tensor
-            observation = torch.tensor(state.observation_tensor).view(
-                self._observation_shape)
             action = torch.tensor(state.transition.action)
             policy = torch.tensor(state.evaluation.policy)
             value = torch.tensor([nstep_value])
@@ -111,7 +128,7 @@ class ReplayBuffer(Dataset):
                     policy=policy,
                     value=value,
                     reward=reward,
-                    is_terminal=(i == 0),
+                    is_terminal=False,
                 ))
         self._buffer.extend(reversed(buffer))
 

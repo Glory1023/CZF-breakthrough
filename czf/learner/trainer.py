@@ -71,9 +71,9 @@ class Trainer:
     def train(self, replay_buffer):
         '''optimize the model and increment model version'''
         p_criterion = lambda target_policy, policy: (
-            (-target_policy * (1e-8 + policy).log()).sum(dim=1).sum())
-        v_criterion = torch.nn.MSELoss(reduction='sum')
-        r_criterion = torch.nn.MSELoss(reduction='sum')
+            (-target_policy * (1e-8 + policy).log()).sum(dim=1))
+        v_criterion = torch.nn.MSELoss(reduction='none')
+        r_criterion = torch.nn.MSELoss(reduction='none')
         scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach(
         ) * (1 - scale))
         states_to_train = int(
@@ -87,34 +87,41 @@ class Trainer:
             pin_memory=True,
         )
         self._model.train()
-        gradient_scale = 1 / float(self._rollout_steps)
         num_trained_states = 0
         for rollout in dataloader:
-            observation = rollout.observation
-            transition = rollout.transition
+            observation = rollout.observation.to(self._device)
+            scale = rollout.scale.to(self._device)
+            transition = [t.to(self._device) for t in rollout.transition]
             num_trained_states += len(observation)
-            # prepare inputs
-            observation = observation.to(self._device)
-            transition = [t.to(self._device) for t in transition]
             # forward
             state = self._model.forward_representation(observation)
             total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
             for i in range(0, len(transition), 5):
-                target_policy, target_value, action, target_reward, mask = transition[
+                target_value, mask, target_policy, action, target_reward = transition[
                     i:i + 5]
+                mask = mask.nonzero(as_tuple=True)
                 total_batch += len(state)
                 policy, value = self._model.forward(state)
+                policy = policy[mask]
+                state = state[mask]
                 state, reward = self._model.forward_dynamics(state, action)
-                state = state[mask.nonzero(as_tuple=True)]
                 state = scale_gradient(state, 0.5)
                 # loss
                 p_loss_i = p_criterion(target_policy, policy)
                 v_loss_i = v_criterion(target_value, value)
                 r_loss_i = r_criterion(target_reward, reward)
-                loss_i = p_loss_i + v_loss_i + r_loss_i
-                # TODO: batch gradient scale
+                # scale gradient
                 if i > 0:
-                    loss_i = scale_gradient(loss_i, gradient_scale)
+                    v_loss_i = scale_gradient(v_loss_i, scale.view(-1, 1))
+                scale = scale[mask]
+                if i > 0:
+                    p_loss_i = scale_gradient(p_loss_i, scale)
+                r_loss_i = scale_gradient(r_loss_i, scale.view(-1, 1))
+                # total loss
+                p_loss_i = p_loss_i.sum()
+                v_loss_i = v_loss_i.sum()
+                r_loss_i = r_loss_i.sum()
+                loss_i = p_loss_i + v_loss_i + r_loss_i
                 loss += loss_i
                 p_loss += p_loss_i.item()
                 v_loss += v_loss_i.item()

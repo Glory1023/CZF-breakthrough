@@ -74,6 +74,13 @@ class EnvManager:
         state.transition.rewards[:] = self._state.rewards
 
         if self._state.is_terminal:
+            # add the terminal state to the trajectory
+            state = self._trajectory.states.add()
+            state.observation_tensor[:] = self._state.observation_tensor
+            state.evaluation.value = 0
+            state.transition.current_player = self._state.current_player
+            state.transition.rewards[:] = self._state.rewards
+            # send optimize job
             asyncio.create_task(
                 self._server.send_optimize_job(self._trajectory))
             self.reset()
