@@ -103,6 +103,8 @@ class Node {
   size_t get_visits() const;
   /** get children visit counts */
   std::unordered_map<Action_t, size_t> get_children_visits() const;
+  /** get if root player */
+  bool is_root_player() const { return node_info_.is_root_player; }
 
  private:
   ForwardInfo forward_info_;

@@ -27,7 +27,8 @@ float MctsInfo::update(bool same, float z) {
   ++visits;
   sqrt_visits = std::sqrt(visits);
   value += (w - value) / visits;
-  return reward + WorkerManager::mcts_option.discount * z;
+  return z;
+  // return reward + WorkerManager::mcts_option.discount * z;
 }
 
 bool NodeInfo::can_select_child() const { return !children.empty(); }
@@ -51,34 +52,35 @@ void Node::set_player_and_action(bool player, Action_t action) {
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
 Node *Node::select_child(const TreeInfo &tree_info, RNG_t &rng) {
+  // init value
+  float value_sum = 0.F;
+  size_t num_selected = 0U;
+  for (const auto &child : node_info_.children) {
+    if (child.can_select_child()) {
+      ++num_selected;
+      value_sum += child.mcts_info_.value;
+    }
+  }
+  const auto init_value =
+      num_selected > 0 ? value_sum / (num_selected + 1U) : 0.F;
+  // selection
   float selected_score = std::numeric_limits<float>::lowest();
-  size_t selected_count = 1U;
   Node *selected_child = nullptr;
   for (auto &child : node_info_.children) {
     // calculate pUCT score
     const float child_value =
-        child.mcts_info_.visits == 0 ? -1.F : child.mcts_info_.value;
-    // child.mcts_info_.visits == 0 ? 0.F :
-    // child.mcts_info_.get_normalized_value(tree_info);
+        child.mcts_info_.visits > 0 ? child.mcts_info_.value : init_value;
+    // child.mcts_info_.visits > 0 ?
+    // child.mcts_info_.get_normalized_value(tree_info) : 0.F;
     const float score =
         child_value + WorkerManager::mcts_option.C_PUCT *
                           mcts_info_.policy[child.mcts_info_.action_index] *
                           mcts_info_.sqrt_visits /
                           static_cast<float>(1 + child.mcts_info_.visits);
     // argmax
-    if (score > (selected_score - BuildOption::kFloatEps)) {
-      if (score > (selected_score + BuildOption::kFloatEps)) {
-        // select the child with the current max score
-        selected_score = score;
-        selected_child = &child;
-        selected_count = 1;
-      } else {
-        // select one child with same scores
-        ++selected_count;
-        if (rng(selected_count) == 0) {
-          selected_child = &child;
-        }
-      }
+    if (score > selected_score) {
+      selected_score = score;
+      selected_child = &child;
     }
   }
   return selected_child;
@@ -173,6 +175,7 @@ void Tree::after_forward(RNG_t &rng) {
   }
   // update
   auto z = current_node_->get_forward_value();
+  z = (current_node_->is_root_player()) ? -z : z;
   tree_info_.update(z);
   const auto end = std::rend(selection_path_);
   for (auto it = std::rbegin(selection_path_); it != end; ++it) {

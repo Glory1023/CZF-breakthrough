@@ -17,15 +17,14 @@ void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
     const auto seed = WorkerManager::job_option.seed;
     for (size_t i = 0; i < num_cpu_worker; ++i) {
       const Seed_t stream = 100U + i;
-      cpu_threads_.emplace_back(
-          [this, seed, stream] { worker_cpu(seed, stream); });
+      cpu_threads_.emplace_back(&WorkerManager::worker_cpu, this, seed, stream);
     }
     ModelManager::prepare_nvrtc();
     for (size_t i = 0; i < num_gpu_worker; ++i) {
-      gpu_threads_.emplace_back([this] { worker_gpu(false); });
+      gpu_threads_.emplace_back(&WorkerManager::worker_gpu, this, false);
     }
     for (size_t i = 0; i < num_gpu_root_worker; ++i) {
-      gpu_root_threads_.emplace_back([this] { worker_gpu(true); });
+      gpu_root_threads_.emplace_back(&WorkerManager::worker_gpu, this, true);
     }
     model_manager.resize(num_gpu);
   }
@@ -186,35 +185,40 @@ void WorkerManager::worker_gpu(bool is_root) {
               .toTuple()
               ->elements();
       next_state_tensor = results[0].toTensor();
-      auto batch_reward = results[1].toTensor().cpu();
+      const auto batch_reward = results[1].toTensor().cpu().contiguous();
+      auto *const reward_ptr = batch_reward.data_ptr<float>();
       for (size_t i = 0; i < batch_size; ++i) {
-        const auto idx = static_cast<int64_t>(i);
-        jobs[i]->result.reward = batch_reward[idx].item<float>();
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        jobs[i]->result.reward = reward_ptr[i];
       }
     }
-    auto batch_state = next_state_tensor.cpu();
+    const auto batch_state = next_state_tensor.cpu().contiguous();
+    const auto &state_size = batch_state[0].numel();
+    auto *state_ptr = batch_state.data_ptr<float>();
     for (size_t i = 0; i < batch_size; ++i) {
-      const auto idx = static_cast<int64_t>(i);
-      const auto &state_ptr = batch_state[idx].data_ptr<float>();
-      const auto &state_size = batch_state[idx].numel();
-      jobs[i]->result.state = {state_ptr, state_ptr + state_size};  // NOLINT
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      auto *const state_ptr_end = state_ptr + state_size;
+      jobs[i]->result.state.assign(state_ptr, state_ptr_end);
+      state_ptr = state_ptr_end;
     }
     // prediction function
-    auto results =
+    const auto results =
         model_ptr->forward({next_state_tensor}).toTuple()->elements();
-    auto batch_policy = results[0].toTensor().cpu();
-    auto batch_value = results[1].toTensor().cpu();
+    const auto batch_policy = results[0].toTensor().cpu().contiguous();
+    const auto batch_value = results[1].toTensor().cpu().contiguous();
+    const auto policy_size = batch_policy[0].numel();
+    auto *policy_ptr = batch_policy.data_ptr<float>();
+    auto *const value_ptr = batch_value.data_ptr<float>();
     // copy results back to jobs
     for (size_t i = 0; i < batch_size; ++i) {
-      const auto idx = static_cast<int64_t>(i);
-      const auto &policy_ptr = batch_policy[idx].data_ptr<float>();
-      const auto &policy_size = batch_policy[idx].numel();
-      const auto &value_ptr = batch_value[idx].data_ptr<float>();
-      jobs[i]->result.policy = {policy_ptr,
-                                policy_ptr + policy_size};  // NOLINT
-      jobs[i]->result.value = value_ptr[0];                 // NOLINT
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      auto *const policy_ptr_end = policy_ptr + policy_size;
+      jobs[i]->result.policy.assign(policy_ptr, policy_ptr_end);
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      jobs[i]->result.value = value_ptr[i];
       jobs[i]->tree.set_forward_result(std::move(jobs[i]->result));
       jobs[i]->step = Job::Step::UPDATE;
+      policy_ptr = policy_ptr_end;
     }
     cpu_queue_.enqueue_bulk(std::make_move_iterator(jobs.begin()), jobs.size());
     jobs.clear();

@@ -50,6 +50,11 @@ class ReplayBuffer(Dataset):
         return len(self._buffer)
 
     def __getitem__(self, index):
+        if self._buffer[index].is_terminal:
+            if index == 0:
+                index += 1
+            else:
+                index -= 1
         rollout = list(islice(self._buffer, index, index + self._kstep))
         observation, kstep, transitions = rollout[0].observation, 0, []
         for transition in rollout:
