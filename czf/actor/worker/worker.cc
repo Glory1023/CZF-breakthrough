@@ -8,19 +8,19 @@ namespace czf::actor::worker {
 
 WorkerOption WorkerManager::worker_option;
 GameInfo WorkerManager::game_info;
-MctsOption WorkerManager::mcts_option;
 
 void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
                         size_t num_gpu_root_worker, size_t num_gpu) {
   if (!running_) {
     running_ = true;
+    czf::actor::mcts::Tree::is_two_player =
+        WorkerManager::game_info.is_two_player;
     const auto seed = WorkerManager::worker_option.seed;
     // TODO(chengscott): print config
     for (size_t i = 0; i < num_cpu_worker; ++i) {
       const Seed_t stream = 100U + i;
       cpu_threads_.emplace_back(&WorkerManager::worker_cpu, this, seed, stream);
     }
-    ModelManager::prepare_nvrtc();
     for (size_t i = 0; i < num_gpu_worker; ++i) {
       gpu_threads_.emplace_back(&WorkerManager::worker_gpu, this, false);
     }
@@ -54,11 +54,13 @@ void WorkerManager::terminate() {
 
 void WorkerManager::enqueue_job(py::object pyjob,
                                 std::vector<float> observation,
-                                const std::vector<int32_t> &legal_actions) {
+                                const std::vector<int32_t> &legal_actions,
+                                const TreeOption &tree_option) {
   auto job = std::make_unique<Job>();
   job->job = std::move(pyjob);
   job->tree.set_forward_result({std::move(observation), {}, 0, 0});
   job->tree.expand_root(legal_actions);
+  job->tree.set_tree_option(tree_option);
   cpu_queue_.enqueue(std::move(job));
 }
 
@@ -91,26 +93,23 @@ void WorkerManager::worker_cpu(Seed_t seed, Seed_t stream) {
     bool next_job = false;
     while (!next_job) {
       switch (job->step) {  // NOLINT
-        case Job::Step::SELECT:
+        case Job::Step::kSelect:
           job->tree.before_forward(WorkerManager::game_info.all_actions);
-          job->step = Job::Step::FORWARD;
+          job->step = Job::Step::kForward;
           break;
-        case Job::Step::UPDATE:
-          job->tree.after_forward(rng);
-          job->step = job->tree.get_root_visits() >=
-                              WorkerManager::mcts_option.simulation_count
-                          ? Job::Step::DONE
-                          : Job::Step::SELECT;
+        case Job::Step::kUpdate:
+          job->step = job->tree.after_forward(rng) ? Job::Step::kDone
+                                                   : Job::Step::kSelect;
           break;
-        case Job::Step::FORWARD_ROOT:
+        case Job::Step::kForwardRoot:
           gpu_root_queue_.enqueue(std::move(job));
           next_job = true;
           break;
-        case Job::Step::FORWARD:
+        case Job::Step::kForward:
           gpu_queue_.enqueue(std::move(job));
           next_job = true;
           break;
-        case Job::Step::DONE:
+        case Job::Step::kDone:
           result_queue_.enqueue(std::move(job));
           next_job = true;
           break;
@@ -222,7 +221,7 @@ void WorkerManager::worker_gpu(bool is_root) {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       forward_results[i].value = value_ptr[i];
       jobs[i]->tree.set_forward_result(std::move(forward_results[i]));
-      jobs[i]->step = Job::Step::UPDATE;
+      jobs[i]->step = Job::Step::kUpdate;
       policy_ptr = policy_ptr_end;
     }
     cpu_queue_.enqueue_bulk(std::make_move_iterator(jobs.begin()), jobs.size());

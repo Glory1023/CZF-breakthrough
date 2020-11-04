@@ -40,10 +40,6 @@ learner:
 mcts:
   # drop the softmax temperature from 1 to 0 after the number of steps
   softmax_temperature_step: 10
-  # GPU wait max timeout (microseconds)
-  timeout_us: 1000
-  # GPU max batch size
-  batch_size: 2048
   # Mcts simulation counts
   simulation_count: 200
   # pUCT exploration constant

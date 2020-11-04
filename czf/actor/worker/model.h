@@ -15,8 +15,6 @@ using ModelPtr = std::shared_ptr<Model>;   ///< the type of a pointer to model
 
 class ModelManager {
  public:
-  /** initialize NVRTC (used by PyTorch) */
-  static void prepare_nvrtc();
   /** resize the number of model */
   void resize(size_t);
   /** load a model from the path */
@@ -28,7 +26,7 @@ class ModelManager {
   std::vector<torch::Device> forward_devices_;
   // models_[device][version]
   std::vector<std::array<ModelPtr, 2>> models_;
-  std::atomic_size_t version_switch_{0u}, device_switch_{0u};
+  std::atomic_size_t version_switch_{0U}, device_switch_{0U};
 };
 
 }  // namespace czf::actor::worker

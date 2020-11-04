@@ -26,14 +26,16 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
       .def_readwrite("seed", &WorkerOption::seed)
       .def_readwrite("timeout_us", &WorkerOption::timeout_us)
       .def_readwrite("batch_size", &WorkerOption::batch_size);
-  using czf::actor::MctsOption;
-  py::class_<MctsOption>(m, "MctsOption")
+  using czf::actor::TreeOption;
+  py::class_<TreeOption>(m, "TreeOption")
       .def(py::init<>())
-      .def_readwrite("simulation_count", &MctsOption::simulation_count)
-      .def_readwrite("C_PUCT", &MctsOption::C_PUCT)
-      .def_readwrite("dirichlet_alpha", &MctsOption::dirichlet_alpha)
-      .def_readwrite("dirichlet_epsilon", &MctsOption::dirichlet_epsilon)
-      .def_readwrite("discount", &MctsOption::discount);
+      .def_readwrite("simulation_count", &TreeOption::simulation_count)
+      .def_readwrite("tree_min_value", &TreeOption::tree_min_value)
+      .def_readwrite("tree_max_value", &TreeOption::tree_max_value)
+      .def_readwrite("c_puct", &TreeOption::c_puct)
+      .def_readwrite("dirichlet_alpha", &TreeOption::dirichlet_alpha)
+      .def_readwrite("dirichlet_epsilon", &TreeOption::dirichlet_epsilon)
+      .def_readwrite("discount", &TreeOption::discount);
   using czf::actor::worker::WorkerManager;
   py::class_<WorkerManager>(m, "WorkerManager")
       .def(py::init<>())
@@ -41,14 +43,13 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
            "num_gpu_worker"_a = 1, "num_gpu_root_worker"_a = 1, "num_gpu"_a = 1)
       .def("terminate", &WorkerManager::terminate)
       .def("enqueue_job", &WorkerManager::enqueue_job, "job"_a, "observation"_a,
-           "legal_actions"_a)
+           "legal_actions"_a, "tree_option"_a)
       .def("wait_dequeue_result", &WorkerManager::wait_dequeue_result,
            py::call_guard<py::gil_scoped_release>(),
            py::return_value_policy::move)
       .def("load_model", &WorkerManager::load_model, "path"_a)
       .def_readwrite_static("worker_option", &WorkerManager::worker_option)
-      .def_readwrite_static("game_info", &WorkerManager::game_info)
-      .def_readwrite_static("mcts_option", &WorkerManager::mcts_option);
+      .def_readwrite_static("game_info", &WorkerManager::game_info);
 }
 
 }  // namespace

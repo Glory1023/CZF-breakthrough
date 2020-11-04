@@ -41,7 +41,7 @@ class EnvManager:
                 state=czf_pb2.WorkerState(
                     legal_actions=self._state.legal_actions,
                     observation_tensor=self._state.observation_tensor,
-                    serialize=self._state.serialize(),
+                    tree_option=self._server.tree_option,
                 ),
                 env_index=self._server.envs.index(self),
             ))
@@ -63,6 +63,7 @@ class EnvManager:
         # add to trajectory
         state = self._trajectory.states.add()
         state.observation_tensor[:] = evaluated_state.observation_tensor
+        state.tree_option.CopyFrom(self._server.tree_option)
         state.evaluation.policy[:] = policy
         state.transition.current_player = self._state.current_player
         state.transition.action = chosen_action
@@ -117,6 +118,19 @@ class GameServer:
         assert self.game.num_distinct_actions == game_config['actions']
         assert self.game.observation_tensor_shape == game_config[
             'observation_shape']
+        # tree config
+        mcts_config = config['mcts']
+        self.tree_option = czf_pb2.WorkerState.TreeOption(
+            simulation_count=mcts_config['simulation_count'],
+            tree_min_value=mcts_config.get('tree_min_value', float('inf')),
+            tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
+            c_puct=mcts_config['c_puct'],
+            dirichlet_alpha=mcts_config['dirichlet']['alpha'],
+            dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
+            discount=mcts_config.get('discount', 1.),
+        )
+        if args.eval:
+            self.tree_option.dirichlet_epsilon = 0.
         # trajectory upstream
         print('connect to learner @', args.upstream)
         self._upstream = get_zmq_dealer(

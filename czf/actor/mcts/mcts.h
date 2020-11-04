@@ -56,7 +56,7 @@ struct MctsInfo {
   /** get value normalized by `TreeInfo` */
   float get_normalized_value(const TreeInfo &) const;
   /** Mcts update helper function */
-  float update(bool, float);
+  float update(bool, float, const TreeOption &);
 };
 
 class Node;
@@ -82,13 +82,13 @@ class Node {
   /** check if the node can select child */
   bool can_select_child() const;
   /** select a child according to the pUCT score */
-  Node *select_child(const TreeInfo &) const;
+  Node *select_child(const TreeInfo &, const TreeOption &) const;
   /** expand children according to legal actions */
   void expand_children(const std::vector<Action_t> &);
   /** normalize policy by legal actions (only applies to the root node) */
   void normalize_policy();
   /** add Dirichlet noise to the policy (only applies to the root node) */
-  void add_dirichlet_noise(RNG_t &);
+  void add_dirichlet_noise(RNG_t &, const TreeOption &);
   /** get the forward state */
   const State_t &get_forward_state() const;
   /** get the forward action */
@@ -98,7 +98,7 @@ class Node {
   /** get the forward value */
   float get_forward_value() const;
   /** update the Mcts Q-value */
-  float update(float);
+  float update(float, const TreeOption &);
   /** get visit counts */
   size_t get_visits() const;
   /** get children visit counts */
@@ -114,29 +114,40 @@ class Node {
 
 class Tree {
  public:
+  /** tree of single-player or two-player */
+  static bool is_two_player;
+
+ public:
   /** Mcts selection & expansion */
   void before_forward(const std::vector<Action_t> &);
   /** Mcts update */
-  void after_forward(RNG_t &);
+  bool after_forward(RNG_t &);
 
  public:
+  /** set the tree option */
+  void set_tree_option(const TreeOption &);
   /** select and expand root legal actions */
   void expand_root(const std::vector<Action_t> &);
   /** get the forward input of current node */
   ForwardInfo get_forward_input() const;
   /** set the forward result to current node */
   void set_forward_result(ForwardResult);
-  /** get the root simulation counts */
-  size_t get_root_visits() const;
   /** get the tree result */
   TreeResult get_tree_result();
 
  private:
+  /** get the root simulation counts */
+  size_t get_root_visits() const;
+
+ private:
   Node tree_,                   ///< the root node
       *current_node_ = &tree_;  ///< current node visitor
-  /** Mcts selection path (from root to current node)*/
+  /** selection path (from root to current node)*/
   std::vector<Node *> selection_path_;
+  /** tree information */
   TreeInfo tree_info_;
+  /** const tree option */
+  TreeOption tree_option_;
 };
 
 }  // namespace czf::actor::mcts

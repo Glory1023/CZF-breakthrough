@@ -32,11 +32,11 @@ message Model {
 // a message of the state of a worker
 message WorkerState {
   // a message for evaluation configs (Actor)
-  message EvaluationConfig {
+  message TreeOption {
     int32 simulation_count = 1;
     float tree_min_value = 2;
     float tree_max_value = 3;
-    float C_PUCT = 4;
+    float c_puct = 4;
     float dirichlet_alpha = 5;
     float dirichlet_epsilon = 6;
     float discount = 7;
@@ -63,8 +63,8 @@ message WorkerState {
   repeated int32 legal_actions = 1;
   // flatten observation tensor
   repeated float observation_tensor = 2;
-  // serialized game state (only used by AlphaZero)
-  string serialize = 3;
+  // tree option
+  TreeOption tree_option = 3;
   // evaluation result
   Evaluation evaluation = 4;
   // game transition
@@ -75,9 +75,8 @@ message WorkerState {
 message Job {
   // operation types for a job
   enum Operation {
-    UNKNOWN = 0;           // Unknown
-    ALPHAZERO_SEARCH = 1;  // AlphaZero Search
-    MUZERO_SEARCH = 2;     // MuZero Search
+    UNKNOWN = 0;        // Unknown
+    MUZERO_SEARCH = 1;  // MuZero Search
   }
   message Payload {
     int32 env_index = 1;

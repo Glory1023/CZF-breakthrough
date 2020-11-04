@@ -5,6 +5,7 @@ import platform
 import tempfile
 import numpy as np
 
+from czf.actor.worker import TreeOption
 from czf.utils import get_zmq_dealer, RemoteModelManager
 from czf.pb import czf_pb2
 
@@ -55,10 +56,22 @@ class Actor:
             job.step += 1
             state = job.payload.state
             # assert job.model.version == -1
+            # copy job option
+            option = state.tree_option
+            tree_option = TreeOption()
+            tree_option.simulation_count = option.simulation_count
+            tree_option.tree_min_value = option.tree_min_value
+            tree_option.tree_max_value = option.tree_max_value
+            tree_option.c_puct = option.c_puct
+            tree_option.dirichlet_alpha = option.dirichlet_alpha
+            tree_option.dirichlet_epsilon = option.dirichlet_epsilon
+            tree_option.discount = option.discount
+            # enqueue
             self._worker_manager.enqueue_job(
                 job,
                 np.array(state.observation_tensor, dtype=np.float32),
                 np.array(state.legal_actions, dtype=np.int32),
+                tree_option,
             )
 
     async def _dequeue_loop(self):

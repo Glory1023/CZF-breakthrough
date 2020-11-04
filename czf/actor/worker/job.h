@@ -1,5 +1,6 @@
 #pragma once
 #include <blockingconcurrentqueue.h>
+#include <pybind11/pybind11.h>
 
 #include "mcts/mcts.h"
 
@@ -9,12 +10,12 @@ namespace py = ::pybind11;
 
 struct Job {
   enum class Step {
-    FORWARD_ROOT,               ///< forward the representation (h => f)
-    SELECT,                     ///< Mcts selection & expansion
-    FORWARD,                    ///< forward the dynamics model (g => f)
-    UPDATE,                     ///< Mcts update
-    DONE,                       ///< the job is finished
-  } step = Step::FORWARD_ROOT;  ///< current step of the job
+    kForwardRoot,               ///< forward the representation (h => f)
+    kSelect,                    ///< Mcts selection & expansion
+    kForward,                   ///< forward the dynamics model (g => f)
+    kUpdate,                    ///< Mcts update
+    kDone,                      ///< the job is finished
+  } step = Step::kForwardRoot;  ///< current step of the job
   czf::actor::mcts::Tree tree;  ///< Mcts tree
   py::object job;               ///< protobuf packet buffer
 };

@@ -1,5 +1,7 @@
+.clangd
 .vscode/
 __pycache__
+compile_commands.json
 build/
 dist/
 wheel/

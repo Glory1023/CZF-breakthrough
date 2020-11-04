@@ -21,7 +21,6 @@ class WorkerManager {
  public:
   static WorkerOption worker_option;
   static GameInfo game_info;
-  static MctsOption mcts_option;
 
  public:
   /** run cpu & gpu workers */
@@ -29,7 +28,8 @@ class WorkerManager {
   /** terminate all workers */
   void terminate();
   /** enqueue a protobuf job to the job queue */
-  void enqueue_job(py::object, std::vector<float>, const std::vector<int32_t>&);
+  void enqueue_job(py::object, std::vector<float>, const std::vector<int32_t>&,
+                   const TreeOption&);
   /** dequeue a result from the job queue */
   py::tuple wait_dequeue_result();
   /** load model from file */

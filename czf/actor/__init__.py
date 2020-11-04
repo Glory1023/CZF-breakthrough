@@ -40,11 +40,22 @@ def run_main():
                         help='model provider address. e.g., 127.0.0.1:5577')
     parser.add_argument('--suffix',
                         metavar='unique_id',
-                        help='unique id of the actor',
-                        default=uuid4().hex)
+                        default=uuid4().hex,
+                        help='unique id of the actor')
+    parser.add_argument('-bs',
+                        '--batch-size',
+                        type=int,
+                        default=2048,
+                        help='GPU max batch size')
     parser.add_argument('--seed',
-                        help='random number seed of the actor',
-                        default=random.randint(0, 2**64))
+                        type=int,
+                        default=random.randint(0, 2**64),
+                        help='random number seed of the actor')
+    parser.add_argument(
+        '--gpu-timeout',
+        type=int,
+        default=1000,
+        help='GPU wait max timeout (default: %(default)s microseconds)')
     parser.add_argument(
         '-cpu',
         '--num_cpu_worker',
@@ -68,28 +79,18 @@ def run_main():
     worker_manager = worker.WorkerManager()
     config = yaml.safe_load(Path(args.config).read_text())
     # GameInfo
-    worker_manager.game_info.observation_shape = config['game'][
+    game_config = config['game']
+    worker_manager.game_info.observation_shape = game_config[
         'observation_shape']
-    worker_manager.game_info.state_shape = config['game']['state_shape']
-    worker_manager.game_info.num_actions = config['game']['actions']
-    worker_manager.game_info.all_actions = list(
-        range(config['game']['actions']))
-    worker_manager.game_info.two_player = (config['game'].get('num_player',
-                                                              2) == 2)
+    worker_manager.game_info.state_shape = game_config['state_shape']
+    worker_manager.game_info.num_actions = game_config['actions']
+    worker_manager.game_info.all_actions = list(range(game_config['actions']))
+    worker_manager.game_info.two_player = (game_config.get('num_player',
+                                                           2) == 2)
     # JobOption
     worker_manager.worker_option.seed = args.seed
-    worker_manager.worker_option.timeout_us = config['mcts'].get(
-        'timeout_us', 1000)
-    worker_manager.worker_option.batch_size = config['mcts']['batch_size']
-    # MctsOption
-    worker_manager.mcts_option.simulation_count = config['mcts'][
-        'simulation_count']
-    worker_manager.mcts_option.C_PUCT = config['mcts']['c_puct']
-    worker_manager.mcts_option.dirichlet_alpha = config['mcts']['dirichlet'][
-        'alpha']
-    worker_manager.mcts_option.dirichlet_epsilon = config['mcts']['dirichlet'][
-        'epsilon']
-    worker_manager.mcts_option.discount = config['mcts'].get('discount', 1.)
+    worker_manager.worker_option.timeout_us = args.gpu_timeout
+    worker_manager.worker_option.batch_size = args.batch_size
 
     # run
     worker_manager.run(

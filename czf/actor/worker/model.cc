@@ -1,16 +1,10 @@
-#include <torch/utils.h>
-// #include <nvrtc.h>
-
 #include "model.h"
+
+#include <torch/utils.h>
+
 #include "utils/config.h"
 
 namespace czf::actor::worker {
-
-void ModelManager::prepare_nvrtc() {
-  /*nvrtcProgram prog;
-  nvrtcCreateProgram(&prog, " ", "dddddd", 0, nullptr, nullptr);
-  nvrtcDestroyProgram(&prog);*/
-}
 
 void ModelManager::resize(size_t size) {
   torch::init_num_threads();

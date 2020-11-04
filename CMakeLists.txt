@@ -42,14 +42,12 @@ endif()
 # Test
 if(BUILD_TESTING)
   enable_testing()
-  add_subdirectory(third_party/catch2)
+  # add_subdirectory(third_party/catch2)
   add_subdirectory(tests)
 endif()
 
 # Project
-if(NOT COMMAND pybind11_add_module)
-  add_subdirectory(third_party/pybind11)
-endif()
+add_subdirectory(third_party/pybind11)
 include_directories(SYSTEM third_party/concurrentqueue)
 include_directories(SYSTEM third_party/pcg-cpp/include)
 add_subdirectory(czf)
