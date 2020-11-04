@@ -91,7 +91,7 @@ class EnvManager:
 
 class GameServer:
     '''Game Server'''
-    def __init__(self, args, callbacks):
+    def __init__(self, args, config, callbacks):
         self._node = czf_pb2.Node(
             identity=f'game-server-{args.suffix}',
             hostname=platform.node(),
@@ -109,8 +109,14 @@ class GameServer:
         if self.metric_callbacks:
             print('register callbacks:', list(self.metric_callbacks.keys()))
         # game envs
-        self.game = czf_env.load_game(args.env)
+        game_config = config['game']
+        self.game = czf_env.load_game(game_config['name'])
         self.envs = [EnvManager(self) for _ in range(args.num_env)]
+        # check game config in lightweight game
+        assert self.game.num_players == game_config['num_player']
+        assert self.game.num_distinct_actions == game_config['actions']
+        assert self.game.observation_tensor_shape == game_config[
+            'observation_shape']
         # trajectory upstream
         print('connect to learner @', args.upstream)
         self._upstream = get_zmq_dealer(

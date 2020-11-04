@@ -6,7 +6,7 @@
 
 namespace czf::actor::worker {
 
-JobOption WorkerManager::job_option;
+WorkerOption WorkerManager::worker_option;
 GameInfo WorkerManager::game_info;
 MctsOption WorkerManager::mcts_option;
 
@@ -14,7 +14,8 @@ void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
                         size_t num_gpu_root_worker, size_t num_gpu) {
   if (!running_) {
     running_ = true;
-    const auto seed = WorkerManager::job_option.seed;
+    const auto seed = WorkerManager::worker_option.seed;
+    // TODO(chengscott): print config
     for (size_t i = 0; i < num_cpu_worker; ++i) {
       const Seed_t stream = 100U + i;
       cpu_threads_.emplace_back(&WorkerManager::worker_cpu, this, seed, stream);
@@ -91,13 +92,13 @@ void WorkerManager::worker_cpu(Seed_t seed, Seed_t stream) {
     while (!next_job) {
       switch (job->step) {  // NOLINT
         case Job::Step::SELECT:
-          job->tree.before_forward(rng, WorkerManager::game_info.all_actions);
+          job->tree.before_forward(WorkerManager::game_info.all_actions);
           job->step = Job::Step::FORWARD;
           break;
         case Job::Step::UPDATE:
           job->tree.after_forward(rng);
           job->step = job->tree.get_root_visits() >=
-                              WorkerManager::job_option.simulation_count
+                              WorkerManager::mcts_option.simulation_count
                           ? Job::Step::DONE
                           : Job::Step::SELECT;
           break;
@@ -125,10 +126,12 @@ void WorkerManager::worker_gpu(bool is_root) {
   auto &queue = is_root ? gpu_root_queue_ : gpu_queue_;
   constexpr auto zero = std::chrono::duration<double>::zero();
   const auto max_timeout =
-      std::chrono::microseconds(WorkerManager::job_option.timeout_us);
-  const auto max_batch_size = WorkerManager::job_option.batch_size;
+      std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
+  const auto max_batch_size = WorkerManager::worker_option.batch_size;
   std::vector<std::unique_ptr<Job>> jobs;
   jobs.reserve(max_batch_size);
+  std::vector<czf::actor::mcts::ForwardResult> forward_results;
+  forward_results.reserve(max_batch_size);
   // inputs (NCHW)
   std::vector<int64_t> state_shape =
       is_root ? WorkerManager::game_info.observation_shape
@@ -154,8 +157,10 @@ void WorkerManager::worker_gpu(bool is_root) {
     if (jobs.empty()) {
       continue;
     }
-    // construct input tensor
     const size_t batch_size = jobs.size();
+    forward_results.clear();
+    forward_results.resize(batch_size);
+    // construct input tensor
     state_shape[0] = static_cast<int64_t>(batch_size);
     state_vector.clear();
     action_vector.clear();
@@ -189,7 +194,7 @@ void WorkerManager::worker_gpu(bool is_root) {
       auto *const reward_ptr = batch_reward.data_ptr<float>();
       for (size_t i = 0; i < batch_size; ++i) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-        jobs[i]->result.reward = reward_ptr[i];
+        forward_results[i].reward = reward_ptr[i];
       }
     }
     const auto batch_state = next_state_tensor.cpu().contiguous();
@@ -198,7 +203,7 @@ void WorkerManager::worker_gpu(bool is_root) {
     for (size_t i = 0; i < batch_size; ++i) {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       auto *const state_ptr_end = state_ptr + state_size;
-      jobs[i]->result.state.assign(state_ptr, state_ptr_end);
+      forward_results[i].state.assign(state_ptr, state_ptr_end);
       state_ptr = state_ptr_end;
     }
     // prediction function
@@ -213,10 +218,10 @@ void WorkerManager::worker_gpu(bool is_root) {
     for (size_t i = 0; i < batch_size; ++i) {
       // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
       auto *const policy_ptr_end = policy_ptr + policy_size;
-      jobs[i]->result.policy.assign(policy_ptr, policy_ptr_end);
+      forward_results[i].policy.assign(policy_ptr, policy_ptr_end);
       // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-      jobs[i]->result.value = value_ptr[i];
-      jobs[i]->tree.set_forward_result(std::move(jobs[i]->result));
+      forward_results[i].value = value_ptr[i];
+      jobs[i]->tree.set_forward_result(std::move(forward_results[i]));
       jobs[i]->step = Job::Step::UPDATE;
       policy_ptr = policy_ptr_end;
     }

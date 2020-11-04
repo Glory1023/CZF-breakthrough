@@ -20,16 +20,16 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
       .def_readwrite("all_actions", &GameInfo::all_actions)
       .def_readwrite("num_actions", &GameInfo::num_actions)
       .def_readwrite("two_player", &GameInfo::is_two_player);
-  using czf::actor::JobOption;
-  py::class_<JobOption>(m, "JobOption")
+  using czf::actor::WorkerOption;
+  py::class_<WorkerOption>(m, "WorkerOption")
       .def(py::init<>())
-      .def_readwrite("seed", &JobOption::seed)
-      .def_readwrite("timeout_us", &JobOption::timeout_us)
-      .def_readwrite("batch_size", &JobOption::batch_size)
-      .def_readwrite("simulation_count", &JobOption::simulation_count);
+      .def_readwrite("seed", &WorkerOption::seed)
+      .def_readwrite("timeout_us", &WorkerOption::timeout_us)
+      .def_readwrite("batch_size", &WorkerOption::batch_size);
   using czf::actor::MctsOption;
   py::class_<MctsOption>(m, "MctsOption")
       .def(py::init<>())
+      .def_readwrite("simulation_count", &MctsOption::simulation_count)
       .def_readwrite("C_PUCT", &MctsOption::C_PUCT)
       .def_readwrite("dirichlet_alpha", &MctsOption::dirichlet_alpha)
       .def_readwrite("dirichlet_epsilon", &MctsOption::dirichlet_epsilon)
@@ -46,7 +46,7 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
            py::call_guard<py::gil_scoped_release>(),
            py::return_value_policy::move)
       .def("load_model", &WorkerManager::load_model, "path"_a)
-      .def_readwrite_static("job_option", &WorkerManager::job_option)
+      .def_readwrite_static("worker_option", &WorkerManager::worker_option)
       .def_readwrite_static("game_info", &WorkerManager::game_info)
       .def_readwrite_static("mcts_option", &WorkerManager::mcts_option);
 }

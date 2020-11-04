@@ -11,9 +11,10 @@ from czf.learner.nn import MuZero
 
 class Trainer:
     '''Trainer'''
-    def __init__(self, config, checkpoint_path, model_path, log_path, restore):
+    def __init__(self, config, checkpoint_path, model_path, log_path,
+                 model_name, restore):
         self._device = 'cuda'
-        self.model_name, self.iteration = 'default', 0
+        self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
         self._model_dir = model_path / self.model_name
         for path in (self._ckpt_dir, self._model_dir):
@@ -54,13 +55,19 @@ class Trainer:
             weight_decay=config['learner']['optimizer']['weight_decay'],
             nesterov=config['learner']['optimizer']['nesterov'],
         )
-        self._summary_writer = SummaryWriter(log_dir=log_path)
-        # restore the latest model
+        # restore the latest checkpoint
         if restore:
-            state_dict = torch.load(self._ckpt_dir / 'latest.pt')
+            print('Restore from', restore)
+            state_dict = torch.load(restore)
             self.iteration = state_dict['iteration']
             self._model.load_state_dict(state_dict['model'])
             self._optimizer.load_state_dict(state_dict['optimizer'])
+        # tensorboard log
+        self._summary_writer = SummaryWriter(log_dir=log_path,
+                                             purge_step=self.iteration)
+        # note: PyTorch supports the `forward` method currently
+        # so, we can only trace the prediction model now.
+        self._summary_writer.add_graph(self._model, (self._input_state, ))
 
     def log_terminal_values(self, replay_buffer):
         '''log terminal values for recent trajectories'''

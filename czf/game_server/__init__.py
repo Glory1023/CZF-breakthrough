@@ -2,16 +2,20 @@
 import argparse
 import asyncio
 import random
+from functools import partial
 from uuid import uuid4
 import numpy as np
+from pathlib import Path
+import yaml
 import zmq.asyncio
 
 from czf.game_server.game_server import GameServer
 
 
-def default_action_policy_fn(num_moves, legal_actions, legal_actions_policy):
+def make_default_action_policy_fn(softmax_temperature_step, num_moves,
+                                  legal_actions, legal_actions_policy):
     '''Default action policy: switch betweens softmax and argmax action policy'''
-    if num_moves < 10:
+    if num_moves < softmax_temperature_step:
         return softmax_action_policy_fn(num_moves, legal_actions,
                                         legal_actions_policy)
     return argmax_action_policy_fn(num_moves, legal_actions,
@@ -28,27 +32,23 @@ def argmax_action_policy_fn(_, legal_actions, legal_actions_policy):
     return legal_actions[np.argmax(legal_actions_policy)]
 
 
-def eval_after_apply_metric(evaluated_state, game_state):
+def eval_after_apply_metric(board_shape, evaluated_state, game_state):
     '''Callback for the evaluation result after applying an action'''
-    np.set_printoptions(precision=3)
     policy = evaluated_state.evaluation.policy
     value = evaluated_state.evaluation.value
-    print(np.array(policy).reshape(3, 3), value, game_state, sep='\n')
+    print(np.array(policy).reshape(board_shape), value, game_state, sep='\n')
 
 
-async def main(args, callbacks):
+async def main(args, config, callbacks):
     '''czf.game_server main program'''
-    game_server = GameServer(args, callbacks)
+    game_server = GameServer(args, config, callbacks)
     await game_server.loop()
 
 
 def run_main():
     '''Run main program in asyncio'''
     parser = argparse.ArgumentParser(__package__, description=__doc__)
-    parser.add_argument('-e',
-                        '--env',
-                        required=True,
-                        help='czf_env game environment')
+    parser.add_argument('-f', '--config', required=True, help='config file')
     parser.add_argument('-n', '--num-env', type=int, required=True)
     parser.add_argument('-b',
                         '--broker',
@@ -69,15 +69,21 @@ def run_main():
                         help='evaluation only (without sending trajectories)')
     args = parser.parse_args()
 
+    config = yaml.safe_load(Path(args.config).read_text())
+    softmax_temperature_step = config['mcts']['softmax_temperature_step']
     callbacks = {
-        'action_policy': default_action_policy_fn,
+        'action_policy':
+        partial(make_default_action_policy_fn, softmax_temperature_step),
         'metric': {},
     }
     if args.eval:
+        np.set_printoptions(precision=3)
+        board_shape = config['game']['observation_shape'][-2:]
         callbacks['action_policy'] = argmax_action_policy_fn
-        callbacks['metric']['after_apply'] = eval_after_apply_metric
+        callbacks['metric']['after_apply'] = partial(eval_after_apply_metric,
+                                                     board_shape)
     try:
-        asyncio.run(main(args, callbacks))
+        asyncio.run(main(args, config, callbacks))
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
         print('\rterminated by ctrl-c')

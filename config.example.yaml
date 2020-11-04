@@ -3,57 +3,57 @@ game:
   num_player: 2
   actions: 9
   # [h_channels, H, W]
-  state_shape: [3, 3, 3]
+  state_shape: [64, 3, 3]
   # [C, H, W]
-  observation_shape: [3, 3, 3]
+  observation_shape: [4, 3, 3]
 
 model:
   # h: representation function
-  h_blocks: 2
-  h_channels: 3
+  h_blocks: 3
+  h_channels: 64
   # g: dynamics function
-  g_blocks: 2
+  g_blocks: 3
   r_heads: 1
   # f: prediction function
-  f_blocks: 2
-  f_channels: 32
+  f_blocks: 3
+  f_channels: 64
   v_heads: 1
 
 learner:
   rollout_steps: 5
   # train the model when there are N newly generated states.
-  frequency: 1000
+  frequency: 4000
   # how many states to store in the replay buffer.
-  replay_buffer_size: 20000
+  replay_buffer_size: 100000
   # how many times to reuse each state in the replay buffer.
   replay_buffer_reuse: 1
   # how many states to learn from per batch.
-  batch_size: 200
+  batch_size: 256
   # save a checkpoint every N steps.
   checkpoint_freq: 10
   optimizer:
-    learning_rate: 0.01
+    learning_rate: 0.02
     momentum: 0.9
     weight_decay: 1.e-4
     nesterov: True
 
 mcts:
-  # random number seed
-  seed: 1
+  # drop the softmax temperature from 1 to 0 after the number of steps
+  softmax_temperature_step: 10
   # GPU wait max timeout (microseconds)
   timeout_us: 1000
   # GPU max batch size
-  batch_size: 200
+  batch_size: 2048
   # Mcts simulation counts
-  simulation_count: 400
+  simulation_count: 200
   # pUCT exploration constant
   c_puct: 1.25
   # discount factor of the return
   discount_factor: 1.
-  # n-step of the return
-  nstep: 10
+  # n-step of the return (disable by setting to 0)
+  nstep: 0
   dirichlet:
     # Dir(alpha)
-    alpha: 0.03
+    alpha: 0.5
     # (1 - epsilon) * policy + epsilon * Dir(a);
     epsilon: 0.25

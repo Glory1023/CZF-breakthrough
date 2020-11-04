@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import os
+import random
 from uuid import uuid4
 from pathlib import Path
 import torch
@@ -41,12 +42,27 @@ def run_main():
                         metavar='unique_id',
                         help='unique id of the actor',
                         default=uuid4().hex)
-    parser.add_argument('-cpu', '--num_cpu_worker', type=int, default=num_cpu)
-    parser.add_argument('-gpu', '--num_gpu_worker', type=int, default=num_gpu)
-    parser.add_argument('-gpu-root',
-                        '--num_gpu_root_worker',
-                        type=int,
-                        default=1)
+    parser.add_argument('--seed',
+                        help='random number seed of the actor',
+                        default=random.randint(0, 2**64))
+    parser.add_argument(
+        '-cpu',
+        '--num_cpu_worker',
+        type=int,
+        default=num_cpu,
+        help='Total number of cpu worker (default: %(default)s)')
+    parser.add_argument(
+        '-gpu',
+        '--num_gpu_worker',
+        type=int,
+        default=num_gpu,
+        help='Total number of gpu worker (default: %(default)s)')
+    parser.add_argument(
+        '-gpu-root',
+        '--num_gpu_root_worker',
+        type=int,
+        default=1,
+        help='Total number of gpu root worker (default: %(default)s)')
     args = parser.parse_args()
     # WorkerManager
     worker_manager = worker.WorkerManager()
@@ -61,13 +77,13 @@ def run_main():
     worker_manager.game_info.two_player = (config['game'].get('num_player',
                                                               2) == 2)
     # JobOption
-    worker_manager.job_option.seed = config['mcts'].get('seed', 1)
-    worker_manager.job_option.timeout_us = config['mcts'].get(
+    worker_manager.worker_option.seed = args.seed
+    worker_manager.worker_option.timeout_us = config['mcts'].get(
         'timeout_us', 1000)
-    worker_manager.job_option.batch_size = config['mcts']['batch_size']
-    worker_manager.job_option.simulation_count = config['mcts'][
-        'simulation_count']
+    worker_manager.worker_option.batch_size = config['mcts']['batch_size']
     # MctsOption
+    worker_manager.mcts_option.simulation_count = config['mcts'][
+        'simulation_count']
     worker_manager.mcts_option.C_PUCT = config['mcts']['c_puct']
     worker_manager.mcts_option.dirichlet_alpha = config['mcts']['dirichlet'][
         'alpha']

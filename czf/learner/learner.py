@@ -37,11 +37,17 @@ class Learner:
             capacity=config['learner']['replay_buffer_size'],
             train_freq=config['learner']['frequency'],
         )
+        # restore the replay buffer
+        if args.restore_buffer:
+            pass  # TODO
         # trainer
-        self._trainer = Trainer(config, checkpoint_path, model_path, log_path,
-                                args.restore)
         self._checkpoint_freq = config['learner']['checkpoint_freq']
+        self._trainer = Trainer(config, checkpoint_path, model_path, log_path,
+                                args.model_name, args.restore)
         self._trainer.save_model()
+        # pretrain the trajectory
+        if args.pretrain_trajectory:
+            pass  # TODO
 
     async def loop(self):
         '''main loop'''

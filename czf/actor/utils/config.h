@@ -8,9 +8,8 @@ using RNG_t = pcg32;               ///< the type for the random number generator
 using Seed_t = RNG_t::state_type;  ///< the type of random seed
 
 namespace BuildOption {
-const constexpr int kTorchNumIntraThread = 1;  ///< PyTorch intra-threads
-const constexpr int kTorchNumInterThread = 1;  ///< PyTorch inter-threads
-const constexpr float kFloatEps = 1e-9;        ///< floating point epsilon
+static constexpr int kTorchNumIntraThread = 1;  ///< PyTorch intra-threads
+static constexpr int kTorchNumInterThread = 1;  ///< PyTorch inter-threads
 }  // namespace BuildOption
 
 struct GameInfo {
@@ -21,17 +20,16 @@ struct GameInfo {
   bool is_two_player;                      ///< single-player or two-player
 };
 
-struct JobOption {
+struct WorkerOption {
   Seed_t seed;                ///< random number seed
   size_t timeout_us = 1000u,  ///< GPU wait max timeout (microseconds)
-      batch_size,             ///< GPU max batch size
-      simulation_count;       ///< Mcts simulation counts
+      batch_size;             ///< GPU max batch size
 };
 
 struct MctsOption {
+  size_t simulation_count;  ///< Mcts simulation counts
   // float tree_min_value,  ///< min q value on tree
   //     tree_max_value;    ///< max q value on tree
-  // Mcts
   float C_PUCT,           ///< pUCT constant
       dirichlet_alpha,    ///< Dir(alpha)
       dirichlet_epsilon,  ///< (1 - eps) * p + eps * Dir(a);

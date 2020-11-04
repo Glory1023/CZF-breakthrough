@@ -122,7 +122,7 @@ with open('README.md') as fd:
         tests_require=['pytest'],
         zip_safe=False,
         install_requires=[
-            'czf-env @ git+https://github.com/yhchen0906/czf_env',
+            'czf-env @ git+https://github.com/chengscott/czf_env',
             'pyyaml',
             'tensorboard',
             'zmq',

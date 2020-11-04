@@ -51,7 +51,7 @@ void Node::set_player_and_action(bool player, Action_t action) {
 
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
-Node *Node::select_child(const TreeInfo &tree_info, RNG_t &rng) {
+Node *Node::select_child(const TreeInfo & /*tree_info*/) const {
   // init value
   float value_sum = 0.F;
   size_t num_selected = 0U;
@@ -62,11 +62,12 @@ Node *Node::select_child(const TreeInfo &tree_info, RNG_t &rng) {
     }
   }
   const auto init_value =
-      num_selected > 0 ? value_sum / (num_selected + 1U) : 0.F;
+      num_selected > 0 ? value_sum / static_cast<float>(num_selected + 1U)
+                       : 0.F;
   // selection
   float selected_score = std::numeric_limits<float>::lowest();
   Node *selected_child = nullptr;
-  for (auto &child : node_info_.children) {
+  for (const auto &child : node_info_.children) {
     // calculate pUCT score
     const float child_value =
         child.mcts_info_.visits > 0 ? child.mcts_info_.value : init_value;
@@ -80,7 +81,7 @@ Node *Node::select_child(const TreeInfo &tree_info, RNG_t &rng) {
     // argmax
     if (score > selected_score) {
       selected_score = score;
-      selected_child = &child;
+      selected_child = const_cast<Node *>(&child);
     }
   }
   return selected_child;
@@ -153,14 +154,13 @@ std::unordered_map<Action_t, size_t> Node::get_children_visits() const {
   return visits;
 }
 
-void Tree::before_forward(RNG_t &rng,
-                          const std::vector<Action_t> &all_actions) {
+void Tree::before_forward(const std::vector<Action_t> &all_actions) {
   // selection
   auto *node = &tree_;
   selection_path_.clear();
   selection_path_.emplace_back(node);
   while (node->can_select_child()) {
-    node = node->select_child(tree_info_, rng);
+    node = node->select_child(tree_info_);
     selection_path_.emplace_back(node);
   }
   current_node_ = node;

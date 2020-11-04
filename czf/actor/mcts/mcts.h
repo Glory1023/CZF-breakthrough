@@ -82,7 +82,7 @@ class Node {
   /** check if the node can select child */
   bool can_select_child() const;
   /** select a child according to the pUCT score */
-  Node *select_child(const TreeInfo &, RNG_t &);
+  Node *select_child(const TreeInfo &) const;
   /** expand children according to legal actions */
   void expand_children(const std::vector<Action_t> &);
   /** normalize policy by legal actions (only applies to the root node) */
@@ -115,7 +115,7 @@ class Node {
 class Tree {
  public:
   /** Mcts selection & expansion */
-  void before_forward(RNG_t &, const std::vector<Action_t> &);
+  void before_forward(const std::vector<Action_t> &);
   /** Mcts update */
   void after_forward(RNG_t &);
 
