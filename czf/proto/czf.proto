@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package czf.pb;
 
-// a message to heartbeat
+// a message for heartbeat
 message Heartbeat {}
 
 // a message to identify the resource of a node
@@ -75,9 +75,12 @@ message WorkerState {
 message Job {
   // operation types for a job
   enum Operation {
-    UNKNOWN = 0;        // Unknown
-    MUZERO_SEARCH = 1;  // MuZero Search
+    UNKNOWN = 0;             // Unknown
+    MUZERO_SEARCH = 1;       // MuZero Search
+    MUZERO_EVALUATE_1P = 2;  // MuZero Evalute 1P
+    MUZERO_EVALUATE_2P = 3;  // MuZero Evalute 2P
   }
+  // content of a job
   message Payload {
     int32 env_index = 1;
     WorkerState state = 2;
@@ -92,8 +95,9 @@ message Job {
   repeated Operation procedure = 4;
   // current index of operations for the job
   int32 step = 5;
-  // all workers that has handled the job
+  // all workers that has handled the job (reserved for affinity)
   repeated Node workers = 6;
+  // if the payload is empty, actor is forced to flush the model
   Payload payload = 7;
 }
 
@@ -117,12 +121,14 @@ message Packet {
   // with one of the following payload
   oneof payload {
     Heartbeat heartbeat = 1;
-    ModelInfo model_info = 2;
-    ModelInfo model_request = 3;
-    Model model_response = 4;
-    JobRequest job_request = 5;
-    JobBatch job_batch = 6;
-    Job job = 7;
-    TrajectoryBatch trajectory_batch = 8;
+    Heartbeat goodbye = 2;
+    Heartbeat model_subscribe = 3;
+    ModelInfo model_info = 4;
+    ModelInfo model_request = 5;
+    Model model_response = 6;
+    JobRequest job_request = 7;
+    JobBatch job_batch = 8;
+    Job job = 9;
+    TrajectoryBatch trajectory_batch = 10;
   }
 }

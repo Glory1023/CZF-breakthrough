@@ -9,32 +9,27 @@ from czf.utils import get_zmq_dealer
 
 class EnvManager:
     '''Game Environment Manager'''
-    def __init__(self, server):
+    def __init__(self, server, start=True):
+        self.operation = czf_pb2.Job.Operation.MUZERO_SEARCH
         self._server = server
         self._action_policy_fn = self._server.action_policy_fn
         self._after_apply_callback = self._server.metric_callbacks.get(
             'after_apply', None)
         self.reset()
-        asyncio.create_task(self.send_search_job_request())
+        if start:
+            asyncio.create_task(self.send_search_job())
 
     def reset(self):
         '''reset envs'''
         self._state = self._server.game.new_initial_state()
         self._trajectory = czf_pb2.Trajectory()
-        self._workers = [czf_pb2.Node()] * 1
-        self._model = czf_pb2.ModelInfo(
-            name=self._server.model_name,
-            version=-1,
-        )
+        self._workers = [czf_pb2.Node()]
 
-    async def send_search_job_request(
-        self,
-        actor=czf_pb2.Job.Operation.MUZERO_SEARCH,
-    ):
+    async def send_search_job(self):
         '''helper to send a `Job` to actor'''
         job = czf_pb2.Job(
-            model=self._model,
-            procedure=[actor],
+            model=self._server.model,
+            procedure=[self.operation],
             step=0,
             workers=self._workers,
             payload=czf_pb2.Job.Payload(
@@ -50,10 +45,8 @@ class EnvManager:
     async def on_job_completed(self, job: czf_pb2.Job):
         '''callback on job completion'''
         self._workers[:] = job.workers
-        self._model.CopyFrom(job.model)
-
-        evaluated_state = job.payload.state
         # choose action according to the policy
+        evaluated_state = job.payload.state
         policy = evaluated_state.evaluation.policy
         legal_actions = self._state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
@@ -87,7 +80,7 @@ class EnvManager:
             self.reset()
 
         # send a search job
-        asyncio.create_task(self.send_search_job_request())
+        asyncio.create_task(self.send_search_job())
 
 
 class GameServer:
@@ -97,9 +90,10 @@ class GameServer:
             identity=f'game-server-{args.suffix}',
             hostname=platform.node(),
         )
-        self.model_name = 'default'
+        # model
+        self.model = czf_pb2.ModelInfo(name='default', version=-1)
+        self.has_new_model = asyncio.Event()
         # server mode
-        self._is_evaluation = args.eval
         if args.eval:
             print('[Evaluation Mode]', self._node.identity)
         else:
@@ -112,7 +106,8 @@ class GameServer:
         # game envs
         game_config = config['game']
         self.game = czf_env.load_game(game_config['name'])
-        self.envs = [EnvManager(self) for _ in range(args.num_env)]
+        if not args.eval:
+            self.envs = [EnvManager(self) for _ in range(args.num_env)]
         # check game config in lightweight game
         assert self.game.num_players == game_config['num_player']
         assert self.game.num_distinct_actions == game_config['actions']
@@ -137,6 +132,7 @@ class GameServer:
             identity=self._node.identity,
             remote_address=args.upstream,
         )
+        asyncio.create_task(self.__send_model_subscribe())
         # connect to broker
         print('connect to broker  @', args.broker)
         self._broker = get_zmq_dealer(
@@ -146,6 +142,10 @@ class GameServer:
 
     async def loop(self):
         '''main loop'''
+        await asyncio.gather(self._job_loop(), self._model_loop())
+
+    async def _job_loop(self):
+        '''a loop to receive `Job`'''
         while True:
             raw = await self._broker.recv()
             packet = czf_pb2.Packet.FromString(raw)
@@ -156,19 +156,32 @@ class GameServer:
                 env_index = job.payload.env_index
                 asyncio.create_task(self.envs[env_index].on_job_completed(job))
 
+    async def _model_loop(self):
+        '''a loop to receive `ModelInfo`'''
+        while True:
+            raw = await self._upstream.recv()
+            packet = czf_pb2.Packet.FromString(raw)
+            packet_type = packet.WhichOneof('payload')
+            if packet_type == 'model_info':
+                version = packet.model_info.version
+                # assert packet.model_info.name == self.model.name
+                if version > self.model.version:
+                    self.model.version = version
+                    self.has_new_model.set()
+
+    async def __send_model_subscribe(self):
+        '''helper to send a `model_subscribe` to optimizer'''
+        packet = czf_pb2.Packet(model_subscribe=czf_pb2.Heartbeat())
+        await self._upstream.send(packet.SerializeToString())
+
+    async def send_optimize_job(self, trajectory: czf_pb2.Trajectory):
+        '''helper to send a `Trajectory` to optimizer'''
+        packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
+            trajectories=[trajectory]))
+        await self._upstream.send(packet.SerializeToString())
+
     async def send_job(self, job: czf_pb2.Job):
         '''helper to send a `Job`'''
         job.initiator.CopyFrom(self._node)
         packet = czf_pb2.Packet(job=job)
-        await self.__send_packet(packet)
-
-    async def send_optimize_job(self, trajectory: czf_pb2.Trajectory):
-        '''helper to send a `Trajectory` to optimizer'''
-        if not self._is_evaluation:
-            packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
-                trajectories=[trajectory]))
-            await self._upstream.send(packet.SerializeToString())
-
-    async def __send_packet(self, packet: czf_pb2.Packet):
-        '''helper to send a `Packet`'''
         await self._broker.send(packet.SerializeToString())

@@ -13,9 +13,36 @@ from czf.pb import czf_pb2
 class Actor:
     '''Actor'''
     def __init__(self, args, worker_manager):
-        # job queue
+        self._node = czf_pb2.Node(
+            hostname=platform.node(),
+            identity=f'actor-{args.suffix}',
+        )
+        # Actor mode
+        operation = {
+            None: czf_pb2.Job.Operation.MUZERO_SEARCH,
+            '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
+            '2P': czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
+        }
+        if args.eval:
+            assert args.eval in ('1P', '2P')
+            print(f'[Evaluation {args.eval} Mode]', self._node.identity)
+        else:
+            print('[Training Mode]', self._node.identity)
+        self._operation = operation[args.eval]
+        # worker manager
         self._worker_manager = worker_manager
+        worker_manager.run(
+            num_cpu_worker=args.num_cpu_worker,
+            num_gpu_worker=args.num_gpu_worker,
+            num_gpu_root_worker=args.num_gpu_root_worker,
+            num_gpu=args.num_gpu,
+        )
+        # job queue
         self._jobs = asyncio.Queue()
+        # model
+        self._model_info = czf_pb2.ModelInfo(name='default', version=-1)
+        self._has_new_model = asyncio.Event()
+        self._has_load_model = asyncio.Event()
         # connect to the remote model provider
         self._model_manager = RemoteModelManager(
             identity=f'model-manager-{args.suffix}',
@@ -23,10 +50,6 @@ class Actor:
             cache_size=8,
         )
         # connect to the broker
-        self._node = czf_pb2.Node(
-            hostname=platform.node(),
-            identity=f'actor-{args.suffix}',
-        )
         self._broker = get_zmq_dealer(
             identity=self._node.identity,
             remote_address=args.broker,
@@ -54,8 +77,19 @@ class Actor:
             job = await self._jobs.get()
             job.workers[job.step].CopyFrom(self._node)
             job.step += 1
+            if not job.HasField('payload'):  # special job: flush model
+                if self._model_info != job.model:
+                    self._model_info.CopyFrom(job.model)
+                    self._has_load_model.clear()
+                    self._has_new_model.set()
+                    await self._has_load_model.wait()
+                await self.__send_job(job)
+                continue
             state = job.payload.state
-            # assert job.model.version == -1
+            # assert job.model.name == self._model_info.name
+            if job.model.version > self._model_info.version:
+                self._model_info.version = job.model.version
+                self._has_new_model.set()
             # copy job option
             option = state.tree_option
             tree_option = TreeOption()
@@ -90,14 +124,15 @@ class Actor:
                 policy[action] = visit / total_visits
             job.payload.state.evaluation.value = value
             job.payload.state.evaluation.policy[:] = policy
-            asyncio.create_task(self.__send_packet(czf_pb2.Packet(job=job)))
+            asyncio.create_task(self.__send_job(job))
 
     async def _load_model_loop(self):
-        '''a loop to load the latest model'''
-        while True:
-            await self._model_manager.has_new_model.wait()
-            self._model_manager.has_new_model.clear()
-            await self.__load_latest_model()
+        '''a loop to load model'''
+        while await self._has_new_model.wait():
+            self._has_new_model.clear()
+            model = await self._model_manager.get(self._model_info)
+            self.__load_model(model)
+            self._has_load_model.set()
 
     def __load_model(self, model: czf_pb2.Model):
         '''WorkerManager load model'''
@@ -106,21 +141,17 @@ class Actor:
         blob = model.blobs[0]
         with tempfile.NamedTemporaryFile() as tmp_file:
             tmp_file.write(blob)
-            self._worker_manager.load_model(tmp_file.name)
-
-    async def __load_latest_model(self):
-        '''load the latest model'''
-        model_version = await self._model_manager.get_latest_version('default')
-        model = await self._model_manager.get(
-            czf_pb2.ModelInfo(name='default', version=model_version))
-        self.__load_model(model)
+            self._worker_manager.load_from_file(tmp_file.name)
 
     async def __initialize(self):
         '''initialize model and start to send job'''
         # load the latest model
-        await self.__load_latest_model()
+        self._model_info.version = await self._model_manager.get_latest_version(
+            self._model_info.name)
+        model = await self._model_manager.get(self._model_info)
+        self.__load_model(model)
         # start to send job
-        asyncio.create_task(self.__send_job_request())
+        await self.__send_job_request()
 
     async def __on_job_batch(self, job_batch: czf_pb2.JobBatch):
         '''enqueue jobs into Queue and send `JobRequest`'''
@@ -128,12 +159,16 @@ class Actor:
             await self._jobs.put(job)
         await self.__send_job_request()
 
-    async def __send_packet(self, packet: czf_pb2.Packet):
-        '''helper to send a `Packet`'''
-        await self._broker.send(packet.SerializeToString())
+    async def __send_job(self, job):
+        '''helper to send a `Job`'''
+        await self.__send_packet(czf_pb2.Packet(job=job))
 
     async def __send_job_request(self, capacity=1280):
         '''helper to send a `JobRequest`'''
         packet = czf_pb2.Packet(job_request=czf_pb2.JobRequest(
-            operation=czf_pb2.Job.Operation.MUZERO_SEARCH, capacity=capacity))
+            operation=self._operation, capacity=capacity))
         await self.__send_packet(packet)
+
+    async def __send_packet(self, packet: czf_pb2.Packet):
+        '''helper to send a `Packet`'''
+        await self._broker.send(packet.SerializeToString())

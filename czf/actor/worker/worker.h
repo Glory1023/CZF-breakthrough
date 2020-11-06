@@ -33,7 +33,7 @@ class WorkerManager {
   /** dequeue a result from the job queue */
   py::tuple wait_dequeue_result();
   /** load model from file */
-  void load_model(const std::string&);
+  void load_from_file(const std::string&);
 
  private:
   void worker_cpu(Seed_t, Seed_t);

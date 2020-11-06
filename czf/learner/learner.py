@@ -56,13 +56,16 @@ class Learner:
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
             # print(packet)
-            self._model_peers.add(identity)
             if packet_type == 'model_request':
                 asyncio.create_task(
                     self.__on_model_request(identity, packet.model_request))
             elif packet_type == 'trajectory_batch':
                 asyncio.create_task(
                     self.__on_recv_trajectory(packet.trajectory_batch))
+            elif packet_type == 'model_subscribe':
+                self._model_peers.add(identity)
+            elif packet_type == 'goodbye':
+                self._model_peers.remove(identity)
 
     async def __on_model_request(self, identity: str,
                                  model: czf_pb2.ModelInfo):

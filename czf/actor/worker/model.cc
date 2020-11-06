@@ -17,14 +17,13 @@ void ModelManager::resize(size_t size) {
   }
 }
 
-void ModelManager::load(const std::string& path) {
-  size_t new_version = version_switch_ ^ 1;  // NOLINT
+void ModelManager::load_from_file(const std::string &path) {
   size_t num_devices = forward_devices_.size();
   for (size_t i = 0; i < num_devices; ++i) {
-    models_[i][new_version] =
+    auto model =
         std::make_shared<Model>(torch::jit::load(path, forward_devices_[i]));
+    std::atomic_store(&models_[i], model);
   }
-  version_switch_ = new_version;
 }
 
 std::tuple<torch::Device, ModelPtr> ModelManager::get() {
@@ -33,7 +32,7 @@ std::tuple<torch::Device, ModelPtr> ModelManager::get() {
   if (idx == 0) {
     device_switch_ -= num_devices;
   }
-  return {forward_devices_[idx], models_[idx][version_switch_]};
+  return {forward_devices_[idx], models_[idx]};
 }
 
 }  // namespace czf::actor::worker

@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\tczf.proto\x12\x06\x63zf.pb\"\x0b\n\tHeartbeat\"*\n\x04Node\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x10\n\x08hostname\x18\x02 \x01(\t\"*\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\"7\n\x05Model\x12\x1f\n\x04info\x18\x01 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\x97\x04\n\x0bWorkerState\x12\x15\n\rlegal_actions\x18\x01 \x03(\x05\x12\x1a\n\x12observation_tensor\x18\x02 \x03(\x02\x12\x33\n\x0btree_option\x18\x03 \x01(\x0b\x32\x1e.czf.pb.WorkerState.TreeOption\x12\x32\n\nevaluation\x18\x04 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Evaluation\x12\x32\n\ntransition\x18\x05 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Transition\x1a\xac\x01\n\nTreeOption\x12\x18\n\x10simulation_count\x18\x01 \x01(\x05\x12\x16\n\x0etree_min_value\x18\x02 \x01(\x02\x12\x16\n\x0etree_max_value\x18\x03 \x01(\x02\x12\x0e\n\x06\x63_puct\x18\x04 \x01(\x02\x12\x17\n\x0f\x64irichlet_alpha\x18\x05 \x01(\x02\x12\x19\n\x11\x64irichlet_epsilon\x18\x06 \x01(\x02\x12\x10\n\x08\x64iscount\x18\x07 \x01(\x02\x1a\x42\n\nEvaluation\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\x12\x15\n\raverage_value\x18\x03 \x01(\x02\x1a\x45\n\nTransition\x12\x16\n\x0e\x63urrent_player\x18\x01 \x01(\x05\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\x05\x12\x0f\n\x07rewards\x18\x03 \x03(\x02\"\xc6\x02\n\x03Job\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x1f\n\tinitiator\x18\x02 \x01(\x0b\x32\x0c.czf.pb.Node\x12 \n\x05model\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12(\n\tprocedure\x18\x04 \x03(\x0e\x32\x15.czf.pb.Job.Operation\x12\x0c\n\x04step\x18\x05 \x01(\x05\x12\x1d\n\x07workers\x18\x06 \x03(\x0b\x32\x0c.czf.pb.Node\x12$\n\x07payload\x18\x07 \x01(\x0b\x32\x13.czf.pb.Job.Payload\x1a@\n\x07Payload\x12\x11\n\tenv_index\x18\x01 \x01(\x05\x12\"\n\x05state\x18\x02 \x01(\x0b\x32\x13.czf.pb.WorkerState\"+\n\tOperation\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x11\n\rMUZERO_SEARCH\x10\x01\"H\n\nJobRequest\x12(\n\toperation\x18\x01 \x01(\x0e\x32\x15.czf.pb.Job.Operation\x12\x10\n\x08\x63\x61pacity\x18\x02 \x01(\x05\"%\n\x08JobBatch\x12\x19\n\x04jobs\x18\x01 \x03(\x0b\x32\x0b.czf.pb.Job\"1\n\nTrajectory\x12#\n\x06states\x18\x01 \x03(\x0b\x32\x13.czf.pb.WorkerState\";\n\x0fTrajectoryBatch\x12(\n\x0ctrajectories\x18\x01 \x03(\x0b\x32\x12.czf.pb.Trajectory\"\xdc\x02\n\x06Packet\x12&\n\theartbeat\x18\x01 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12\'\n\nmodel_info\x18\x02 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12*\n\rmodel_request\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12\'\n\x0emodel_response\x18\x04 \x01(\x0b\x32\r.czf.pb.ModelH\x00\x12)\n\x0bjob_request\x18\x05 \x01(\x0b\x32\x12.czf.pb.JobRequestH\x00\x12%\n\tjob_batch\x18\x06 \x01(\x0b\x32\x10.czf.pb.JobBatchH\x00\x12\x1a\n\x03job\x18\x07 \x01(\x0b\x32\x0b.czf.pb.JobH\x00\x12\x33\n\x10trajectory_batch\x18\x08 \x01(\x0b\x32\x17.czf.pb.TrajectoryBatchH\x00\x42\t\n\x07payloadb\x06proto3'
+  serialized_pb=b'\n\tczf.proto\x12\x06\x63zf.pb\"\x0b\n\tHeartbeat\"*\n\x04Node\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x10\n\x08hostname\x18\x02 \x01(\t\"*\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\"7\n\x05Model\x12\x1f\n\x04info\x18\x01 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\x97\x04\n\x0bWorkerState\x12\x15\n\rlegal_actions\x18\x01 \x03(\x05\x12\x1a\n\x12observation_tensor\x18\x02 \x03(\x02\x12\x33\n\x0btree_option\x18\x03 \x01(\x0b\x32\x1e.czf.pb.WorkerState.TreeOption\x12\x32\n\nevaluation\x18\x04 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Evaluation\x12\x32\n\ntransition\x18\x05 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Transition\x1a\xac\x01\n\nTreeOption\x12\x18\n\x10simulation_count\x18\x01 \x01(\x05\x12\x16\n\x0etree_min_value\x18\x02 \x01(\x02\x12\x16\n\x0etree_max_value\x18\x03 \x01(\x02\x12\x0e\n\x06\x63_puct\x18\x04 \x01(\x02\x12\x17\n\x0f\x64irichlet_alpha\x18\x05 \x01(\x02\x12\x19\n\x11\x64irichlet_epsilon\x18\x06 \x01(\x02\x12\x10\n\x08\x64iscount\x18\x07 \x01(\x02\x1a\x42\n\nEvaluation\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\x12\x15\n\raverage_value\x18\x03 \x01(\x02\x1a\x45\n\nTransition\x12\x16\n\x0e\x63urrent_player\x18\x01 \x01(\x05\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\x05\x12\x0f\n\x07rewards\x18\x03 \x03(\x02\"\xf6\x02\n\x03Job\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x1f\n\tinitiator\x18\x02 \x01(\x0b\x32\x0c.czf.pb.Node\x12 \n\x05model\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12(\n\tprocedure\x18\x04 \x03(\x0e\x32\x15.czf.pb.Job.Operation\x12\x0c\n\x04step\x18\x05 \x01(\x05\x12\x1d\n\x07workers\x18\x06 \x03(\x0b\x32\x0c.czf.pb.Node\x12$\n\x07payload\x18\x07 \x01(\x0b\x32\x13.czf.pb.Job.Payload\x1a@\n\x07Payload\x12\x11\n\tenv_index\x18\x01 \x01(\x05\x12\"\n\x05state\x18\x02 \x01(\x0b\x32\x13.czf.pb.WorkerState\"[\n\tOperation\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x11\n\rMUZERO_SEARCH\x10\x01\x12\x16\n\x12MUZERO_EVALUATE_1P\x10\x02\x12\x16\n\x12MUZERO_EVALUATE_2P\x10\x03\"H\n\nJobRequest\x12(\n\toperation\x18\x01 \x01(\x0e\x32\x15.czf.pb.Job.Operation\x12\x10\n\x08\x63\x61pacity\x18\x02 \x01(\x05\"%\n\x08JobBatch\x12\x19\n\x04jobs\x18\x01 \x03(\x0b\x32\x0b.czf.pb.Job\"1\n\nTrajectory\x12#\n\x06states\x18\x01 \x03(\x0b\x32\x13.czf.pb.WorkerState\";\n\x0fTrajectoryBatch\x12(\n\x0ctrajectories\x18\x01 \x03(\x0b\x32\x12.czf.pb.Trajectory\"\xb0\x03\n\x06Packet\x12&\n\theartbeat\x18\x01 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12$\n\x07goodbye\x18\x02 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12,\n\x0fmodel_subscribe\x18\x03 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12\'\n\nmodel_info\x18\x04 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12*\n\rmodel_request\x18\x05 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12\'\n\x0emodel_response\x18\x06 \x01(\x0b\x32\r.czf.pb.ModelH\x00\x12)\n\x0bjob_request\x18\x07 \x01(\x0b\x32\x12.czf.pb.JobRequestH\x00\x12%\n\tjob_batch\x18\x08 \x01(\x0b\x32\x10.czf.pb.JobBatchH\x00\x12\x1a\n\x03job\x18\t \x01(\x0b\x32\x0b.czf.pb.JobH\x00\x12\x33\n\x10trajectory_batch\x18\n \x01(\x0b\x32\x17.czf.pb.TrajectoryBatchH\x00\x42\t\n\x07payloadb\x06proto3'
 )
 
 
@@ -41,11 +41,21 @@ _JOB_OPERATION = _descriptor.EnumDescriptor(
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='MUZERO_EVALUATE_1P', index=2, number=2,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='MUZERO_EVALUATE_2P', index=3, number=3,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
   serialized_start=1001,
-  serialized_end=1044,
+  serialized_end=1092,
 )
 _sym_db.RegisterEnumDescriptor(_JOB_OPERATION)
 
@@ -524,7 +534,7 @@ _JOB = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=718,
-  serialized_end=1044,
+  serialized_end=1092,
 )
 
 
@@ -562,8 +572,8 @@ _JOBREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1046,
-  serialized_end=1118,
+  serialized_start=1094,
+  serialized_end=1166,
 )
 
 
@@ -594,8 +604,8 @@ _JOBBATCH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1120,
-  serialized_end=1157,
+  serialized_start=1168,
+  serialized_end=1205,
 )
 
 
@@ -626,8 +636,8 @@ _TRAJECTORY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1159,
-  serialized_end=1208,
+  serialized_start=1207,
+  serialized_end=1256,
 )
 
 
@@ -658,8 +668,8 @@ _TRAJECTORYBATCH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1210,
-  serialized_end=1269,
+  serialized_start=1258,
+  serialized_end=1317,
 )
 
 
@@ -679,50 +689,64 @@ _PACKET = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='model_info', full_name='czf.pb.Packet.model_info', index=1,
+      name='goodbye', full_name='czf.pb.Packet.goodbye', index=1,
       number=2, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='model_request', full_name='czf.pb.Packet.model_request', index=2,
+      name='model_subscribe', full_name='czf.pb.Packet.model_subscribe', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='model_response', full_name='czf.pb.Packet.model_response', index=3,
+      name='model_info', full_name='czf.pb.Packet.model_info', index=3,
       number=4, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='job_request', full_name='czf.pb.Packet.job_request', index=4,
+      name='model_request', full_name='czf.pb.Packet.model_request', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='job_batch', full_name='czf.pb.Packet.job_batch', index=5,
+      name='model_response', full_name='czf.pb.Packet.model_response', index=5,
       number=6, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='job', full_name='czf.pb.Packet.job', index=6,
+      name='job_request', full_name='czf.pb.Packet.job_request', index=6,
       number=7, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='trajectory_batch', full_name='czf.pb.Packet.trajectory_batch', index=7,
+      name='job_batch', full_name='czf.pb.Packet.job_batch', index=7,
       number=8, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='job', full_name='czf.pb.Packet.job', index=8,
+      number=9, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='trajectory_batch', full_name='czf.pb.Packet.trajectory_batch', index=9,
+      number=10, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -744,8 +768,8 @@ _PACKET = _descriptor.Descriptor(
       create_key=_descriptor._internal_create_key,
     fields=[]),
   ],
-  serialized_start=1272,
-  serialized_end=1620,
+  serialized_start=1320,
+  serialized_end=1752,
 )
 
 _MODEL.fields_by_name['info'].message_type = _MODELINFO
@@ -768,6 +792,8 @@ _JOBBATCH.fields_by_name['jobs'].message_type = _JOB
 _TRAJECTORY.fields_by_name['states'].message_type = _WORKERSTATE
 _TRAJECTORYBATCH.fields_by_name['trajectories'].message_type = _TRAJECTORY
 _PACKET.fields_by_name['heartbeat'].message_type = _HEARTBEAT
+_PACKET.fields_by_name['goodbye'].message_type = _HEARTBEAT
+_PACKET.fields_by_name['model_subscribe'].message_type = _HEARTBEAT
 _PACKET.fields_by_name['model_info'].message_type = _MODELINFO
 _PACKET.fields_by_name['model_request'].message_type = _MODELINFO
 _PACKET.fields_by_name['model_response'].message_type = _MODEL
@@ -778,6 +804,12 @@ _PACKET.fields_by_name['trajectory_batch'].message_type = _TRAJECTORYBATCH
 _PACKET.oneofs_by_name['payload'].fields.append(
   _PACKET.fields_by_name['heartbeat'])
 _PACKET.fields_by_name['heartbeat'].containing_oneof = _PACKET.oneofs_by_name['payload']
+_PACKET.oneofs_by_name['payload'].fields.append(
+  _PACKET.fields_by_name['goodbye'])
+_PACKET.fields_by_name['goodbye'].containing_oneof = _PACKET.oneofs_by_name['payload']
+_PACKET.oneofs_by_name['payload'].fields.append(
+  _PACKET.fields_by_name['model_subscribe'])
+_PACKET.fields_by_name['model_subscribe'].containing_oneof = _PACKET.oneofs_by_name['payload']
 _PACKET.oneofs_by_name['payload'].fields.append(
   _PACKET.fields_by_name['model_info'])
 _PACKET.fields_by_name['model_info'].containing_oneof = _PACKET.oneofs_by_name['payload']

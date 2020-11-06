@@ -18,15 +18,14 @@ class ModelManager {
   /** resize the number of model */
   void resize(size_t);
   /** load a model from the path */
-  void load(const std::string &);
+  void load_from_file(const std::string &);
   /** get the pointer to a model */
   std::tuple<torch::Device, ModelPtr> get();
 
  private:
+  std::vector<ModelPtr> models_;
   std::vector<torch::Device> forward_devices_;
-  // models_[device][version]
-  std::vector<std::array<ModelPtr, 2>> models_;
-  std::atomic_size_t version_switch_{0U}, device_switch_{0U};
+  std::atomic_size_t device_switch_{0U};
 };
 
 }  // namespace czf::actor::worker

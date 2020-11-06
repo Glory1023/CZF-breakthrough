@@ -1,15 +1,16 @@
 '''CZF Game Server'''
 import argparse
 import asyncio
+from pathlib import Path
 import random
 from functools import partial
 from uuid import uuid4
 import numpy as np
-from pathlib import Path
 import yaml
 import zmq.asyncio
 
 from czf.game_server.game_server import GameServer
+from czf.game_server.evaluator import EvalGameServer
 
 
 def make_default_action_policy_fn(softmax_temperature_step, num_moves,
@@ -41,8 +42,9 @@ def eval_after_apply_metric(board_shape, evaluated_state, game_state):
 
 async def main(args, config, callbacks):
     '''czf.game_server main program'''
-    game_server = GameServer(args, config, callbacks)
-    await game_server.loop()
+    sever_cls = EvalGameServer if args.eval else GameServer
+    server = sever_cls(args, config, callbacks)
+    await server.loop()
 
 
 def run_main():
@@ -64,9 +66,7 @@ def run_main():
                         metavar='unique_id',
                         help='unique id of the game server',
                         default=uuid4().hex)
-    parser.add_argument('--eval',
-                        action='store_true',
-                        help='evaluation only (without sending trajectories)')
+    parser.add_argument('--eval', action='store_true', help='evaluation mode')
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
@@ -77,11 +77,10 @@ def run_main():
         'metric': {},
     }
     if args.eval:
-        np.set_printoptions(precision=3)
-        board_shape = config['game']['observation_shape'][-2:]
         callbacks['action_policy'] = argmax_action_policy_fn
-        callbacks['metric']['after_apply'] = partial(eval_after_apply_metric,
-                                                     board_shape)
+        # np.set_printoptions(precision=3)
+        # board_shape = config['game']['observation_shape'][-2:]
+        # callbacks['metric']['after_apply'] = partial(eval_after_apply_metric, board_shape)
     try:
         asyncio.run(main(args, config, callbacks))
     except KeyboardInterrupt:

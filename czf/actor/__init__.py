@@ -13,8 +13,27 @@ from czf.actor.actor import Actor
 from czf.actor import worker
 
 
-async def main(args, worker_manager):
+def create_worker_manager(args, config):
+    '''create a worker manager from args and config'''
+    manager = worker.WorkerManager()
+    # GameInfo
+    game_config = config['game']
+    manager.game_info.observation_shape = game_config['observation_shape']
+    manager.game_info.state_shape = game_config['state_shape']
+    manager.game_info.num_actions = game_config['actions']
+    manager.game_info.all_actions = list(range(game_config['actions']))
+    manager.game_info.two_player = (game_config.get('num_player', 2) == 2)
+    # JobOption
+    manager.worker_option.seed = args.seed
+    manager.worker_option.timeout_us = args.gpu_timeout
+    manager.worker_option.batch_size = args.batch_size
+    return manager
+
+
+async def main(args):
     '''czf.actor main program'''
+    config = yaml.safe_load(Path(args.config).read_text())
+    worker_manager = create_worker_manager(args, config)
     actor = Actor(args, worker_manager)
     try:
         await actor.loop()
@@ -38,6 +57,10 @@ def run_main():
                         required=True,
                         metavar='host:port',
                         help='model provider address. e.g., 127.0.0.1:5577')
+    parser.add_argument('--eval',
+                        nargs='?',
+                        const='1P',
+                        help='evaluation mode (default: 1P)')
     parser.add_argument('--suffix',
                         metavar='unique_id',
                         default=uuid4().hex,
@@ -46,7 +69,7 @@ def run_main():
                         '--batch-size',
                         type=int,
                         default=2048,
-                        help='GPU max batch size')
+                        help='max batch size per gpu worker')
     parser.add_argument('--seed',
                         type=int,
                         default=random.randint(0, 2**64),
@@ -56,51 +79,35 @@ def run_main():
         type=int,
         default=1000,
         help='GPU wait max timeout (default: %(default)s microseconds)')
+    parser.add_argument('--num_manager',
+                        type=int,
+                        default=1,
+                        help='Number of manager (default: %(default)s)')
     parser.add_argument(
         '-cpu',
         '--num_cpu_worker',
         type=int,
         default=num_cpu,
-        help='Total number of cpu worker (default: %(default)s)')
+        help='Number of cpu worker per manager (default: %(default)s)')
     parser.add_argument(
         '-gpu',
         '--num_gpu_worker',
         type=int,
         default=num_gpu,
-        help='Total number of gpu worker (default: %(default)s)')
+        help='Number of gpu worker per manager (default: %(default)s)')
     parser.add_argument(
         '-gpu-root',
         '--num_gpu_root_worker',
         type=int,
         default=1,
-        help='Total number of gpu root worker (default: %(default)s)')
+        help='Number of gpu root worker per manager (default: %(default)s)')
+    parser.add_argument('--num_gpu',
+                        type=int,
+                        default=num_gpu,
+                        help='Number of gpu (default: %(default)s)')
     args = parser.parse_args()
-    # WorkerManager
-    worker_manager = worker.WorkerManager()
-    config = yaml.safe_load(Path(args.config).read_text())
-    # GameInfo
-    game_config = config['game']
-    worker_manager.game_info.observation_shape = game_config[
-        'observation_shape']
-    worker_manager.game_info.state_shape = game_config['state_shape']
-    worker_manager.game_info.num_actions = game_config['actions']
-    worker_manager.game_info.all_actions = list(range(game_config['actions']))
-    worker_manager.game_info.two_player = (game_config.get('num_player',
-                                                           2) == 2)
-    # JobOption
-    worker_manager.worker_option.seed = args.seed
-    worker_manager.worker_option.timeout_us = args.gpu_timeout
-    worker_manager.worker_option.batch_size = args.batch_size
-
-    # run
-    worker_manager.run(
-        num_cpu_worker=args.num_cpu_worker,
-        num_gpu_worker=args.num_gpu_worker,
-        num_gpu_root_worker=args.num_gpu_root_worker,
-        num_gpu=num_gpu,
-    )
     try:
-        asyncio.run(main(args, worker_manager))
+        asyncio.run(main(args))
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
         print('\rterminated by ctrl-c')
