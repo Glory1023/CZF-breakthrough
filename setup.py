@@ -126,6 +126,7 @@ with open('README.md') as fd:
             'pyyaml',
             'tensorboard',
             'zmq',
+            'zstandard',
         ],
         packages=find_packages(exclude=['tests']),
         entry_points={

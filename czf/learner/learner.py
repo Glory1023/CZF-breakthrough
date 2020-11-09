@@ -64,25 +64,16 @@ class Learner:
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
             # print(packet)
-            if packet_type == 'model_request':
-                await self._model_request.put((identity, packet.model_request))
-            elif packet_type == 'trajectory_batch':
+            if packet_type == 'trajectory_batch':
                 await self._trajectory.put(packet.trajectory_batch)
+            elif packet_type == 'model_request':
+                await self._model_request.put((identity, packet.model_request))
+            elif packet_type == 'evaluation_result':
+                await self.__on_evaluation_result(packet.evaluation_result)
             elif packet_type == 'model_subscribe':
                 self._model_peers.add(identity)
             elif packet_type == 'goodbye':
                 self._model_peers.remove(identity)
-
-    async def _model_request_loop(self):
-        '''send `Model` loop'''
-        while True:
-            identity, info = await self._model_request.get()
-            if info.version == -1:
-                version = self._model_provider.get_latest_version(info.name)
-                info.version = version
-            model = self._model_provider.get(info)
-            packet = czf_pb2.Packet(model_response=model)
-            await self.__send_packet(identity, packet)
 
     async def _trajectory_loop(self):
         '''store trajectory loop'''
@@ -100,6 +91,32 @@ class Learner:
                 self._trainer.save_model(save_ckpt)
                 await self.__notify_model_update(self._trainer.model_name,
                                                  self._trainer.iteration)
+
+    async def _model_request_loop(self):
+        '''send `Model` loop'''
+        while True:
+            identity, info = await self._model_request.get()
+            if info.version == -1:
+                version = self._model_provider.get_latest_version(info.name)
+                info.version = version
+            model = self._model_provider.get(info)
+            packet = czf_pb2.Packet()
+            packet.model_response.CopyFrom(model)
+            await self.__send_packet(identity, packet)
+
+    async def __on_evaluation_result(self, result: czf_pb2.EvaluationResult):
+        '''store evaluation result'''
+        step = result.iteration
+        writer = self._trainer._summary_writer
+        writer.add_scalar('eval/elo', result.elo, step)
+        writer.add_scalar('eval/current_version', result.target.version, step)
+        writer.add_scalar('eval/best_version', result.base.version, step)
+        writer.add_scalars('eval/result', {
+            'win': result.win,
+            'draw': result.draw,
+            'lose': result.lose,
+        }, step)
+        writer.flush()
 
     async def __notify_model_update(self, name: str, version: str):
         '''notify model update to peers'''

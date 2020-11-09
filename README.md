@@ -14,16 +14,23 @@ pip install .
 - Run the following commands in different shells:
 
 ```shell
-czf-actor -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml
-czf-learner -l 5577 -f game.yaml
+czf-actor -b 127.0.0.1:5566 -u 127.0.0.1:5588 -f game.yaml -bs 64
+czf-learner -l 5577 -f game.yaml -s $STORAGE
 czf-broker -l 5566
-czf-game-server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -e tic_tac_toe -n 64
+czf-model-provider -l 5588 -s $STORAGE
+czf-game-server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml -n 64
 ```
 
 ### Evaluation Mode
 
+- can share the same `czf-broker` and `czf-model-provider` as in the training
+
 ```shell
-czf-game-server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -e tic_tac_toe -n 1 --eval
+czf-actor -b 127.0.0.1:5566 -u 127.0.0.1:5588 -f game.yaml -bs 64 --eval 1P
+czf-actor -b 127.0.0.1:5566 -u 127.0.0.1:5588 -f game.yaml -bs 64 --eval 2P
+czf-broker -l 5566
+czf-model-provider -l 5588 -s $STORAGE
+czf-game-server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml -n 32 --eval
 ```
 
 ## Development

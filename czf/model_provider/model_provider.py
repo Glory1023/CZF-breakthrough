@@ -1,59 +1,45 @@
-#! /usr/bin/env python3
-import zmq
+'''CZF ModelProvider'''
 import asyncio
-import zmq.asyncio
-import argparse
-from uuid import uuid4
+from pathlib import Path
 
-from .model_manager import LocalModelManager, RemoteModelManager
 from czf.pb import czf_pb2
+from czf.utils import get_zmq_router, LocalModelManager, RemoteModelManager
 
 
 class ModelProvider:
+    '''ModelProvider'''
     def __init__(self, args):
-        context = zmq.asyncio.Context.instance()
-        socket = context.socket(zmq.ROUTER)
-        socket.setsockopt(zmq.LINGER, 0)
-        socket.bind(f'tcp://*:{args.listen}')
-        self.provider = socket
-        self.model_manager = LocalModelManager(args) if args.storage else RemoteModelManager(args)
+        self._provider = get_zmq_router(listen_port=args.listen)
+        if args.storage:
+            model_path = Path(args.storage) / 'model'
+            self._model_manager = LocalModelManager(
+                storage=model_path,
+                cache_size=args.cache_size,
+            )
+        else:
+            self._model_manager = RemoteModelManager(
+                identity=f'model-provider-{args.suffix}',
+                upstream=args.upstream,
+                cache_size=args.cache_size,
+            )
 
     async def loop(self):
+        '''main loop'''
         while True:
-            identity, raw = await self.provider.recv_multipart()
+            identity, raw = await self._provider.recv_multipart()
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
-
             if packet_type == 'model_request':
-                asyncio.create_task(self.send_model(identity, packet.model_request))
+                asyncio.create_task(
+                    self.__on_model_request(identity, packet.model_request))
 
-    async def send_model(self, identity: bytes, model: czf_pb2.Model):
+    async def __on_model_request(self, identity: bytes,
+                                 info: czf_pb2.ModelInfo):
+        '''send `Model`'''
+        if info.version == -1:
+            version = self._model_manager.get_latest_version(info.name)
+            info.version = version
+        model = self._model_manager.get(info)
         packet = czf_pb2.Packet()
-        model = await self.model_manager.get(model)
         packet.model_response.CopyFrom(model)
-        raw = packet.SerializeToString()
-        self.provider.send_multipart([identity, raw])
-
-
-async def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--cache-size', type=int, default=8)
-    parser.add_argument('-l', '--listen', type=int, required=True)
-    parser.add_argument('--suffix', type=str, default=uuid4().hex)
-
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-s', '--storage', type=str)
-    group.add_argument('-u', '--upstream', type=str)
-
-    args = parser.parse_args()
-
-    model_provider = ModelProvider(args)
-    await model_provider.loop()
-
-
-if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        zmq.asyncio.Context.instance().destroy()
-        print('\rterminated by ctrl-c')
+        self._provider.send_multipart([identity, packet.SerializeToString()])

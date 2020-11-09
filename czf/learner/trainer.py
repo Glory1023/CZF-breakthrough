@@ -65,7 +65,7 @@ class Trainer:
             with open(restore, 'rb') as model_blob:
                 dctx = zstd.ZstdDecompressor()
                 model = dctx.decompress(model_blob.read())
-            state_dict = torch.load(model)
+            state_dict = torch.load(BytesIO(model))
             self.iteration = state_dict['iteration']
             self._model.load_state_dict(state_dict['model'])
             self._optimizer.load_state_dict(state_dict['optimizer'])

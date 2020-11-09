@@ -85,6 +85,7 @@ class EvalGameServer(GameServer):
             czf_pb2.Job.Operation.MUZERO_EVALUATE_1P: self._model_1p,
             czf_pb2.Job.Operation.MUZERO_EVALUATE_2P: self._model_2p,
         }
+        self.has_new_model.set()
         self._best_elo = 0.
         asyncio.create_task(self.__send_load_model())
 
@@ -117,7 +118,6 @@ class EvalGameServer(GameServer):
 
     async def __write_result(self, eval_result: list):
         '''helper to process evaluation result'''
-        # TODO: write to tensorboard
         total = len(eval_result)
         win_rate = eval_result.count(1) / total
         draw_rate = eval_result.count(0) / total
@@ -137,6 +137,19 @@ class EvalGameServer(GameServer):
                 elo_1p,
                 elo_1p_diff,
             ))
+        # send the evaluation result
+        result = czf_pb2.EvaluationResult(
+            iteration=self._model_1p.version,
+            elo=elo_1p,
+            win=win_rate,
+            draw=draw_rate,
+            lose=lose_rate,
+        )
+        result.target.CopyFrom(self._model_1p)
+        result.base.CopyFrom(self._model_2p)
+        packet = czf_pb2.Packet(evaluation_result=result)
+        await self._upstream.send(packet.SerializeToString())
+        # update model according to the score
         if score > 0.55:  # current model (1p) is the best
             self._model_2p.CopyFrom(self._model_1p)
             self._best_elo = elo_1p
