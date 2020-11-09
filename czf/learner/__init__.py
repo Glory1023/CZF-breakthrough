@@ -52,9 +52,9 @@ async def main():
         args.storage_dir = str(Path(path).resolve())
     storage_path = Path(args.storage_dir)
     print('Storage path:', storage_path)
-    # default restore checkpoint: `{storage}/checkpoint/{model_name}/latest.pt`
+    # default restore checkpoint: `{storage}/checkpoint/{model_name}/latest.pt.zst`
     if args.restore == '':
-        args.restore = storage_path / 'checkpoint' / args.model_name / 'latest.pt'
+        args.restore = storage_path / 'checkpoint' / args.model_name / 'latest.pt.zst'
     # default restore buffer: `{storage}/trajectory`
     if args.restore_buffer == '':
         args.restore_buffer = storage_path / 'trajectory'

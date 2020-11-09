@@ -20,6 +20,9 @@ class Learner:
         for path in (checkpoint_path, model_path, log_path,
                      self._trajectory_path):
             Path(path).mkdir(parents=True, exist_ok=True)
+        # queue
+        self._trajectory = asyncio.Queue()
+        self._model_request = asyncio.Queue()
         # model provider
         self._model_peers = set()  # peers to receive the model
         self._model_provider = LocalModelManager(
@@ -51,46 +54,52 @@ class Learner:
 
     async def loop(self):
         '''main loop'''
+        await asyncio.gather(self._recv_loop(), self._model_request_loop(),
+                             self._trajectory_loop())
+
+    async def _recv_loop(self):
+        '''receive loop'''
         while True:
             identity, raw = await self._socket.recv_multipart()
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
             # print(packet)
             if packet_type == 'model_request':
-                asyncio.create_task(
-                    self.__on_model_request(identity, packet.model_request))
+                await self._model_request.put((identity, packet.model_request))
             elif packet_type == 'trajectory_batch':
-                asyncio.create_task(
-                    self.__on_recv_trajectory(packet.trajectory_batch))
+                await self._trajectory.put(packet.trajectory_batch)
             elif packet_type == 'model_subscribe':
                 self._model_peers.add(identity)
             elif packet_type == 'goodbye':
                 self._model_peers.remove(identity)
 
-    async def __on_model_request(self, identity: bytes,
-                                 info: czf_pb2.ModelInfo):
-        '''send `Model`'''
-        if info.version == -1:
-            version = self._model_provider.get_latest_version(info.name)
-            info.version = version
-        model = self._model_provider.get(info)
-        packet = czf_pb2.Packet(model_response=model)
-        await self.__send_packet(identity, packet)
+    async def _model_request_loop(self):
+        '''send `Model` loop'''
+        while True:
+            identity, info = await self._model_request.get()
+            if info.version == -1:
+                version = self._model_provider.get_latest_version(info.name)
+                info.version = version
+            model = self._model_provider.get(info)
+            packet = czf_pb2.Packet(model_response=model)
+            await self.__send_packet(identity, packet)
 
-    async def __on_recv_trajectory(self,
-                                   trajectory_batch: czf_pb2.TrajectoryBatch):
-        '''store trajectory'''
-        for trajectory in trajectory_batch.trajectories:
-            self._replay_buffer.add_trajectory(trajectory)
-        if self._replay_buffer.is_ready():
-            self._replay_buffer.save_trajectory(self._trajectory_path,
-                                                self._trainer.iteration)
-            self._trainer.log_terminal_values(self._replay_buffer)
-            self._trainer.train(self._replay_buffer)
-            save_ckpt = (self._trainer.iteration % self._checkpoint_freq == 0)
-            self._trainer.save_model(save_ckpt)
-            await self.__notify_model_update(self._trainer.model_name,
-                                             self._trainer.iteration)
+    async def _trajectory_loop(self):
+        '''store trajectory loop'''
+        while True:
+            trajectory_batch = await self._trajectory.get()
+            for trajectory in trajectory_batch.trajectories:
+                self._replay_buffer.add_trajectory(trajectory)
+            if self._replay_buffer.is_ready():
+                self._replay_buffer.save_trajectory(self._trajectory_path,
+                                                    self._trainer.iteration)
+                self._trainer.log_terminal_values(self._replay_buffer)
+                self._trainer.train(self._replay_buffer)
+                save_ckpt = (self._trainer.iteration %
+                             self._checkpoint_freq == 0)
+                self._trainer.save_model(save_ckpt)
+                await self.__notify_model_update(self._trainer.model_name,
+                                                 self._trainer.iteration)
 
     async def __notify_model_update(self, name: str, version: str):
         '''notify model update to peers'''

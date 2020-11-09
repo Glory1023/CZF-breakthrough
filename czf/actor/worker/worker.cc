@@ -76,6 +76,10 @@ py::tuple WorkerManager::wait_dequeue_result() {
                         std::move(result.visits));
 }
 
+void WorkerManager::load_from_bytes(const std::string &bytes) {
+  model_manager.load_from_bytes(bytes);
+}
+
 void WorkerManager::load_from_file(const std::string &path) {
   model_manager.load_from_file(path);
 }

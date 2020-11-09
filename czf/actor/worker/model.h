@@ -17,6 +17,8 @@ class ModelManager {
  public:
   /** resize the number of model */
   void resize(size_t);
+  /** load a model from bytes */
+  void load_from_bytes(const std::string &);
   /** load a model from the path */
   void load_from_file(const std::string &);
   /** get the pointer to a model */

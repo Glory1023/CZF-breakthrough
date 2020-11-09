@@ -1,8 +1,10 @@
 '''CZF Trainer'''
+from io import BytesIO
 import os
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import zstandard as zstd
 
 from czf.learner.dataloader import RolloutBatch
 from czf.learner.nn import MuZero
@@ -54,10 +56,16 @@ class Trainer:
             weight_decay=config['learner']['optimizer']['weight_decay'],
             nesterov=config['learner']['optimizer']['nesterov'],
         )
+        # compressor
+        self._model_compressor = zstd.ZstdCompressor()
+        self._ckpt_compressor = zstd.ZstdCompressor()
         # restore the latest checkpoint
         if restore:
             print('Restore from', restore)
-            state_dict = torch.load(restore)
+            with open(restore, 'rb') as model_blob:
+                dctx = zstd.ZstdDecompressor()
+                model = dctx.decompress(model_blob.read())
+            state_dict = torch.load(model)
             self.iteration = state_dict['iteration']
             self._model.load_state_dict(state_dict['model'])
             self._optimizer.load_state_dict(state_dict['optimizer'])
@@ -157,23 +165,40 @@ class Trainer:
 
     def save_model(self, checkpoint=False):
         '''save model to file'''
-        model_path = self._model_dir / f'{self.iteration:05d}.pt'
         frozen_net = torch.jit.trace_module(
             self._model, {
                 'forward_representation': (self._input_obs, ),
                 'forward_dynamics': (self._input_state, self._input_action),
                 'forward': (self._input_state, ),
             })
-        frozen_net.save(str(model_path))
-        os.symlink(model_path, self._model_dir / 'latest-temp.pt')
-        os.replace(self._model_dir / 'latest-temp.pt',
-                   self._model_dir / 'latest.pt')
+        buffer = BytesIO()
+        torch.jit.save(frozen_net, buffer)
+        buffer.seek(0)
+        compressed = self._model_compressor.compress(buffer.read())
+        model_path = self._model_dir / f'{self.iteration:05d}.pt.zst'
+        model_path.write_bytes(compressed)
+        latest_model = self._model_dir / 'latest.pt.zst'
+        temp_model = self._model_dir / 'latest-temp.pt.zst'
+        os.symlink(model_path, temp_model)
+        os.replace(temp_model, latest_model)
+        # save a checkpoint
         if checkpoint:
-            ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt'
+            buffer = BytesIO()
             torch.save(
                 {
                     'name': self.model_name,
                     'iteration': self.iteration,
                     'model': self._model.state_dict(),
                     'optimizer': self._optimizer.state_dict(),
-                }, ckpt_path)
+                }, buffer)
+            buffer.seek(0)
+            compressed = self._ckpt_compressor.compress(buffer.read())
+            ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt.zst'
+            ckpt_path.write_bytes(compressed)
+            # update the latest checkpoint
+            latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
+            temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
+            if not latest_ckpt.exists():
+                os.symlink(ckpt_path, latest_ckpt)
+            os.symlink(ckpt_path, temp_ckpt)
+            os.replace(temp_ckpt, latest_ckpt)

@@ -32,6 +32,8 @@ class WorkerManager {
                    const TreeOption&);
   /** dequeue a result from the job queue */
   py::tuple wait_dequeue_result();
+  /** load model from bytes */
+  void load_from_bytes(const std::string&);
   /** load model from file */
   void load_from_file(const std::string&);
 

@@ -2,8 +2,8 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import platform
-import tempfile
 import numpy as np
+import zstandard as zstd
 
 from czf.actor.worker import TreeOption
 from czf.utils import get_zmq_dealer, RemoteModelManager
@@ -43,6 +43,7 @@ class Actor:
         self._model_info = czf_pb2.ModelInfo(name='default', version=-1)
         self._has_new_model = asyncio.Event()
         self._has_load_model = asyncio.Event()
+        self._dctx = zstd.ZstdDecompressor()
         # connect to the remote model provider
         self._model_manager = RemoteModelManager(
             identity=f'model-manager-{args.suffix}',
@@ -144,9 +145,8 @@ class Actor:
         assert len(model.blobs) == 1
         print('load model', model.info.name, 'iteration', model.info.version)
         blob = model.blobs[0]
-        with tempfile.NamedTemporaryFile() as tmp_file:
-            tmp_file.write(blob)
-            self._worker_manager.load_from_file(tmp_file.name)
+        model_blob = self._dctx.decompress(blob)
+        self._worker_manager.load_from_bytes(model_blob)
 
     async def __initialize(self):
         '''initialize model and start to send job'''

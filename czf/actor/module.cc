@@ -47,6 +47,7 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
       .def("wait_dequeue_result", &WorkerManager::wait_dequeue_result,
            py::call_guard<py::gil_scoped_release>(),
            py::return_value_policy::move)
+      .def("load_from_bytes", &WorkerManager::load_from_bytes, "bytes"_a)
       .def("load_from_file", &WorkerManager::load_from_file, "path"_a)
       .def_readwrite_static("worker_option", &WorkerManager::worker_option)
       .def_readwrite_static("game_info", &WorkerManager::game_info);

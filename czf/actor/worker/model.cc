@@ -2,6 +2,8 @@
 
 #include <torch/utils.h>
 
+#include <sstream>
+
 #include "utils/config.h"
 
 namespace czf::actor::worker {
@@ -17,11 +19,21 @@ void ModelManager::resize(size_t size) {
   }
 }
 
-void ModelManager::load_from_file(const std::string &path) {
+void ModelManager::load_from_bytes(const std::string &bytes) {
   size_t num_devices = forward_devices_.size();
   for (size_t i = 0; i < num_devices; ++i) {
-    auto model =
-        std::make_shared<Model>(torch::jit::load(path, forward_devices_[i]));
+    std::istringstream model_stream(bytes);
+    auto model = std::make_shared<Model>(
+        torch::jit::load(model_stream, forward_devices_[i]));
+    std::atomic_store(&models_[i], model);
+  }
+}
+
+void ModelManager::load_from_file(const std::string &filename) {
+  size_t num_devices = forward_devices_.size();
+  for (size_t i = 0; i < num_devices; ++i) {
+    auto model = std::make_shared<Model>(
+        torch::jit::load(filename, forward_devices_[i]));
     std::atomic_store(&models_[i], model);
   }
 }

@@ -3,6 +3,7 @@ from collections import Counter, deque, namedtuple
 from itertools import islice, zip_longest
 import torch
 from torch.utils.data import Dataset
+import zstandard as zstd
 
 from czf.pb import czf_pb2
 
@@ -43,6 +44,7 @@ class ReplayBuffer(Dataset):
         self._train_freq = train_freq
         self._buffer = deque(maxlen=capacity)
         self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
+        self._compressor = zstd.ZstdCompressor()
         self._num_games = 0
         self._ready = False
 
@@ -155,7 +157,8 @@ class ReplayBuffer(Dataset):
 
     def save_trajectory(self, path, iteration):
         '''save trajectory to path'''
-        trajectory_path = path / f'{iteration:05d}.pb'
-        trajectory_path.write_bytes(
-            self._pb_trajectory_batch.SerializeToString())
+        trajectory = self._pb_trajectory_batch.SerializeToString()
+        compressed = self._compressor.compress(trajectory)
+        trajectory_path = path / f'{iteration:05d}.pb.zst'
+        trajectory_path.write_bytes(compressed)
         self._pb_trajectory_batch.Clear()
