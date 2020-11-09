@@ -38,7 +38,10 @@ class Broker:
                 asyncio.create_task(self.__dispatch_jobs(
                     identity, job_request))
 
-    async def __dispatch_jobs(self, worker, job_request, wait_time=0.1):
+    async def __dispatch_jobs(self,
+                              worker: bytes,
+                              job_request: czf_pb2.JobRequest,
+                              wait_time=0.1):
         '''helper to send a `JobBatch`'''
         job_queue = self._jobs[job_request.operation]
         packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(

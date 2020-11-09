@@ -10,11 +10,9 @@ class EvalEnvManager(EnvManager):
     '''Game Evaluation Environment Manager'''
     async def send_search_job(self):
         '''helper to send a `Job` to actor'''
-        player = self._state.current_player
-        models = [self._server.model_1p, self._server.model_2p]
+        operation = self.operation[self._state.current_player]
         job = czf_pb2.Job(
-            model=models[player],
-            procedure=[self.operation[player]],
+            procedure=[operation],
             step=0,
             workers=self._workers,
             payload=czf_pb2.Job.Payload(
@@ -25,6 +23,7 @@ class EvalEnvManager(EnvManager):
                 ),
                 env_index=self._server.envs.index(self),
             ))
+        job.model.CopyFrom(self._server.models[operation])
         await self._server.send_job(job)
 
     async def on_job_completed(self, job: czf_pb2.Job):
@@ -46,12 +45,12 @@ class EvalEnvManager(EnvManager):
             self._after_apply_callback(evaluated_state, self._state)
 
         if self._state.is_terminal:
-            self.reset()
             first_player = self.operation[0]
             if first_player == czf_pb2.Job.Operation.MUZERO_EVALUATE_1P:
                 reward = self._state.rewards[0]
             else:  # first_player == czf_pb2.Job.Operation.MUZERO_EVALUATE_2P:
                 reward = self._state.rewards[1]
+            self.reset()
             return True, reward
         return False, None
 
@@ -63,24 +62,30 @@ class EvalGameServer(GameServer):
         eval_config = config['evaluator']
         assert eval_config['mode'] == 'best'
         self._freq = eval_config['frequency']
-        self._total = args.num_env
+        num_env = args.num_env
+        self._total = 2 * num_env
         self._workers = [czf_pb2.Node()]
-        # 2 * total envs (1P/2P exchange)
+        # 2 * num_env (1P/2P exchange)
         self.envs = [
-            EvalEnvManager(self, start=False) for _ in range(2 * self._total)
+            EvalEnvManager(self, start=False) for _ in range(self._total)
         ]
-        for i in range(self._total):
+        for i in range(num_env):
             self.envs[i].operation = [
                 czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
                 czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
             ]
-            self.envs[self._total + i].operation = [
+            self.envs[num_env + i].operation = [
                 czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
                 czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
             ]
         # in best mode, 1p is the latest, 2p is the best
-        self.model_1p = czf_pb2.ModelInfo(name='default', version=0)
-        self.model_2p = czf_pb2.ModelInfo(name='default', version=0)
+        self._model_1p = czf_pb2.ModelInfo(name='default', version=0)
+        self._model_2p = czf_pb2.ModelInfo(name='default', version=0)
+        self.models = {
+            czf_pb2.Job.Operation.MUZERO_EVALUATE_1P: self._model_1p,
+            czf_pb2.Job.Operation.MUZERO_EVALUATE_2P: self._model_2p,
+        }
+        self._best_elo = 0.
         asyncio.create_task(self.__send_load_model())
 
     async def _job_loop(self):
@@ -107,51 +112,60 @@ class EvalGameServer(GameServer):
                     if len(eval_result) == self._total:
                         asyncio.create_task(self.__write_result(eval_result))
                         eval_result = []
-                    else:
-                        asyncio.create_task(env.send_search_job())
                 else:
                     asyncio.create_task(env.send_search_job())
 
-    async def __write_result(self, eval_result):
+    async def __write_result(self, eval_result: list):
         '''helper to process evaluation result'''
         # TODO: write to tensorboard
         total = len(eval_result)
         win_rate = eval_result.count(1) / total
         draw_rate = eval_result.count(0) / total
         lose_rate = eval_result.count(-1) / total
-        print('Win: {:.2%} Draw: {:.2%} Lose: {:.2%}'.format(
-            win_rate, draw_rate, lose_rate))
         # score for win: 2, draw: 1, lose: 0
         score = np.sum(np.array(eval_result) + 1) / (2 * total)
+        elo_1p_diff = 400 * np.log10(score / (1 - score))
+        elo_1p = elo_1p_diff + self._best_elo
+        print(
+            '{}-{} Win: {:.2%} Draw: {:.2%} Lose: {:.2%} Current Elo: {:.1f} ({:+.1f})'
+            .format(
+                self._model_1p.version,
+                self._model_2p.version,
+                win_rate,
+                draw_rate,
+                lose_rate,
+                elo_1p,
+                elo_1p_diff,
+            ))
         if score > 0.55:  # current model (1p) is the best
-            self.model_2p.CopyFrom(self.model_1p)
+            self._model_2p.CopyFrom(self._model_1p)
+            self._best_elo = elo_1p
         await self.__send_load_model()
 
     async def __send_load_model(self):
         '''helper to wait for new model and send jobs to flush'''
         # wait for next model version
-        next_version = self.model_1p.version + self._freq
+        next_version = self._model_1p.version + self._freq
         if self.model.version < next_version:
             while await self.has_new_model.wait():
                 self.has_new_model.clear()
                 if self.model.version >= next_version:
-                    self.model_1p.version = next_version
+                    self._model_1p.version = next_version
                     break
         else:
-            self.model_1p.version = next_version
-        print('send 1p', self.model_1p.version, '2p', self.model_2p.version)
+            self._model_1p.version = next_version
         # send jobs to flush model
         job1 = czf_pb2.Job(
-            model=self.model_1p,
             procedure=[czf_pb2.Job.Operation.MUZERO_EVALUATE_1P],
             step=0,
             workers=self._workers,
         )
+        job1.model.CopyFrom(self._model_1p)
         await self.send_job(job1)
         job2 = czf_pb2.Job(
-            model=self.model_2p,
             procedure=[czf_pb2.Job.Operation.MUZERO_EVALUATE_2P],
             step=0,
             workers=self._workers,
         )
+        job2.model.CopyFrom(self._model_2p)
         await self.send_job(job2)

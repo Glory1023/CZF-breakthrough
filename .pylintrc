@@ -4,4 +4,4 @@ disable=
 
 [TYPECHECK]
 ignored-modules=czf_env
-generated-members=LINGER,ROUTER,DEALER,IDENTITY
+generated-members=LINGER,ROUTER,DEALER,IDENTITY,torch.*

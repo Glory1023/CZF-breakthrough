@@ -77,7 +77,8 @@ class Actor:
             job = await self._jobs.get()
             job.workers[job.step].CopyFrom(self._node)
             job.step += 1
-            if not job.HasField('payload'):  # special job: flush model
+            # special job: flush model
+            if not job.HasField('payload'):
                 if self._model_info != job.model:
                     self._model_info.CopyFrom(job.model)
                     self._has_load_model.clear()
@@ -85,12 +86,14 @@ class Actor:
                     await self._has_load_model.wait()
                 await self.__send_job(job)
                 continue
-            state = job.payload.state
-            # assert job.model.name == self._model_info.name
-            if job.model.version > self._model_info.version:
+            # update model
+            is_muzero_search = self._operation == czf_pb2.Job.Operation.MUZERO_SEARCH
+            if is_muzero_search and job.model.version > self._model_info.version:
+                # assert self._model_info.name == job.model.name
                 self._model_info.version = job.model.version
                 self._has_new_model.set()
             # copy job option
+            state = job.payload.state
             option = state.tree_option
             tree_option = TreeOption()
             tree_option.simulation_count = option.simulation_count
@@ -128,10 +131,12 @@ class Actor:
 
     async def _load_model_loop(self):
         '''a loop to load model'''
+        executor = ThreadPoolExecutor(max_workers=1)
+        loop = asyncio.get_event_loop()
         while await self._has_new_model.wait():
             self._has_new_model.clear()
             model = await self._model_manager.get(self._model_info)
-            self.__load_model(model)
+            await loop.run_in_executor(executor, self.__load_model, model)
             self._has_load_model.set()
 
     def __load_model(self, model: czf_pb2.Model):
@@ -159,7 +164,7 @@ class Actor:
             await self._jobs.put(job)
         await self.__send_job_request()
 
-    async def __send_job(self, job):
+    async def __send_job(self, job: czf_pb2.Job):
         '''helper to send a `Job`'''
         await self.__send_packet(czf_pb2.Packet(job=job))
 

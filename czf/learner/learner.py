@@ -67,15 +67,15 @@ class Learner:
             elif packet_type == 'goodbye':
                 self._model_peers.remove(identity)
 
-    async def __on_model_request(self, identity: str,
-                                 model: czf_pb2.ModelInfo):
+    async def __on_model_request(self, identity: bytes,
+                                 info: czf_pb2.ModelInfo):
         '''send `Model`'''
-        if model.version == -1:
-            version = self._model_provider.get_latest_version(model.name)
-            model.version = version
-        response_model = self._model_provider.get(model)
-        await self.__send_packet(identity,
-                                 czf_pb2.Packet(model_response=response_model))
+        if info.version == -1:
+            version = self._model_provider.get_latest_version(info.name)
+            info.version = version
+        model = self._model_provider.get(info)
+        packet = czf_pb2.Packet(model_response=model)
+        await self.__send_packet(identity, packet)
 
     async def __on_recv_trajectory(self,
                                    trajectory_batch: czf_pb2.TrajectoryBatch):
@@ -92,7 +92,7 @@ class Learner:
             await self.__notify_model_update(self._trainer.model_name,
                                              self._trainer.iteration)
 
-    async def __notify_model_update(self, name, version):
+    async def __notify_model_update(self, name: str, version: str):
         '''notify model update to peers'''
         print('notify model', name, 'iteration', version)
         raw = czf_pb2.Packet(model_info=czf_pb2.ModelInfo(
@@ -102,10 +102,10 @@ class Learner:
         for peer in self._model_peers:
             await self.__send_raw(peer, raw)
 
-    async def __send_packet(self, identity: str, packet: czf_pb2.Packet):
+    async def __send_packet(self, identity: bytes, packet: czf_pb2.Packet):
         '''helper to send a `Packet` to `identity`'''
         await self.__send_raw(identity, packet.SerializeToString())
 
-    async def __send_raw(self, identity: str, raw):
+    async def __send_raw(self, identity: bytes, raw: bytes):
         '''helper to send a zmq message'''
         await self._socket.send_multipart([identity, raw])

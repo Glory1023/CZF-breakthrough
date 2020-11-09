@@ -28,7 +28,6 @@ class EnvManager:
     async def send_search_job(self):
         '''helper to send a `Job` to actor'''
         job = czf_pb2.Job(
-            model=self._server.model,
             procedure=[self.operation],
             step=0,
             workers=self._workers,
@@ -40,6 +39,7 @@ class EnvManager:
                 ),
                 env_index=self._server.envs.index(self),
             ))
+        job.model.CopyFrom(self._server.model)
         await self._server.send_job(job)
 
     async def on_job_completed(self, job: czf_pb2.Job):

@@ -11,21 +11,20 @@ class LocalModelManager:
     '''Local Model Manager'''
     __slots__ = ['_storage', '_cache']
 
-    def __init__(self, storage, cache_size):
+    def __init__(self, storage: str, cache_size: int):
         self._cache = LRUCache(capacity=cache_size)
         self._storage = Path(storage)
         self._storage.mkdir(parents=True, exist_ok=True)
 
-    def get(self, model: czf_pb2.ModelInfo) -> czf_pb2.Model:
+    def get(self, info: czf_pb2.ModelInfo) -> czf_pb2.Model:
         '''get the `Model` from storage'''
-        key = (model.name, model.version)
+        key = (info.name, info.version)
         if key not in self._cache:
-            model_dir = self._storage / model.name
-            model_path = model_dir / f'{model.version:05d}.pt'
-            self._cache[key] = czf_pb2.Model(
-                info=model,
-                blobs=[model_path.read_bytes()],
-            )
+            model_path = self._storage / info.name / f'{info.version:05d}.pt'
+            model = czf_pb2.Model()
+            model.info.CopyFrom(info)
+            model.blobs.append(model_path.read_bytes())
+            self._cache[key] = model
         return self._cache[key]
 
     def get_latest_version(self, name: str) -> int:
@@ -79,15 +78,15 @@ class RemoteModelManager:
                                        remote_address=upstream)
         asyncio.create_task(self._recv_loop())
 
-    def get(self, model: czf_pb2.ModelInfo) -> asyncio.Future:
+    def get(self, info: czf_pb2.ModelInfo) -> asyncio.Future:
         '''get the `Model` from cache or upstream'''
-        key = (model.name, model.version)
+        key = (info.name, info.version)
         if key in self._cache:
             result = asyncio.Future()
             result.set_result(self._cache[key])
             return result
         self._cache[key] = asyncio.Future()
-        asyncio.create_task(self.__send_model_request(model))
+        asyncio.create_task(self.__send_model_request(info))
         return self._cache[key]
 
     async def get_latest_version(self, name: str) -> int:
@@ -128,9 +127,9 @@ class RemoteModelManager:
                     self._cache[key].set_result(model)
                 self._cache[key] = model
 
-    async def __send_model_request(self, model: czf_pb2.ModelInfo):
+    async def __send_model_request(self, info: czf_pb2.ModelInfo):
         '''helper to send a `Model`'''
-        packet = czf_pb2.Packet(model_request=model)
+        packet = czf_pb2.Packet(model_request=info)
         await self.__send_packet(packet)
 
     async def __send_packet(self, packet: czf_pb2.Packet):
