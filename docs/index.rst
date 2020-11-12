@@ -1,19 +1,13 @@
 Welcome to czf's documentation!
 ===================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Python Developer Documentation
-   :glob:
-
-   python/*
 
 .. toctree::
    :maxdepth: 2
-   :caption: C++ Developer Documentation
-   :glob:
+   :caption: Reference
 
-   cpp/*
+   python.rst
+   cpp.rst
 
 ==================
 

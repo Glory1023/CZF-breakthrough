@@ -6,7 +6,6 @@ Learner
    :undoc-members:
    :private-members:
 
-
 .. autoclass:: czf.learner.trainer::Trainer
    :members:
    :undoc-members:
@@ -14,10 +13,6 @@ Learner
 
 .. autoclass:: czf.learner.dataloader::RolloutBatch
    :members:
-   :undoc-members:
-   :private-members:
 
 .. autoclass:: czf.learner.dataloader::ReplayBuffer
    :members:
-   :undoc-members:
-   :private-members:
