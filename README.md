@@ -10,7 +10,7 @@ pip install .
 
 ### Run Locally
 
-- Create a training configuration: `game.yaml` (ref: `config.example.yaml`)
+- Create a training configuration: `game.yaml` (ref: `samples/gomoku.yaml`)
 - Run the following commands in different shells:
 
 ```shell

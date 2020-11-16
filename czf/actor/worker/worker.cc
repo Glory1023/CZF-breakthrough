@@ -25,7 +25,7 @@ void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
       gpu_threads_.emplace_back(&WorkerManager::worker_gpu, this, false);
     }
     for (size_t i = 0; i < num_gpu_root_worker; ++i) {
-      gpu_root_threads_.emplace_back(&WorkerManager::worker_gpu, this, true);
+      gpu_threads_.emplace_back(&WorkerManager::worker_gpu, this, true);
     }
     model_manager.resize(num_gpu);
   }
@@ -44,9 +44,6 @@ void WorkerManager::terminate() {
       thread.join();
     }
     for (auto &thread : gpu_threads_) {
-      thread.join();
-    }
-    for (auto &thread : gpu_root_threads_) {
       thread.join();
     }
   }

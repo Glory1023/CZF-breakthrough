@@ -44,7 +44,7 @@ class WorkerManager {
  private:
   std::atomic_bool running_{false};
   ModelManager model_manager;
-  std::vector<std::thread> cpu_threads_, gpu_threads_, gpu_root_threads_;
+  std::vector<std::thread> cpu_threads_, gpu_threads_;
   JobQueue cpu_queue_, gpu_queue_, gpu_root_queue_, result_queue_;
 };
 

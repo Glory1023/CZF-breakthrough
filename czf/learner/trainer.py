@@ -76,9 +76,9 @@ class Trainer:
         # so, we can only trace the prediction model now.
         self._summary_writer.add_graph(self._model, (self._input_state, ))
 
-    def log_terminal_values(self, replay_buffer):
-        '''log terminal values for recent trajectories'''
-        values = replay_buffer.get_terminal_values()
+    def log_statistics(self, replay_buffer):
+        '''log statistics for recent trajectories'''
+        values = replay_buffer.get_statistics()
         writer, step = self._summary_writer, self.iteration
         writer.add_scalars('game/value', values, step)
 
@@ -165,14 +165,16 @@ class Trainer:
 
     def save_model(self, checkpoint=False):
         '''save model to file'''
-        frozen_net = torch.jit.trace_module(
-            self._model, {
-                'forward_representation': (self._input_obs, ),
-                'forward_dynamics': (self._input_state, self._input_action),
-                'forward': (self._input_state, ),
-            })
         buffer = BytesIO()
-        torch.jit.save(frozen_net, buffer)
+        with torch.jit.optimized_execution(True):
+            frozen_net = torch.jit.trace_module(
+                self._model, {
+                    'forward_representation': (self._input_obs, ),
+                    'forward_dynamics':
+                    (self._input_state, self._input_action),
+                    'forward': (self._input_state, ),
+                })
+            torch.jit.save(frozen_net, buffer)
         buffer.seek(0)
         compressed = self._model_compressor.compress(buffer.read())
         model_path = self._model_dir / f'{self.iteration:05d}.pt.zst'

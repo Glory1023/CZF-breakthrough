@@ -143,8 +143,8 @@ class ReplayBuffer(Dataset):
             self._ready = True
             self._num_games -= self._train_freq
 
-    def get_terminal_values(self):
-        '''get terminal values of recent trajectories'''
+    def get_statistics(self):
+        '''get statistics of recent trajectories'''
         size = len(self._buffer)
         values = Counter([
             str(float(transition.value))
@@ -153,6 +153,7 @@ class ReplayBuffer(Dataset):
             if transition.is_terminal
         ])
         total = sum(values.values())
+        # TODO: average length of trajectories
         return {k: v / total for k, v in values.items()}
 
     def save_trajectory(self, path, iteration):
