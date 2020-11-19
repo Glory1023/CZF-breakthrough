@@ -4,7 +4,7 @@ import torch
 from czf.learner.nn import ResNet
 
 
-class MuZero(nn.Module):
+class MuZeroAtari(nn.Module):
     def __init__(
         self,
         observation_shape,
@@ -23,14 +23,40 @@ class MuZero(nn.Module):
     ):
         super().__init__()
         self.observation_shape = observation_shape
-        assert state_shape[1:] == observation_shape[1:]
+        self.state_shape = state_shape
         # channels, height, width
-        in_channels, height, width = self.observation_shape
-        self.representation = ResNet(in_channels, h_blocks, h_channels)
+        in_channels, _, _ = self.observation_shape
+        _, height, width = self.state_shape
+        self.representation = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=in_channels,
+                      kernel_size=3,
+                      stride=2,
+                      padding=1),
+            ResNet(in_channels=in_channels, blocks=2,
+                   out_channels=in_channels),
+            nn.Conv2d(in_channels=in_channels,
+                      out_channels=h_channels,
+                      kernel_size=3,
+                      stride=2,
+                      padding=1),
+            ResNet(in_channels=h_channels,
+                   blocks=h_blocks,
+                   out_channels=h_channels),
+            nn.AvgPool2d(kernel_size=3, stride=2, padding=1),
+            ResNet(in_channels=h_channels,
+                   blocks=h_blocks,
+                   out_channels=h_channels),
+            nn.AvgPool2d(kernel_size=3, stride=2, padding=1),
+        )
         self.dynamics = ResNet(h_channels + 1, g_blocks, h_channels)
         self.prediction = ResNet(h_channels, f_blocks, f_channels)
-        # g: board action map
-        self.register_buffer('board', torch.eye(height * width))
+        # g: action plane map
+        action_map = torch.cat([
+            torch.full((1, *state_shape[-2:]), (i + 1) / action_dim)
+            for i in range(action_dim)
+        ])
+        self.register_buffer('action_map', action_map)
         # g => reward head
         self.reward_head_front = nn.Sequential(
             nn.Conv2d(in_channels=h_channels, out_channels=1, kernel_size=1),
@@ -69,9 +95,10 @@ class MuZero(nn.Module):
         return x
 
     def forward_dynamics(self, state, action):
-        _, height, width = self.observation_shape
-        board_action = self.board[action.long()].view(-1, 1, height, width)
-        state = torch.cat((state, board_action), 1)
+        _, height, width = self.state_shape
+        action_plane = self.action_map[action.long()].view(
+            -1, 1, height, width)
+        state = torch.cat((state, action_plane), 1)
         x = self.dynamics(state)
         x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
         x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
@@ -83,7 +110,7 @@ class MuZero(nn.Module):
         return x, r
 
     def forward(self, state):
-        _, height, width = self.observation_shape
+        _, height, width = self.state_shape
         x = self.prediction(state)
         # policy head
         p = self.policy_head_front(x)

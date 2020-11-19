@@ -123,6 +123,7 @@ with open('README.md') as fd:
         zip_safe=False,
         install_requires=[
             'czf-env @ git+https://github.com/chengscott/czf_env',
+            'gym',
             'pyyaml',
             'tensorboard',
             'zmq',

@@ -51,7 +51,6 @@ async def main():
             '%Y%m%d_%H%M')
         args.storage_dir = str(Path(path).resolve())
     storage_path = Path(args.storage_dir)
-    print('Storage path:', storage_path)
     # default restore checkpoint: `{storage}/checkpoint/{model_name}/latest.pt.zst`
     if args.restore == '':
         args.restore = storage_path / 'checkpoint' / args.model_name / 'latest.pt.zst'

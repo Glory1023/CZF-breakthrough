@@ -33,7 +33,8 @@ class Learner:
         # replay buffer
         self._replay_buffer = ReplayBuffer(
             num_player=config['game']['num_player'],
-            observation_shape=config['game']['observation_shape'],
+            num_action=config['game']['actions'],
+            observation_config=config['game']['observation'],
             kstep=config['learner']['rollout_steps'],
             nstep=config['mcts']['nstep'],
             discount_factor=config['mcts']['discount_factor'],
@@ -48,6 +49,7 @@ class Learner:
         self._trainer = Trainer(config, checkpoint_path, model_path, log_path,
                                 args.model_name, args.restore)
         self._trainer.save_model()
+        print('Storage path:', storage_path)
         # pretrain the trajectory
         if args.pretrain_trajectory:
             pass  # TODO

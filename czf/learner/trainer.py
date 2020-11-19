@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 import zstandard as zstd
 
 from czf.learner.dataloader import RolloutBatch
-from czf.learner.nn import MuZero
+from czf.learner.nn import MuZero, MuZeroAtari
 
 
 class Trainer:
@@ -22,13 +22,22 @@ class Trainer:
         for path in (self._ckpt_dir, self._model_dir):
             path.mkdir(parents=True, exist_ok=True)
         # game
-        observation_shape = config['game']['observation_shape']
+        observation_config = config['game']['observation']
+        frame_stack = observation_config['frame_stack']
+        channel = observation_config['channel']
+        spatial_shape = observation_config['spatial_shape']
+        if frame_stack > 0:
+            observation_shape = [frame_stack * (channel + 1), *spatial_shape]
+        else:
+            observation_shape = [channel, *spatial_shape]
         action_dim = config['game']['actions']
         # model
         model_config = config['model']
         h_channels = model_config['h_channels']
-        self._model = MuZero(
+        state_shape = [h_channels, *config['game']['state_spatial_shape']]
+        self._model = MuZeroAtari(  # TODO: toggle
             observation_shape=observation_shape,
+            state_shape=state_shape,
             action_dim=action_dim,
             h_blocks=model_config['h_blocks'],
             h_channels=h_channels,
@@ -38,10 +47,8 @@ class Trainer:
             f_channels=model_config['f_channels'],
             v_heads=model_config['v_heads'],
         ).to(self._device)
-        _, height, width = observation_shape
         self._input_obs = torch.rand(1, *observation_shape).to(self._device)
-        self._input_state = torch.rand(1, h_channels, height,
-                                       width).to(self._device)
+        self._input_state = torch.rand(1, *state_shape).to(self._device)
         self._input_action = torch.rand(1, 1).to(self._device)
         # optimizer
         torch.backends.cudnn.benchmark = True

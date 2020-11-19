@@ -7,7 +7,7 @@ from gym.wrappers import AtariPreprocessing
 
 class AtariState:
     '''Atari state wrapper'''
-    def __init__(self, name, frame_stack=32):
+    def __init__(self, name, frame_stack):
         env = gym.make(name)
         self._env = AtariPreprocessing(
             env,
@@ -69,22 +69,23 @@ class AtariState:
     @property
     def observation_tensor(self):
         '''Returns the input tensor for the neural network'''
-        return np.vstack([f for f in self._buffer])
+        return np.vstack([f for f in self._buffer]).flatten()
 
     @property
     def feature_tensor(self):
         '''Returns the feature tensor for the replay buffer'''
-        return self._feat
+        return self._feat.flatten()
 
 
 class AtariGame:
     '''Atari game wrapper'''
-    def __init__(self, name):
+    def __init__(self, name, frame_stack):
         self._name = name
+        self._frame_stack = frame_stack
 
     def new_initial_state(self):
         '''Returns a newly allocated initial state'''
-        return AtariState(self._name)
+        return AtariState(self._name, self._frame_stack)
 
     @property
     def name(self):
@@ -105,7 +106,7 @@ class AtariGame:
     @property
     def observation_tensor_shape(self):
         '''Describes the structure of the observation representation in
-        a tensor-like format (channel, height, width). The returned value
+        a tuple (frame_stack, channel, (height, width)). The returned value
         will be used to construct the neural network
         '''
         raise NotImplementedError

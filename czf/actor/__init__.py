@@ -18,8 +18,19 @@ def create_worker_manager(args, config):
     manager = worker.WorkerManager()
     # GameInfo
     game_config = config['game']
-    manager.game_info.observation_shape = game_config['observation_shape']
-    manager.game_info.state_shape = game_config['state_shape']
+    obs_config = game_config['observation']
+    frame_stack = obs_config['frame_stack']
+    channel = obs_config['channel']
+    spatial_shape = obs_config['spatial_shape']
+    if frame_stack > 0:
+        manager.game_info.observation_shape = [
+            frame_stack * (channel + 1), *spatial_shape
+        ]
+    else:
+        manager.game_info.observation_shape = [channel, *spatial_shape]
+    manager.game_info.state_shape = [
+        config['model']['h_channels'], *game_config['state_spatial_shape']
+    ]
     manager.game_info.num_actions = game_config['actions']
     manager.game_info.all_actions = list(range(game_config['actions']))
     manager.game_info.two_player = (game_config.get('num_player', 2) == 2)

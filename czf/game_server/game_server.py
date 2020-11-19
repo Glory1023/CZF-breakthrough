@@ -60,7 +60,7 @@ class EnvManager:
                                                legal_actions_policy)
         # add to trajectory
         state = self._trajectory.states.add()
-        state.observation_tensor[:] = evaluated_state.observation_tensor
+        state.observation_tensor[:] = self._state.feature_tensor
         state.tree_option.CopyFrom(self._server.tree_option)
         state.evaluation.policy[:] = policy
         state.transition.current_player = self._state.current_player
@@ -75,7 +75,7 @@ class EnvManager:
         if self._state.is_terminal:
             # add the terminal state to the trajectory
             state = self._trajectory.states.add()
-            state.observation_tensor[:] = self._state.observation_tensor
+            state.observation_tensor[:] = self._state.feature_tensor
             state.evaluation.value = 0
             state.transition.current_player = self._state.current_player
             state.transition.rewards[:] = self._state.rewards
@@ -116,16 +116,19 @@ class GameServer:
             print('register callbacks:', list(self.metric_callbacks.keys()))
         # game envs
         game_config = config['game']
+        obs_config = game_config['observation']
         env_name = game_config['name']
         if env_name in czf_env.available_games():
             self.game = czf_env.load_game(env_name)
             # check game config in lightweight game
             assert self.game.num_players == game_config['num_player']
             assert self.game.num_distinct_actions == game_config['actions']
-            assert self.game.observation_tensor_shape == game_config[
-                'observation_shape']
+            assert self.game.observation_tensor_shape == [
+                obs_config['channel'], *obs_config['spatial_shape']
+            ]
         else:
-            self.game = atari_env.load_game(env_name)
+            self.game = atari_env.load_game(env_name,
+                                            obs_config['frame_stack'])
         # game_server config
         self.sequence = config['game_server']['sequence']
         # start env in training
