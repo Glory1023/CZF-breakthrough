@@ -1,5 +1,6 @@
 '''CZF Dataloader'''
 from collections import Counter, deque, namedtuple
+from dataclasses import dataclass
 from itertools import islice, zip_longest
 import torch
 from torch.utils.data import Dataset
@@ -15,6 +16,14 @@ Transition = namedtuple('Transition', [
     'reward',
     'is_terminal',
 ])
+
+
+@dataclass
+class Statistics:
+    '''Replay Buffer Statistics'''
+    num_games: int
+    game_steps: list
+    player_returns: list
 
 
 class RolloutBatch:
@@ -47,6 +56,7 @@ class ReplayBuffer(Dataset):
         self._compressor = zstd.ZstdCompressor()
         self._num_games = 0
         self._ready = False
+        self.reset_statistics()
 
     def __len__(self):
         return len(self._buffer)
@@ -85,16 +95,27 @@ class ReplayBuffer(Dataset):
         #print('add', len(trajectory.states), 'positions')
         self._pb_trajectory_batch.trajectories.add().CopyFrom(trajectory)
         self._num_games += len(trajectory.states)
+        self._statistics.num_games += 1
+        self._statistics.game_steps.append(len(trajectory.states))
         # from the terminal state to the initial state
         nstep, gamma = self._nstep, self._discount_factor
-        discounted_return = [[0] for _ in range(self._num_player)]
-        values = [0]
+        discounted_return = [[] for _ in range(self._num_player)]
+        values = []
         buffer = []
         for i, state in enumerate(reversed(trajectory.states)):
             # tensor
             observation = torch.tensor(state.observation_tensor).view(
                 self._observation_shape)
             if i == 0:
+                # update statistics
+                for player in range(self._num_player):
+                    self._statistics.player_returns[player].update(
+                        [str(state.transition.rewards[player])])
+                # terminal returns and values (equal to 0 if _real_ terminal)
+                for player in range(self._num_player):
+                    discounted_return[player].append(state.evaluation.value)
+                values.append(state.evaluation.value)
+                # terminal transition
                 terminal_value = torch.tensor([
                     state.transition.rewards[state.transition.current_player]
                 ])
@@ -145,16 +166,15 @@ class ReplayBuffer(Dataset):
 
     def get_statistics(self):
         '''get statistics of recent trajectories'''
-        size = len(self._buffer)
-        values = Counter([
-            str(float(transition.value))
-            for transition in islice(self._buffer, size -
-                                     self._train_freq, size)
-            if transition.is_terminal
-        ])
-        total = sum(values.values())
-        # TODO: average length of trajectories
-        return {k: v / total for k, v in values.items()}
+        return self._statistics
+
+    def reset_statistics(self):
+        '''reset the statistics of recent trajectories'''
+        self._statistics = Statistics(
+            num_games=0,
+            game_steps=[],
+            player_returns=[Counter() for _ in range(self._num_player)],
+        )
 
     def save_trajectory(self, path, iteration):
         '''save trajectory to path'''

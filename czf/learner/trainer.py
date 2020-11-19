@@ -1,6 +1,7 @@
 '''CZF Trainer'''
 from io import BytesIO
 import os
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -78,9 +79,25 @@ class Trainer:
 
     def log_statistics(self, replay_buffer):
         '''log statistics for recent trajectories'''
-        values = replay_buffer.get_statistics()
+        statistics = replay_buffer.get_statistics()
+        replay_buffer.reset_statistics()
         writer, step = self._summary_writer, self.iteration
-        writer.add_scalars('game/value', values, step)
+        writer.add_scalar('game/num_games', statistics.num_games, step)
+        game_steps = statistics.game_steps
+        writer.add_scalar('game/num_states', sum(game_steps), step)
+        writer.add_scalars(
+            'game/steps', {
+                'mean': np.mean(game_steps),
+                'min': np.min(game_steps),
+                'max': np.max(game_steps),
+                'std': np.std(game_steps),
+            }, step)
+        for p, player_returns in enumerate(statistics.player_returns):
+            returns_rates = {
+                key: value / statistics.num_games
+                for key, value in player_returns.items()
+            }
+            writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
 
     def train(self, replay_buffer):
         '''optimize the model and increment model version'''

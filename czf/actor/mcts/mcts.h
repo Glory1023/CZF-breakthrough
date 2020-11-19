@@ -13,8 +13,8 @@ using Action_t = int32_t;             ///< the type of an action
 using Policy_t = std::vector<float>;  ///< the type of a policy
 
 struct TreeInfo {
-  float min_value = -1.F,  ///< min q value on tree
-      max_value = 1.F;     ///< max q value on tree
+  float min_value,  ///< min q value on tree
+      max_value;    ///< max q value on tree
 
   /** update the min & max value on tree */
   void update(float);
@@ -56,7 +56,7 @@ struct MctsInfo {
   /** get value normalized by `TreeInfo` */
   float get_normalized_value(const TreeInfo &) const;
   /** Mcts update helper function */
-  float update(bool, float, const TreeOption &);
+  float update(bool, float, bool, float);
 };
 
 class Node;
@@ -70,21 +70,19 @@ struct NodeInfo {
   /** check if the node can select child */
   bool can_select_child() const;
   /** Mcts expansion helper function */
-  void expand(const std::vector<Action_t> &);
+  void expand(const std::vector<Action_t> &, bool);
 };
 
 class Node {
  public:
-  /** set player and action */
-  void set_player_and_action(bool, Action_t);
-
- public:
   /** check if the node can select child */
   bool can_select_child() const;
   /** select a child according to the pUCT score */
-  Node *select_child(const TreeInfo &, const TreeOption &) const;
+  Node *select_child(const TreeInfo &, const TreeOption &, bool) const;
+  /** set player and action */
+  void set_player_and_action(bool, Action_t);
   /** expand children according to legal actions */
-  void expand_children(const std::vector<Action_t> &);
+  void expand_children(const std::vector<Action_t> &, bool);
   /** normalize policy by legal actions (only applies to the root node) */
   void normalize_policy();
   /** add Dirichlet noise to the policy (only applies to the root node) */
@@ -97,14 +95,14 @@ class Node {
   void set_forward_result(ForwardResult);
   /** get the forward value */
   float get_forward_value() const;
+  /** get if root player */
+  bool is_root_player() const;
   /** update the Mcts Q-value */
-  float update(float, const TreeOption &);
+  float update(float, bool, float);
   /** get visit counts */
   size_t get_visits() const;
   /** get children visit counts */
   std::unordered_map<Action_t, size_t> get_children_visits() const;
-  /** get if root player */
-  bool is_root_player() const { return node_info_.is_root_player; }
 
  private:
   ForwardInfo forward_info_;
@@ -114,18 +112,14 @@ class Node {
 
 class Tree {
  public:
-  /** tree of single-player or two-player */
-  static bool is_two_player;
-
- public:
   /** Mcts selection & expansion */
   void before_forward(const std::vector<Action_t> &);
   /** Mcts update */
   bool after_forward(RNG_t &);
 
  public:
-  /** set the tree option */
-  void set_tree_option(const TreeOption &);
+  /** set the tree option and game info */
+  void set_option(const TreeOption &, bool);
   /** select and expand root legal actions */
   void expand_root(const std::vector<Action_t> &);
   /** get the forward input of current node */
@@ -146,8 +140,10 @@ class Tree {
   std::vector<Node *> selection_path_;
   /** tree information */
   TreeInfo tree_info_;
-  /** const tree option */
+  /** (const) tree option */
   TreeOption tree_option_;
+  /** (const) tree of single-player or two-player */
+  bool is_two_player_;
 };
 
 }  // namespace czf::actor::mcts

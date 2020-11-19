@@ -22,9 +22,9 @@ model:
 learner:
   rollout_steps: 5
   # train the model when there are N newly generated states
-  frequency: 4000
+  frequency: 4_000
   # how many states to store in the replay buffer
-  replay_buffer_size: 100000
+  replay_buffer_size: 100_000
   # how many times to reuse each state in the replay buffer
   replay_buffer_reuse: 1
   # how many states to learn from per batch
@@ -38,8 +38,6 @@ learner:
     nesterov: True
 
 mcts:
-  # drop the softmax temperature from 1 to 0 after the number of steps
-  softmax_temperature_step: 100
   # Mcts simulation counts
   simulation_count: 400
   # pUCT exploration constant
@@ -47,12 +45,24 @@ mcts:
   # discount factor of the return
   discount_factor: 1.
   # n-step of the return (disable by setting to 0)
-  nstep: 100
+  nstep: 0
+  # default min q value on tree
+  tree_min_value: -1
+  # default max q value on tree
+  tree_max_value: 1
+  # root dirichlet noise
   dirichlet:
     # Dir(alpha)
     alpha: 0.123
     # (1 - epsilon) * policy + epsilon * Dir(a);
     epsilon: 0.25
+
+game_server:
+  # drop the softmax temperature from 1 to 0 after the number of steps
+  # (set `True` to always enable)
+  softmax_temperature_step: True
+  # send a sequence every length N (set `0` to send full game)
+  sequence: 0
 
 evaluator:
   # evaluation mode

@@ -13,10 +13,10 @@ from czf.game_server.game_server import GameServer
 from czf.game_server.evaluator import EvalGameServer
 
 
-def make_default_action_policy_fn(softmax_temperature_step, num_moves,
-                                  legal_actions, legal_actions_policy):
+def make_default_action_policy_fn(softmax_step, num_moves, legal_actions,
+                                  legal_actions_policy):
     '''Default action policy: switch betweens softmax and argmax action policy'''
-    if num_moves < softmax_temperature_step:
+    if num_moves < softmax_step:
         return softmax_action_policy_fn(num_moves, legal_actions,
                                         legal_actions_policy)
     return argmax_action_policy_fn(num_moves, legal_actions,
@@ -70,12 +70,19 @@ def run_main():
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
-    softmax_temperature_step = config['mcts']['softmax_temperature_step']
+    softmax_step = config['game_server']['softmax_temperature_step']
     callbacks = {
-        'action_policy':
-        partial(make_default_action_policy_fn, softmax_temperature_step),
         'metric': {},
     }
+    # default action policy
+    if isinstance(softmax_step, int):
+        callbacks['action_policy'] = partial(make_default_action_policy_fn,
+                                             softmax_step)
+    elif isinstance(softmax_step, bool):
+        if softmax_step:
+            callbacks['action_policy'] = softmax_action_policy_fn
+        else:
+            callbacks['action_policy'] = argmax_action_policy_fn
     if args.eval:
         callbacks['action_policy'] = argmax_action_policy_fn
         # np.set_printoptions(precision=3)

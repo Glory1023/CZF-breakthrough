@@ -82,9 +82,9 @@ class Learner:
             for trajectory in trajectory_batch.trajectories:
                 self._replay_buffer.add_trajectory(trajectory)
             if self._replay_buffer.is_ready():
+                self._trainer.log_statistics(self._replay_buffer)
                 self._replay_buffer.save_trajectory(self._trajectory_path,
                                                     self._trainer.iteration)
-                self._trainer.log_statistics(self._replay_buffer)
                 self._trainer.train(self._replay_buffer)
                 save_ckpt = (self._trainer.iteration %
                              self._checkpoint_freq == 0)

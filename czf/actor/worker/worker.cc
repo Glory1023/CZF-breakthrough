@@ -13,10 +13,7 @@ void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
                         size_t num_gpu_root_worker, size_t num_gpu) {
   if (!running_) {
     running_ = true;
-    czf::actor::mcts::Tree::is_two_player =
-        WorkerManager::game_info.is_two_player;
     const auto seed = WorkerManager::worker_option.seed;
-    // TODO(chengscott): print config
     for (size_t i = 0; i < num_cpu_worker; ++i) {
       const Seed_t stream = 100U + i;
       cpu_threads_.emplace_back(&WorkerManager::worker_cpu, this, seed, stream);
@@ -57,7 +54,7 @@ void WorkerManager::enqueue_job(py::object pyjob,
   job->job = std::move(pyjob);
   job->tree.set_forward_result({std::move(observation), {}, 0, 0});
   job->tree.expand_root(legal_actions);
-  job->tree.set_tree_option(tree_option);
+  job->tree.set_option(tree_option, game_info.is_two_player);
   cpu_queue_.enqueue(std::move(job));
 }
 

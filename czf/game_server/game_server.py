@@ -3,6 +3,7 @@ import asyncio
 import platform
 import czf_env
 
+from czf.game_server import atari_env
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_dealer
 
@@ -15,13 +16,17 @@ class EnvManager:
         self._action_policy_fn = self._server.action_policy_fn
         self._after_apply_callback = self._server.metric_callbacks.get(
             'after_apply', None)
+        self._state = self._server.game.new_initial_state()
         self.reset()
         if start:
             asyncio.create_task(self.send_search_job())
 
     def reset(self):
         '''reset envs'''
-        self._state = self._server.game.new_initial_state()
+        if hasattr(self._server.game, 'reset'):
+            self._state = self._server.game.reset()
+        else:
+            self._state = self._server.game.new_initial_state()
         self._trajectory = czf_pb2.Trajectory()
         self._workers = [czf_pb2.Node()]
 
@@ -78,6 +83,12 @@ class EnvManager:
             asyncio.create_task(
                 self._server.send_optimize_job(self._trajectory))
             self.reset()
+        elif self._server.sequence > 0 and (len(self._trajectory.states) %
+                                            self._server.sequence == 0):
+            # send optimize job for each sequence
+            asyncio.create_task(
+                self._server.send_optimize_job(self._trajectory))
+            self._trajectory = czf_pb2.Trajectory()
 
         # send a search job
         asyncio.create_task(self.send_search_job())
@@ -105,14 +116,21 @@ class GameServer:
             print('register callbacks:', list(self.metric_callbacks.keys()))
         # game envs
         game_config = config['game']
-        self.game = czf_env.load_game(game_config['name'])
+        env_name = game_config['name']
+        if env_name in czf_env.available_games():
+            self.game = czf_env.load_game(env_name)
+            # check game config in lightweight game
+            assert self.game.num_players == game_config['num_player']
+            assert self.game.num_distinct_actions == game_config['actions']
+            assert self.game.observation_tensor_shape == game_config[
+                'observation_shape']
+        else:
+            self.game = atari_env.load_game(env_name)
+        # game_server config
+        self.sequence = config['game_server']['sequence']
+        # start env in training
         if not args.eval:
             self.envs = [EnvManager(self) for _ in range(args.num_env)]
-        # check game config in lightweight game
-        assert self.game.num_players == game_config['num_player']
-        assert self.game.num_distinct_actions == game_config['actions']
-        assert self.game.observation_tensor_shape == game_config[
-            'observation_shape']
         # tree config
         mcts_config = config['mcts']
         self.tree_option = czf_pb2.WorkerState.TreeOption(

@@ -25,8 +25,11 @@ class ModelManager {
   std::tuple<torch::Device, ModelPtr> get();
 
  private:
+  /** models on forward devices */
   std::vector<ModelPtr> models_;
+  /** all devices to forward */
   std::vector<torch::Device> forward_devices_;
+  /** the latest device index */
   std::atomic_size_t device_switch_{0U};
 };
 

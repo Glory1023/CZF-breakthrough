@@ -38,13 +38,19 @@ class WorkerManager {
   void load_from_file(const std::string&);
 
  private:
+  /** cpu worker */
   void worker_cpu(Seed_t, Seed_t);
+  /** gpu worker */
   void worker_gpu(bool);
 
  private:
+  /** can worker continue to run */
   std::atomic_bool running_{false};
+  /** manage models */
   ModelManager model_manager;
+  /** threads on cpu and gpu */
   std::vector<std::thread> cpu_threads_, gpu_threads_;
+  /** job queues for cpu, gpu, root gpu, and result */
   JobQueue cpu_queue_, gpu_queue_, gpu_root_queue_, result_queue_;
 };
 
