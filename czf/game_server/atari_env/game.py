@@ -26,7 +26,8 @@ class AtariState:
         # HWC => CHW
         obs = np.array(obs, dtype=np.float32).transpose((2, 0, 1))
         action_plane = np.full((1, *obs.shape[1:]),
-                               (action + 1) / self._num_action)
+                               (action + 1) / self._num_action,
+                               dtype=np.float32)
         # 4 (action, RGB) x H x W
         return np.vstack((action_plane, obs))
 

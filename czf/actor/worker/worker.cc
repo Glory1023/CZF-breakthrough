@@ -4,6 +4,9 @@
 
 #include <numeric>
 
+#include "czf.pb.h"  // NOLINT
+#include "utils/config.h"
+
 namespace czf::actor::worker {
 
 WorkerOption WorkerManager::worker_option;
@@ -46,28 +49,41 @@ void WorkerManager::terminate() {
   }
 }
 
-void WorkerManager::enqueue_job(py::object pyjob,
-                                std::vector<float> observation,
-                                const std::vector<int32_t> &legal_actions,
-                                const TreeOption &tree_option) {
-  auto job = std::make_unique<Job>();
-  job->job = std::move(pyjob);
-  job->tree.set_forward_result({std::move(observation), {}, 0, 0});
-  job->tree.expand_root(legal_actions);
-  job->tree.set_option(tree_option, game_info.is_two_player);
-  cpu_queue_.enqueue(std::move(job));
+void WorkerManager::enqueue_job(std::vector<std::string> jobs) {
+  for (auto &job_str : jobs) {
+    auto job = std::make_unique<Job>();
+    job->job = std::move(job_str);
+    cpu_queue_.enqueue(std::move(job));
+  }
 }
 
-py::tuple WorkerManager::wait_dequeue_result() {
-  std::unique_ptr<Job> job;
-  result_queue_.wait_dequeue(job);
-  py::gil_scoped_acquire acquire;
-  if (job == nullptr) {
-    return py::make_tuple(py::none{}, py::none{});
+py::bytes WorkerManager::wait_dequeue_result(size_t max_batch_size) {
+  constexpr auto zero = std::chrono::duration<double>::zero();
+  const auto max_timeout =
+      std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
+  // collect result jobs
+  std::vector<std::unique_ptr<Job>> jobs;
+  jobs.reserve(max_batch_size);
+  result_queue_.wait_dequeue_bulk(std::back_inserter(jobs), max_batch_size);
+  Clock_t::time_point deadline = Clock_t::now() + max_timeout;
+  for (Clock_t::duration timeout = max_timeout;
+       jobs.size() < max_batch_size && timeout > zero;
+       timeout = deadline - Clock_t::now()) {
+    result_queue_.wait_dequeue_bulk_timed(
+        std::back_inserter(jobs), max_batch_size - jobs.size(), timeout);
   }
-  auto result = job->tree.get_tree_result();
-  return py::make_tuple(std::move(job->job), result.value, result.total_visits,
-                        std::move(result.visits));
+  // collect tree results from jobs
+  czf::pb::Packet packet;
+  auto *job_batch = packet.mutable_job_batch();
+  for (const auto &job : jobs) {
+    if (job == nullptr) {
+      return {};
+    }
+    job_batch->add_jobs()->ParseFromString(job->job);
+  }
+  std::string packet_str;
+  packet.SerializeToString(&packet_str);
+  return packet_str;
 }
 
 void WorkerManager::load_from_bytes(const std::string &bytes) {
@@ -76,6 +92,47 @@ void WorkerManager::load_from_bytes(const std::string &bytes) {
 
 void WorkerManager::load_from_file(const std::string &path) {
   model_manager.load_from_file(path);
+}
+
+void WorkerManager::preprocess_pb_job(std::unique_ptr<Job> &job) {
+  czf::pb::Job job_pb;
+  job_pb.ParseFromString(job->job);
+  const auto &state = job_pb.payload().state();
+  const auto &obs_tensor = state.observation_tensor();
+  std::vector<float> observation{obs_tensor.begin(), obs_tensor.end()};
+  const auto &actions = state.legal_actions();
+  std::vector<int32_t> legal_actions{actions.begin(), actions.end()};
+  const auto &option = state.tree_option();
+  TreeOption tree_option{static_cast<size_t>(option.simulation_count()),
+                         option.tree_min_value(),
+                         option.tree_max_value(),
+                         option.c_puct(),
+                         option.dirichlet_alpha(),
+                         option.dirichlet_epsilon(),
+                         option.discount()};
+  job_pb.mutable_payload()->mutable_state()->clear_observation_tensor();
+  // worker job
+  job_pb.SerializeToString(&job->job);
+  job->tree.set_forward_result({std::move(observation), {}, 0, 0});
+  job->tree.expand_root(legal_actions);
+  job->tree.set_option(tree_option, game_info.is_two_player);
+}
+
+void WorkerManager::postprocess_pb_job(std::unique_ptr<Job> &job) {
+  const auto &result = job->tree.get_tree_result();
+  czf::pb::Job job_pb;
+  job_pb.ParseFromString(job->job);
+  auto *evaluation =
+      job_pb.mutable_payload()->mutable_state()->mutable_evaluation();
+  evaluation->set_value(result.value);
+  for (size_t i = 0; i < game_info.num_actions; ++i) {
+    evaluation->add_policy(0.F);
+  }
+  auto total = static_cast<float>(result.total_visits);
+  for (auto &&[action, visits] : result.visits) {
+    evaluation->set_policy(action, visits / total);
+  }
+  job_pb.SerializeToString(&job->job);
 }
 
 void WorkerManager::worker_cpu(Seed_t seed, Seed_t stream) {
@@ -91,6 +148,10 @@ void WorkerManager::worker_cpu(Seed_t seed, Seed_t stream) {
     bool next_job = false;
     while (!next_job) {
       switch (job->step) {  // NOLINT
+        case Job::Step::kEnqueue:
+          preprocess_pb_job(job);
+          job->step = Job::Step::kForwardRoot;
+          break;
         case Job::Step::kSelect:
           job->tree.before_forward(WorkerManager::game_info.all_actions);
           job->step = Job::Step::kForward;
@@ -108,6 +169,10 @@ void WorkerManager::worker_cpu(Seed_t seed, Seed_t stream) {
           next_job = true;
           break;
         case Job::Step::kDone:
+          postprocess_pb_job(job);
+          job->step = Job::Step::kDequeue;
+          break;
+        case Job::Step::kDequeue:
           result_queue_.enqueue(std::move(job));
           next_job = true;
           break;

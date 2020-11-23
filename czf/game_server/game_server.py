@@ -1,142 +1,58 @@
 '''CZF Game Server'''
 import asyncio
+from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
+import ctypes
+import multiprocessing as mp
 import platform
+import typing
 import czf_env
 
 from czf.game_server import atari_env
 from czf.pb import czf_pb2
-from czf.utils import get_zmq_dealer
+from czf.utils import get_zmq_dealer, timer, Queue
+
+
+async def run_env_manager(*args):
+    '''run EnvManager'''
+    manager = EnvManager(*args)
+    manager.start_search()
+    await manager.loop()
+
+
+class ModelInfo(ctypes.Structure):
+    '''ModelInfo shared between processes'''
+    _fields_ = [('name', ctypes.c_wchar_p), ('version', ctypes.c_int)]
+
+
+@dataclass
+class EnvInfo:
+    '''Environement information'''
+    state: typing.Any
+    trajectory: czf_pb2.Trajectory
+    workers: list
 
 
 class EnvManager:
     '''Game Environment Manager'''
-    def __init__(self, server, start=True):
+    def __init__(self, args, config, callbacks, proc_index, model_info, pipe,
+                 job_queue, trajectory_queue):
+        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}',
+                                  hostname=platform.node())
         self.operation = czf_pb2.Job.Operation.MUZERO_SEARCH
-        self._server = server
-        self._action_policy_fn = self._server.action_policy_fn
-        self._after_apply_callback = self._server.metric_callbacks.get(
-            'after_apply', None)
-        self._state = self._server.game.new_initial_state()
-        self.reset()
-        if start:
-            asyncio.create_task(self.send_search_job())
-
-    def reset(self):
-        '''reset envs'''
-        if hasattr(self._server.game, 'reset'):
-            self._state = self._server.game.reset()
-        else:
-            self._state = self._server.game.new_initial_state()
-        self._trajectory = czf_pb2.Trajectory()
-        self._workers = [czf_pb2.Node()]
-
-    async def send_search_job(self):
-        '''helper to send a `Job` to actor'''
-        job = czf_pb2.Job(
-            procedure=[self.operation],
-            step=0,
-            workers=self._workers,
-            payload=czf_pb2.Job.Payload(
-                state=czf_pb2.WorkerState(
-                    legal_actions=self._state.legal_actions,
-                    observation_tensor=self._state.observation_tensor,
-                    tree_option=self._server.tree_option,
-                ),
-                env_index=self._server.envs.index(self),
-            ))
-        job.model.CopyFrom(self._server.model)
-        await self._server.send_job(job)
-
-    async def on_job_completed(self, job: czf_pb2.Job):
-        '''callback on job completion'''
-        self._workers[:] = job.workers
-        # choose action according to the policy
-        evaluated_state = job.payload.state
-        policy = evaluated_state.evaluation.policy
-        legal_actions = self._state.legal_actions
-        legal_actions_policy = [policy[action] for action in legal_actions]
-        num_moves = len(self._trajectory.states)
-        chosen_action = self._action_policy_fn(num_moves, legal_actions,
-                                               legal_actions_policy)
-        # add to trajectory
-        state = self._trajectory.states.add()
-        state.observation_tensor[:] = self._state.feature_tensor
-        state.tree_option.CopyFrom(self._server.tree_option)
-        state.evaluation.policy[:] = policy
-        state.transition.current_player = self._state.current_player
-        state.transition.action = chosen_action
-        # apply action
-        self._state.apply_action(chosen_action)
-        if self._after_apply_callback:
-            self._after_apply_callback(evaluated_state, self._state)
-        # game transition
-        state.transition.rewards[:] = self._state.rewards
-
-        if self._state.is_terminal:
-            # add the terminal state to the trajectory
-            state = self._trajectory.states.add()
-            state.observation_tensor[:] = self._state.feature_tensor
-            state.evaluation.value = 0
-            state.transition.current_player = self._state.current_player
-            state.transition.rewards[:] = self._state.rewards
-            # send optimize job
-            asyncio.create_task(
-                self._server.send_optimize_job(self._trajectory))
-            self.reset()
-        elif self._server.sequence > 0 and (len(self._trajectory.states) %
-                                            self._server.sequence == 0):
-            # send optimize job for each sequence
-            asyncio.create_task(
-                self._server.send_optimize_job(self._trajectory))
-            self._trajectory = czf_pb2.Trajectory()
-
-        # send a search job
-        asyncio.create_task(self.send_search_job())
-
-
-class GameServer:
-    '''Game Server'''
-    def __init__(self, args, config, callbacks):
-        self._node = czf_pb2.Node(
-            identity=f'game-server-{args.suffix}',
-            hostname=platform.node(),
-        )
-        # model
-        self.model = czf_pb2.ModelInfo(name='default', version=-1)
-        self.has_new_model = asyncio.Event()
-        # server mode
-        if args.eval:
-            print('[Evaluation Mode]', self._node.identity)
-        else:
-            print('[Training Mode]', self._node.identity)
+        # multiprocess
+        self._proc_index = proc_index
+        self._model_info = model_info
+        self._pipe = pipe
+        self._job_queue = job_queue
+        self._trajectory_queue = trajectory_queue
         # callbacks
-        self.action_policy_fn = callbacks['action_policy']
-        self.metric_callbacks = callbacks.get('metric', {})
-        if self.metric_callbacks:
-            print('register callbacks:', list(self.metric_callbacks.keys()))
-        # game envs
-        game_config = config['game']
-        obs_config = game_config['observation']
-        env_name = game_config['name']
-        if env_name in czf_env.available_games():
-            self.game = czf_env.load_game(env_name)
-            # check game config in lightweight game
-            assert self.game.num_players == game_config['num_player']
-            assert self.game.num_distinct_actions == game_config['actions']
-            assert self.game.observation_tensor_shape == [
-                obs_config['channel'], *obs_config['spatial_shape']
-            ]
-        else:
-            self.game = atari_env.load_game(env_name,
-                                            obs_config['frame_stack'])
-        # game_server config
-        self.sequence = config['game_server']['sequence']
-        # start env in training
-        if not args.eval:
-            self.envs = [EnvManager(self) for _ in range(args.num_env)]
+        self._action_policy_fn = callbacks['action_policy']
+        metric_callbacks = callbacks.get('metric', {})
+        self._after_apply_callback = metric_callbacks.get('after_apply', None)
         # tree config
         mcts_config = config['mcts']
-        self.tree_option = czf_pb2.WorkerState.TreeOption(
+        self._tree_option = czf_pb2.WorkerState.TreeOption(
             simulation_count=mcts_config['simulation_count'],
             tree_min_value=mcts_config.get('tree_min_value', float('inf')),
             tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
@@ -146,7 +62,157 @@ class GameServer:
             discount=mcts_config.get('discount', 1.),
         )
         if args.eval:
-            self.tree_option.dirichlet_epsilon = 0.
+            self._tree_option.dirichlet_epsilon = 0.
+        # game_server config
+        self._sequence = config['game_server']['sequence']
+        # game env
+        self._num_env = args.num_env
+        game_config = config['game']
+        obs_config = game_config['observation']
+        env_name = game_config['name']
+        if env_name in czf_env.available_games():
+            self._game = czf_env.load_game(env_name)
+            # check game config in lightweight game
+            assert self._game.num_players == game_config['num_player']
+            assert self._game.num_distinct_actions == game_config['actions']
+            assert self._game.observation_tensor_shape == [
+                obs_config['channel'], *obs_config['spatial_shape']
+            ]
+        else:
+            self._game = atari_env.load_game(env_name,
+                                             obs_config['frame_stack'])
+        self._envs = [None] * args.num_env
+        for index in range(args.num_env):
+            self.__reset(index, new=True)
+
+    def start_search(self):
+        '''all envs start to send search'''
+        for index in range(len(self._envs)):
+            self.__send_search_job(index)
+
+    async def loop(self):
+        '''main loop'''
+        while True:
+            job = self._pipe.recv()
+            self.__on_job_completed(czf_pb2.Job.FromString(job))
+
+    def __reset(self, env_index, new=False):
+        '''reset env of index'''
+        if not new and hasattr(self._game, 'reset'):
+            state = self._game.reset()
+        else:
+            # self.start_time = [0] * self._num_env
+            state = self._game.new_initial_state()
+        self._envs[env_index] = EnvInfo(
+            state,
+            czf_pb2.Trajectory(),
+            [czf_pb2.Node()],
+        )
+
+    def __send_search_job(self, env_index):
+        '''helper to send a `Job` to actor'''
+        env = self._envs[env_index]
+        job = czf_pb2.Job(
+            model=czf_pb2.ModelInfo(name=self._model_info.name,
+                                    version=self._model_info.version),
+            procedure=[self.operation],
+            step=0,
+            workers=env.workers,
+            payload=czf_pb2.Job.Payload(
+                state=czf_pb2.WorkerState(
+                    legal_actions=env.state.legal_actions,
+                    observation_tensor=env.state.observation_tensor,
+                    tree_option=self._tree_option,
+                ),
+                env_index=self._proc_index * self._num_env + env_index,
+            ))
+        job.initiator.CopyFrom(self._node)
+        self._job_queue.put(job.SerializeToString())
+        # self.start_time[env_index] = time.time()
+
+    def __on_job_completed(self, job: czf_pb2.Job):
+        '''callback on job completion'''
+        env_index = job.payload.env_index % self._num_env
+        env = self._envs[env_index]
+        env.workers[:] = job.workers
+        # choose action according to the policy
+        evaluated_state = job.payload.state
+        policy = evaluated_state.evaluation.policy
+        legal_actions = env.state.legal_actions
+        legal_actions_policy = [policy[action] for action in legal_actions]
+        num_moves = len(env.trajectory.states)
+        chosen_action = self._action_policy_fn(num_moves, legal_actions,
+                                               legal_actions_policy)
+        # add to trajectory
+        state = env.trajectory.states.add()
+        state.observation_tensor[:] = env.state.feature_tensor
+        state.tree_option.CopyFrom(self._tree_option)
+        state.evaluation.policy[:] = policy
+        state.transition.current_player = env.state.current_player
+        state.transition.action = chosen_action
+        # apply action
+        # print('apply', self._proc_index, env_index,
+        #       time.time() - self.start_time[env_index])
+        env.state.apply_action(chosen_action)
+        if self._after_apply_callback:
+            self._after_apply_callback(evaluated_state, env.state)
+        # game transition
+        state.transition.rewards[:] = env.state.rewards
+
+        if env.state.is_terminal:
+            # add the terminal state to the trajectory
+            state = env.trajectory.states.add()
+            state.observation_tensor[:] = env.state.feature_tensor
+            state.evaluation.value = 0
+            state.transition.current_player = env.state.current_player
+            state.transition.rewards[:] = env.state.rewards
+            # send optimize job
+            self._trajectory_queue.put(env.trajectory.SerializeToString())
+            self.__reset(env_index)
+        elif self._sequence > 0 and (len(env.trajectory.states) %
+                                     self._sequence == 0):
+            # send optimize job for each sequence
+            self._trajectory_queue.put(env.trajectory.SerializeToString())
+            env.trajectory = czf_pb2.Trajectory()
+
+        # send a search job
+        self.__send_search_job(env_index)
+
+
+class GameServer:
+    '''Game Server'''
+    def __init__(self, args, config, callbacks):
+        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}',
+                                  hostname=platform.node())
+        # model
+        self._model_info = mp.Value(ModelInfo, 'default', -1)
+        self._has_new_model = asyncio.Event()
+        # server mode
+        print({
+            True: '[Evaluation Mode]',
+            False: '[Training Mode]',
+        }[args.eval], self._node.identity)
+        # start EnvManager
+        self._num_env = args.num_env
+        self._job_queue = Queue()
+        self._trajectory_queue = Queue()
+        self._pipe = [mp.Pipe() for i in range(args.num_proc)]
+        self._manager = [
+            mp.Process(
+                target=lambda *args: asyncio.run(run_env_manager(*args)),
+                args=(
+                    args,
+                    config,
+                    callbacks,
+                    index,
+                    self._model_info,
+                    pipe,
+                    self._job_queue,
+                    self._trajectory_queue,
+                )) for index, (_, pipe) in enumerate(self._pipe)
+        ]
+        for manager in self._manager:
+            manager.start()
         # trajectory upstream
         print('connect to learner @', args.upstream)
         self._upstream = get_zmq_dealer(
@@ -161,11 +227,21 @@ class GameServer:
             remote_address=args.broker,
         )
 
+    def terminate(self):
+        '''terminate all EnvManager'''
+        for manager in self._manager:
+            manager.join()
+
     async def loop(self):
         '''main loop'''
-        await asyncio.gather(self._job_loop(), self._model_loop())
+        await asyncio.gather(
+            self._recv_job_loop(),
+            self._recv_model_info_loop(),
+            self._send_job_loop(),
+            self._send_trajectory_loop(),
+        )
 
-    async def _job_loop(self):
+    async def _recv_job_loop(self):
         '''a loop to receive `Job`'''
         while True:
             raw = await self._broker.recv()
@@ -174,10 +250,10 @@ class GameServer:
             #print(packet)
             if packet_type == 'job':
                 job = packet.job
-                env_index = job.payload.env_index
-                asyncio.create_task(self.envs[env_index].on_job_completed(job))
+                index = job.payload.env_index // self._num_env
+                self._pipe[index][0].send(job.SerializeToString())
 
-    async def _model_loop(self):
+    async def _recv_model_info_loop(self):
         '''a loop to receive `ModelInfo`'''
         while True:
             raw = await self._upstream.recv()
@@ -185,24 +261,63 @@ class GameServer:
             packet_type = packet.WhichOneof('payload')
             if packet_type == 'model_info':
                 version = packet.model_info.version
-                # assert packet.model_info.name == self.model.name
-                if version > self.model.version:
-                    self.model.version = version
-                    self.has_new_model.set()
+                # assert packet._model_info.name == self._model_info.name
+                if version > self._model_info.version:
+                    self._model_info.version = version
+                    self._has_new_model.set()
+
+    async def _send_job_loop(self):
+        '''a loop to send `Job`'''
+        executor = ThreadPoolExecutor(max_workers=1)
+        loop = asyncio.get_event_loop()
+        queue = self._job_queue
+        while True:
+            job = await loop.run_in_executor(executor, queue.get)
+            batch = czf_pb2.JobBatch(jobs=[czf_pb2.Job.FromString(job)])
+            for timeout in timer(wait_time=0):
+                try:
+                    job = await asyncio.wait_for(
+                        loop.run_in_executor(executor, queue.get),
+                        timeout=timeout,
+                    )
+                    batch.jobs.append(czf_pb2.Job.FromString(job))
+                except asyncio.exceptions.TimeoutError:
+                    break
+            await self.__send_job(batch)
+
+    async def _send_trajectory_loop(self):
+        '''a loop to send `Trajectory`'''
+        executor = ThreadPoolExecutor(max_workers=1)
+        loop = asyncio.get_event_loop()
+        queue = self._trajectory_queue
+        while True:
+            trajectory = await loop.run_in_executor(executor, queue.get)
+            batch = czf_pb2.TrajectoryBatch(
+                trajectories=[czf_pb2.Trajectory.FromString(trajectory)])
+            for timeout in timer(wait_time=0.1):
+                try:
+                    trajectory = await asyncio.wait_for(
+                        loop.run_in_executor(executor, queue.get),
+                        timeout=timeout,
+                    )
+                    batch.trajectories.append(
+                        czf_pb2.Trajectory.FromString(trajectory))
+                except asyncio.exceptions.TimeoutError:
+                    break
+            await self.__send_trajectory(batch)
 
     async def __send_model_subscribe(self):
         '''helper to send a `model_subscribe` to optimizer'''
         packet = czf_pb2.Packet(model_subscribe=czf_pb2.Heartbeat())
         await self._upstream.send(packet.SerializeToString())
 
-    async def send_optimize_job(self, trajectory: czf_pb2.Trajectory):
-        '''helper to send a `Trajectory` to optimizer'''
-        packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
-            trajectories=[trajectory]))
+    async def __send_trajectory(self, batch: czf_pb2.TrajectoryBatch):
+        '''helper to send a `TrajectoryBatch` to optimizer'''
+        print('send traj', len(batch.trajectories))
+        packet = czf_pb2.Packet(trajectory_batch=batch)
         await self._upstream.send(packet.SerializeToString())
 
-    async def send_job(self, job: czf_pb2.Job):
-        '''helper to send a `Job`'''
-        job.initiator.CopyFrom(self._node)
-        packet = czf_pb2.Packet(job=job)
+    async def __send_job(self, batch: czf_pb2.JobBatch):
+        '''helper to send a `JobBatch`'''
+        packet = czf_pb2.Packet(job_batch=batch)
         await self._broker.send(packet.SerializeToString())

@@ -1,9 +1,9 @@
-add_subdirectory(actor)
+find_package(Protobuf REQUIRED)
+include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
+include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR})
 
-find_program(PROTOC_BIN protoc DOC "Protocl Buffers Compiler")
-add_custom_target(proto COMMENT "Protobuf target")
-add_custom_command(
-  TARGET proto
-  COMMAND ${PROTOC_BIN} ARGS -I proto --python_out pb proto/czf.proto
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Generating Protobuf python stub")
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS proto/czf.proto)
+protobuf_generate_python(PROTO_PY proto/czf.proto)
+add_library(czf.proto OBJECT ${PROTO_SRCS})
+
+add_subdirectory(actor)

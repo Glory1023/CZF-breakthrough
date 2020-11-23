@@ -44,14 +44,26 @@ async def main(args, config, callbacks):
     '''czf.game_server main program'''
     sever_cls = EvalGameServer if args.eval else GameServer
     server = sever_cls(args, config, callbacks)
-    await server.loop()
+    try:
+        await server.loop()
+    except asyncio.CancelledError:
+        server.terminate()
 
 
 def run_main():
     '''Run main program in asyncio'''
     parser = argparse.ArgumentParser(__package__, description=__doc__)
     parser.add_argument('-f', '--config', required=True, help='config file')
-    parser.add_argument('-n', '--num-env', type=int, required=True)
+    parser.add_argument('-np',
+                        '--num-proc',
+                        type=int,
+                        default=1,
+                        help='number of EnvManager process')
+    parser.add_argument('-n',
+                        '--num-env',
+                        type=int,
+                        required=True,
+                        help='number of environments per process')
     parser.add_argument('-b',
                         '--broker',
                         required=True,
@@ -64,8 +76,8 @@ def run_main():
                         help='learner address. e.g., 127.0.0.1:5577')
     parser.add_argument('--suffix',
                         metavar='unique_id',
-                        help='unique id of the game server',
-                        default=uuid4().hex)
+                        default=uuid4().hex,
+                        help='unique id of the game server')
     parser.add_argument('--eval', action='store_true', help='evaluation mode')
     args = parser.parse_args()
 

@@ -35,7 +35,9 @@ class Trainer:
         model_config = config['model']
         h_channels = model_config['h_channels']
         state_shape = [h_channels, *config['game']['state_spatial_shape']]
-        self._model = MuZeroAtari(  # TODO: toggle
+        Model = MuZeroAtari if (config['model']['name']
+                                == 'MuZeroAtari') else MuZero
+        self._model = Model(
             observation_shape=observation_shape,
             state_shape=state_shape,
             action_dim=action_dim,

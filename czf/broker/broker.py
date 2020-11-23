@@ -1,24 +1,26 @@
 '''CZF Broker'''
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
+import random
 
 from czf.pb import czf_pb2
-from czf.utils import get_zmq_router, timer
+from czf.utils import get_zmq_router
 
 
 class Broker:
     '''Broker'''
     def __init__(self, args):
-        # self._jobs[operation]
-        self._jobs = defaultdict(asyncio.Queue)
+        self._peers = defaultdict(set)
         self._socket = get_zmq_router(listen_port=args.listen)
+        self._executor = ThreadPoolExecutor(max_workers=10)
 
     async def loop(self):
         '''main loop'''
         await asyncio.gather(self._recv_loop())
 
     async def _recv_loop(self):
-        '''a loop to receive `Job` and `JobRequest`'''
+        '''a loop to receive `Job`, `JobBatch`, and `JobRequest`'''
         while True:
             identity, *raw = await self._socket.recv_multipart()
             if len(raw) != 1:  # prevent wrong connections (not from czf)
@@ -27,37 +29,32 @@ class Broker:
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
             if packet_type == 'job':
-                job = packet.job
-                if job.step == len(job.procedure):
-                    await self.__send_raw(job.initiator.identity.encode(), raw)
-                else:
-                    operation = job.procedure[job.step]
-                    await self._jobs[operation].put(job)
+                asyncio.create_task(self.__on_recv_job(packet.job))
+            elif packet_type == 'job_batch':
+                for job in packet.job_batch.jobs:
+                    asyncio.create_task(self.__on_recv_job(job))
             elif packet_type == 'job_request':
                 job_request = packet.job_request
-                asyncio.create_task(self.__dispatch_jobs(
-                    identity, job_request))
+                self._peers[job_request.operation].add(identity)
 
-    async def __dispatch_jobs(self,
-                              worker: bytes,
-                              job_request: czf_pb2.JobRequest,
-                              wait_time=0.1):
-        '''helper to send a `JobBatch`'''
-        job_queue = self._jobs[job_request.operation]
-        packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(
-            jobs=[await job_queue.get()]))
-        for timeout in timer(wait_time):
-            try:
-                job = await asyncio.wait_for(job_queue.get(), timeout=timeout)
-                packet.job_batch.jobs.append(job)
-            except asyncio.exceptions.TimeoutError:
-                break
-        await self.__send_packet(worker, packet)
+    async def __on_recv_job(self, job: czf_pb2.Job):
+        def get_worker(peers):
+            while len(peers) == 0:
+                pass
+            return random.sample(peers, 1)[0]
+
+        if job.step == len(job.procedure):
+            packet = czf_pb2.Packet(job=job)
+            await self.__send_packet(job.initiator.identity.encode(), packet)
+        else:
+            operation = job.procedure[job.step]
+            loop = asyncio.get_event_loop()
+            worker = await loop.run_in_executor(self._executor, get_worker,
+                                                self._peers[operation])
+            packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(jobs=[job]))
+            await self.__send_packet(worker, packet)
 
     async def __send_packet(self, identity: bytes, packet: czf_pb2.Packet):
         '''helper to send a `Packet` to `identity`'''
-        await self.__send_raw(identity, packet.SerializeToString())
-
-    async def __send_raw(self, identity: bytes, raw: bytes):
-        '''helper to send a zmq message'''
+        raw = packet.SerializeToString()
         await self._socket.send_multipart([identity, raw])

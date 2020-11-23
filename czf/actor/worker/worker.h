@@ -27,17 +27,20 @@ class WorkerManager {
   void run(size_t, size_t, size_t, size_t);
   /** terminate all workers */
   void terminate();
-  /** enqueue a protobuf job to the job queue */
-  void enqueue_job(py::object, std::vector<float>, const std::vector<int32_t>&,
-                   const TreeOption&);
-  /** dequeue a result from the job queue */
-  py::tuple wait_dequeue_result();
+  /** enqueue a vector of serialized `Job` */
+  void enqueue_job(std::vector<std::string>);
+  /** dequeue a serialized `Packet` from the result queue */
+  py::bytes wait_dequeue_result(size_t);
   /** load model from bytes */
   void load_from_bytes(const std::string&);
   /** load model from file */
   void load_from_file(const std::string&);
 
  private:
+  /** pre-process during the `kEnqueue` step */
+  static void preprocess_pb_job(std::unique_ptr<Job>&);
+  /** post-process during the `kDequeue` step */
+  static void postprocess_pb_job(std::unique_ptr<Job>&);
   /** cpu worker */
   void worker_cpu(Seed_t, Seed_t);
   /** gpu worker */

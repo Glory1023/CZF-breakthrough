@@ -65,7 +65,7 @@ class TransitionBuffer:
         self._buffer = deque(maxlen=(maxlen + frame_stack))
         self._frame_stack = frame_stack
         self._spatial_shape = spatial_shape
-        self._dctx = zstd.ZstdDecompressor()
+        # self._dctx = zstd.ZstdDecompressor()
 
     def __len__(self):
         return len(self._buffer) - self._frame_stack
@@ -81,12 +81,13 @@ class TransitionBuffer:
     def get_observation(self, index):
         '''Get observation (stacked features) at index.'''
         def to_tensor(obs):
-            obs = self._dctx.decompress(obs)
+            # obs = self._dctx.decompress(obs)
             obs = np.array(np.frombuffer(obs, dtype=np.float32))
             return torch.tensor(obs).view(-1, *self._spatial_shape)
 
         if self._frame_stack == 0:
             return to_tensor(self._buffer[index].observation)
+        # TODO: !!! repeat on start
         # concat feature tensors into an observation
         # (a_1, o_1), (a_2, o_2), ..., (a_n, o_n)
         return torch.cat([
@@ -109,20 +110,27 @@ class ReplayBuffer(Dataset):
       `torch.Tensor` and may contains several `None` at the end due to
       terminals.
 
-      In addition, a data sample contains the following: [
-          observation,                     # a stacked feature
-          gradient_scale,                  # 1 / K
-          *[value, mask, policy, reward],  # K-steps transitions
-      ]
+      In addition, a data sample contains the following:
+      .. code-block:: python
+
+        [
+            observation,                     # a stacked feature
+            gradient_scale,                  # 1 / K
+            *[value, mask, policy, reward],  # K-steps transitions
+        ]
+
       For example, if the next state of `obs` is terminal, then
-      the data sample is: [
-          `obs`,
-          1.,              # = 1 / 1
-          terminal_value,  # `value`: the value of terminal state
-          0.,              # `mask`: terminal state has no next state
-          None,            # `policy`: terminal state has no policy
-          None,            # `reward`: terminal state has no reward
-      ]
+      the data sample is:
+      .. code-block:: python
+
+        [
+            `obs`,
+            1.,              # = 1 / 1
+            terminal_value,  # `value`: the value of terminal state
+            0.,              # `mask`: terminal state has no next state
+            None,            # `policy`: terminal state has no policy
+            None,            # `reward`: terminal state has no reward
+        ]
     '''
     def __init__(self, num_player, num_action, observation_config, kstep,
                  nstep, discount_factor, capacity, train_freq):
@@ -137,7 +145,7 @@ class ReplayBuffer(Dataset):
         self._buffer = TransitionBuffer(capacity, self._frame_stack,
                                         self._spatial_shape)
         self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
-        self._cctx_observation = zstd.ZstdCompressor()
+        # self._cctx_observation = zstd.ZstdCompressor()
         self._cctx_trajectory = zstd.ZstdCompressor()
         self._num_games = 0
         self._ready = False
@@ -176,14 +184,6 @@ class ReplayBuffer(Dataset):
             return True
         return False
 
-    def _stack_action_observation(self, action, obs):
-        '''Returns a feature of stacked action and observation.'''
-        normalized_action = (action + 1.) / self._num_action
-        action_plane = np.full(np.prod(self._spatial_shape),
-                               normalized_action,
-                               dtype=np.float32)
-        return np.hstack((action_plane, obs))
-
     def add_trajectory(self, trajectory: czf_pb2.Trajectory):
         '''Add a trajectory to the replay buffer
 
@@ -203,17 +203,11 @@ class ReplayBuffer(Dataset):
         discounted_return = [[] for _ in range(self._num_player)]
         values = []
         buffer = []
-        reversed_states = list(reversed(trajectory.states))
-        for i, state in enumerate(reversed_states):
+        for i, state in enumerate(reversed(trajectory.states)):
             # tensor
             observation = np.array(state.observation_tensor, dtype=np.float32)
-            if self._frame_stack > 0:
-                prev_action = reversed_states[i + 1].transition.action if (
-                    i + 1 < len(reversed_states)) else -1
-                observation = self._stack_action_observation(
-                    prev_action, observation)
             observation = observation.tobytes()
-            observation = self._cctx_observation.compress(observation)
+            # observation = self._cctx_observation.compress(observation)
             if i == 0:
                 # update statistics
                 for player in range(self._num_player):
@@ -287,6 +281,8 @@ class ReplayBuffer(Dataset):
     def save_trajectory(self, path, iteration):
         '''Save all trajectories to the `path` with compression,
         and clear up all trajactories'''
+        return
+        # TODO: exceed 2GB!
         trajectory = self._pb_trajectory_batch.SerializeToString()
         compressed = self._cctx_trajectory.compress(trajectory)
         trajectory_path = path / f'{iteration:05d}.pb.zst'

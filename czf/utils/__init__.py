@@ -3,6 +3,7 @@ from czf.utils.lru_cache import LRUCache
 from czf.utils.socket import get_zmq_dealer, get_zmq_router
 from czf.utils.model import LocalModelManager, LocalModelManagerAsync, RemoteModelManager
 from czf.utils.utils import timer
+from czf.utils.queue import Queue
 
 __all__ = [
     'LRUCache',
@@ -12,4 +13,5 @@ __all__ = [
     'LocalModelManagerAsync',
     'RemoteModelManager',
     'timer',
+    'Queue',
 ]
