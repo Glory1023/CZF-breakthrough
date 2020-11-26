@@ -159,6 +159,8 @@ std::unordered_map<Action_t, size_t> Node::get_children_visits() const {
   return visits;
 }
 
+float Node::get_q_value() const { return mcts_info_.value; }
+
 void Tree::before_forward(const std::vector<Action_t> &all_actions) {
   // selection
   auto *node = &tree_;
@@ -214,8 +216,9 @@ void Tree::set_forward_result(ForwardResult result) {
 }
 
 TreeResult Tree::get_tree_result() {
+  auto value = tree_.get_q_value();
   return {get_root_visits(), tree_.get_children_visits(),
-          tree_.get_forward_value()};
+          is_two_player_ ? -value : value};
 }
 
 size_t Tree::get_root_visits() const {

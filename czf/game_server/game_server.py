@@ -112,6 +112,7 @@ class EnvManager:
     def __send_search_job(self, env_index):
         '''helper to send a `Job` to actor'''
         env = self._envs[env_index]
+        # workers = [czf_pb2.Node(identity='g', hostname=str(time.time()))] * 2
         job = czf_pb2.Job(
             model=czf_pb2.ModelInfo(name=self._model_info.name,
                                     version=self._model_info.version),
@@ -127,7 +128,8 @@ class EnvManager:
                 env_index=self._proc_index * self._num_env + env_index,
             ))
         job.initiator.CopyFrom(self._node)
-        self._job_queue.put(job.SerializeToString())
+        packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(jobs=[job]))
+        self._job_queue.put(packet.SerializeToString())
         # self.start_time[env_index] = time.time()
 
     def __on_job_completed(self, job: czf_pb2.Job):
@@ -146,11 +148,12 @@ class EnvManager:
         # add to trajectory
         state = env.trajectory.states.add()
         state.observation_tensor[:] = env.state.feature_tensor
-        state.tree_option.CopyFrom(self._tree_option)
+        state.evaluation.value = evaluated_state.evaluation.value
         state.evaluation.policy[:] = policy
         state.transition.current_player = env.state.current_player
         state.transition.action = chosen_action
         # apply action
+        # print(job.workers, time.time())
         # print('apply', self._proc_index, env_index,
         #       time.time() - self.start_time[env_index])
         env.state.apply_action(chosen_action)
@@ -252,6 +255,11 @@ class GameServer:
                 job = packet.job
                 index = job.payload.env_index // self._num_env
                 self._pipe[index][0].send(job.SerializeToString())
+            elif packet_type == 'job_batch':
+                jobs = packet.job_batch.jobs
+                for job in jobs:
+                    index = job.payload.env_index // self._num_env
+                    self._pipe[index][0].send(job.SerializeToString())
 
     async def _recv_model_info_loop(self):
         '''a loop to receive `ModelInfo`'''
@@ -272,18 +280,8 @@ class GameServer:
         loop = asyncio.get_event_loop()
         queue = self._job_queue
         while True:
-            job = await loop.run_in_executor(executor, queue.get)
-            batch = czf_pb2.JobBatch(jobs=[czf_pb2.Job.FromString(job)])
-            for timeout in timer(wait_time=0):
-                try:
-                    job = await asyncio.wait_for(
-                        loop.run_in_executor(executor, queue.get),
-                        timeout=timeout,
-                    )
-                    batch.jobs.append(czf_pb2.Job.FromString(job))
-                except asyncio.exceptions.TimeoutError:
-                    break
-            await self.__send_job(batch)
+            raw = await loop.run_in_executor(executor, queue.get)
+            await self._broker.send(raw)
 
     async def _send_trajectory_loop(self):
         '''a loop to send `Trajectory`'''
@@ -316,8 +314,3 @@ class GameServer:
         print('send traj', len(batch.trajectories))
         packet = czf_pb2.Packet(trajectory_batch=batch)
         await self._upstream.send(packet.SerializeToString())
-
-    async def __send_job(self, batch: czf_pb2.JobBatch):
-        '''helper to send a `JobBatch`'''
-        packet = czf_pb2.Packet(job_batch=batch)
-        await self._broker.send(packet.SerializeToString())

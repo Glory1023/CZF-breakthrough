@@ -1,13 +1,29 @@
 game:
   name: 'tic_tac_toe'
   num_player: 2
+  # number of total actions
   actions: 9
-  # [h_channels, H, W]
-  state_shape: [64, 3, 3]
-  # [C, H, W]
-  observation_shape: [4, 3, 3]
+  # if frame_stack equals to 0, then
+  #   observation_shape is [channel, H, W]
+  #   feature_shape is [channel, H, W]
+  # otherwise,
+  #   observation_shape is [frame_stack * (channel + 1), H, W]
+  #   feature_shape is [(channel + 1), H, W]
+  observation:
+    # number of frames to stack
+    # for 0, (o_1)
+    # for n, (a_1, o_1, ...,  a_n, o_n)
+    frame_stack: 0
+    # C
+    channel: 4
+    # [H, W]
+    spatial_shape: [3, 3]
+  # if a state_spatial_shape is [H, W],
+  # then the state_shape is [h_channels, H, W]
+  state_spatial_shape: [3, 3]
 
 model:
+  name: 'MuZero'
   # h: representation function
   h_blocks: 3
   h_channels: 64
@@ -20,10 +36,13 @@ model:
   v_heads: 1
 
 learner:
+  # rollout timesteps K
   rollout_steps: 5
   # train the model when there are N newly generated states
+  # 500 games * 8 avg_states_per_game
   frequency: 4_000
   # how many states to store in the replay buffer
+  # usually equals to (20 * frequency)
   replay_buffer_size: 100_000
   # how many times to reuse each state in the replay buffer
   replay_buffer_reuse: 1
@@ -44,7 +63,7 @@ mcts:
   c_puct: 1.25
   # discount factor of the return
   discount_factor: 1.
-  # n-step of the return (disable by setting to 0)
+  # n-step of the return (set `0` to disable)
   nstep: 0
   # default min q value on tree
   tree_min_value: -1
@@ -67,5 +86,5 @@ game_server:
 evaluator:
   # evaluation mode
   mode: 'best'
-  # evaluate nce every N checkpoints
+  # evaluate performance every N checkpoints
   frequency: 10

@@ -1,8 +1,8 @@
 game:
-  name: 'gomoku-9-9-5'
-  num_player: 2
+  name: 'BreakoutNoFrameskip-v4'
+  num_player: 1
   # number of total actions
-  actions: 81
+  actions: 4
   # if frame_stack equals to 0, then
   #   observation_shape is [channel, H, W]
   #   feature_shape is [channel, H, W]
@@ -13,41 +13,43 @@ game:
     # number of frames to stack
     # for 0, (o_1)
     # for n, (a_1, o_1, ...,  a_n, o_n)
-    frame_stack: 0
+    frame_stack: 32
     # C
-    channel: 4
+    channel: 3
     # [H, W]
-    spatial_shape: [9, 9]
+    spatial_shape: [96, 96]
   # if a state_spatial_shape is [H, W],
   # then the state_shape is [h_channels, H, W]
-  state_spatial_shape: [9, 9]
+  state_spatial_shape: [6, 6]
 
 model:
-  name: 'MuZero'
+  name: 'MuZeroAtari'
   # h: representation function
-  h_blocks: 5
-  h_channels: 128
+  h_blocks: 3
+  h_channels: 256
   # g: dynamics function
-  g_blocks: 5
-  r_heads: 1
+  g_blocks: 3
+  r_heads: 300
   # f: prediction function
-  f_blocks: 5
-  f_channels: 128
-  v_heads: 1
+  f_blocks: 3
+  f_channels: 256
+  v_heads: 300
 
 learner:
+  # transform of rewards and values
+  transform: 'Atari'
   # rollout timesteps K
   rollout_steps: 5
   # train the model when there are N newly generated states
-  # 80 games * 50 avg_states_per_game
-  frequency: 4_000
+  # 500 games * 8 avg_states_per_game
+  frequency: 20_000
   # how many states to store in the replay buffer
   # usually equals to (20 * frequency)
-  replay_buffer_size: 100_000
+  replay_buffer_size: 400_000
   # how many times to reuse each state in the replay buffer
   replay_buffer_reuse: 1
   # how many states to learn from per batch
-  batch_size: 256
+  batch_size: 192
   # save a checkpoint every N steps
   checkpoint_freq: 10
   optimizer:
@@ -58,30 +60,26 @@ learner:
 
 mcts:
   # Mcts simulation counts
-  simulation_count: 400
+  simulation_count: 50
   # pUCT exploration constant
   c_puct: 1.25
   # discount factor of the return
-  discount_factor: 1.
+  discount_factor: .997
   # n-step of the return (set `0` to disable)
   nstep: 0
-  # default min q value on tree
-  tree_min_value: -1
-  # default max q value on tree
-  tree_max_value: 1
   # root dirichlet noise
   dirichlet:
     # Dir(alpha)
-    alpha: 0.123
+    alpha: 0.5
     # (1 - epsilon) * policy + epsilon * Dir(a);
-    epsilon: 0.25
+    epsilon: 2.5
 
 game_server:
   # drop the softmax temperature from 1 to 0 after the number of steps
   # (set `True` to always enable)
   softmax_temperature_step: True
   # send a sequence every length N (set `0` to send full game)
-  sequence: 0
+  sequence: 20
 
 evaluator:
   # evaluation mode

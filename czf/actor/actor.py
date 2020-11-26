@@ -47,10 +47,8 @@ class Actor:
             cache_size=8,
         )
         # connect to the broker
-        self._broker = get_zmq_dealer(
-            identity=self._node.identity,
-            remote_address=args.broker,
-        )
+        self._broker = get_zmq_dealer(identity=self._node.identity,
+                                      remote_address=args.broker)
         asyncio.create_task(self.__initialize())
 
     async def loop(self):
@@ -59,11 +57,10 @@ class Actor:
                              self._load_model_loop())
 
     async def _recv_job_batch_loop(self):
-        '''a loop to receive `JobBatch`'''
+        '''a loop to receive `JobBatch` from broker'''
         while True:
             raw = await self._broker.recv()
             packet = czf_pb2.Packet.FromString(raw)
-            #print(packet)
             packet_type = packet.WhichOneof('payload')
             if packet_type == 'job_batch':
                 await self.__on_job_batch(packet.job_batch)
@@ -74,7 +71,7 @@ class Actor:
         loop = asyncio.get_event_loop()
         while True:
             raw = await loop.run_in_executor(
-                executor, self._worker_manager.wait_dequeue_result, 5)  #TODO
+                executor, self._worker_manager.wait_dequeue_result, 15)  #TODO
             if not raw:
                 break
             await self._broker.send(raw)

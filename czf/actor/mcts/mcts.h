@@ -103,6 +103,8 @@ class Node {
   size_t get_visits() const;
   /** get children visit counts */
   std::unordered_map<Action_t, size_t> get_children_visits() const;
+  /** get Q-value */
+  float get_q_value() const;
 
  private:
   ForwardInfo forward_info_;

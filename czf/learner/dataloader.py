@@ -87,13 +87,22 @@ class TransitionBuffer:
 
         if self._frame_stack == 0:
             return to_tensor(self._buffer[index].observation)
-        # TODO: !!! repeat on start
+        buffer, first_index = [], index
+        for i in reversed(range(self._frame_stack)):
+            transition = self._buffer[index + i]
+            if transition.is_terminal:
+                first_index = index + i + 1
+                break
+            buffer.append(to_tensor(transition.observation))
+        if len(buffer) < self._frame_stack:
+            # repeat initial observation
+            buffer.extend([
+                to_tensor(self._buffer[first_index].observation)
+                for _ in range(self._frame_stack - len(buffer))
+            ])
         # concat feature tensors into an observation
         # (a_1, o_1), (a_2, o_2), ..., (a_n, o_n)
-        return torch.cat([
-            to_tensor(self._buffer[index + i].observation)
-            for i in range(self._frame_stack)
-        ])
+        return torch.cat(list(reversed(buffer)))
 
     def extend(self, data):
         '''Extend the right side of the buffer by
@@ -132,12 +141,21 @@ class ReplayBuffer(Dataset):
             None,            # `reward`: terminal state has no reward
         ]
     '''
-    def __init__(self, num_player, num_action, observation_config, kstep,
-                 nstep, discount_factor, capacity, train_freq):
+    def __init__(self, num_player, num_action, observation_config, transform,
+                 r_heads, v_heads, kstep, nstep, discount_factor, capacity,
+                 train_freq):
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
         self._num_action = num_action
         self._num_player = num_player
+        self._transform = None
+        if transform == 'Atari':
+            # sign(x) * clip(sqrt(|x| + 1) − 1 + eps * x, 0, 300)
+            epsilon = 0.001
+            self._transform = lambda x: np.sign(x) * np.clip(
+                np.sqrt(np.abs(x) + 1) - 1 + epsilon * x, 0, 300)
+        self._r_heads = r_heads
+        self._v_heads = v_heads
         self._kstep = kstep
         self._nstep = nstep
         self._discount_factor = discount_factor
@@ -177,6 +195,15 @@ class ReplayBuffer(Dataset):
         # o, s, [(v, m, p, a, r)]
         return [observation, torch.tensor(1 / kstep), *transitions]
 
+    @staticmethod
+    def __get_target_dist(x, heads):
+        '''Returns the target distribution of a reward or a value'''
+        x_low, x_high = int(np.floor(x)), int(np.ceil(x))
+        target = np.zeros(2 * heads + 1, dtype=np.float32)
+        target[x_low + heads] = x_high - x
+        target[x_high + heads] = 1 - target[x_low + heads]
+        return target
+
     def is_ready(self):
         '''Check if replay buffer is ready for training.'''
         if self._ready:
@@ -201,6 +228,7 @@ class ReplayBuffer(Dataset):
         # from the terminal state to the initial state
         nstep, gamma = self._nstep, self._discount_factor
         discounted_return = [[] for _ in range(self._num_player)]
+        total_rewards = 0  # only used for single player
         values = []
         buffer = []
         for i, state in enumerate(reversed(trajectory.states)):
@@ -209,18 +237,25 @@ class ReplayBuffer(Dataset):
             observation = observation.tobytes()
             # observation = self._cctx_observation.compress(observation)
             if i == 0:
-                # update statistics
-                for player in range(self._num_player):
-                    self._statistics.player_returns[player].update(
-                        [str(state.transition.rewards[player])])
+                # update statistics (> 1 player)
+                if self._num_player > 1:
+                    for player in range(self._num_player):
+                        self._statistics.player_returns[player].update(
+                            [str(state.transition.rewards[player])])
                 # terminal returns and values (equal to 0 if _real_ terminal)
                 for player in range(self._num_player):
                     discounted_return[player].append(state.evaluation.value)
                 values.append(state.evaluation.value)
                 # terminal transition
-                terminal_value = torch.tensor([
-                    state.transition.rewards[state.transition.current_player]
-                ])
+                terminal_value = state.transition.rewards[
+                    state.transition.current_player]
+                if self._transform:
+                    terminal_value = self._transform(terminal_value)
+                    terminal_value = self.__get_target_dist(
+                        terminal_value, self._v_heads)
+                else:
+                    terminal_value = [terminal_value]
+                terminal_value = torch.tensor(terminal_value)
                 buffer.append(
                     Transition(
                         observation=observation,
@@ -244,12 +279,23 @@ class ReplayBuffer(Dataset):
                 nstep_value += (
                     values[-nstep] -
                     discounted_return[player][-nstep - 1]) * gamma**nstep
+            reward = state.transition.rewards[state.transition.current_player]
+            total_rewards += reward
+            # transform
+            if self._transform:
+                nstep_value = self._transform(nstep_value)
+                nstep_value = self.__get_target_dist(nstep_value,
+                                                     self._v_heads)
+                reward = self._transform(reward)
+                reward = self.__get_target_dist(reward, self._r_heads)
+            else:
+                nstep_value = [nstep_value]
+                reward = [reward]
             # tensor
             action = torch.tensor(state.transition.action)
             policy = torch.tensor(state.evaluation.policy)
-            value = torch.tensor([nstep_value])
-            reward = torch.tensor(
-                [state.transition.rewards[state.transition.current_player]])
+            value = torch.tensor(nstep_value)
+            reward = torch.tensor(reward)
             # (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
             buffer.append(
                 Transition(
@@ -260,8 +306,12 @@ class ReplayBuffer(Dataset):
                     reward=reward,
                     is_terminal=False,
                 ))
+        # update statistics (for single player)
+        if self._num_player == 1:
+            self._statistics.player_returns[0].update([str(total_rewards)])
+        # add trajectory to buffer (from start to terminal)
         self._buffer.extend(reversed(buffer))
-
+        # train the model when there are N newly generated states
         if self._num_games >= self._train_freq:
             self._ready = True
             self._num_games -= self._train_freq

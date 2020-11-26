@@ -1,3 +1,4 @@
+'''MuZero Model'''
 from torch import nn
 import torch
 
@@ -5,6 +6,7 @@ from czf.learner.nn import ResNet
 
 
 class MuZero(nn.Module):
+    '''MuZero'''
     def __init__(
         self,
         observation_shape,
@@ -20,6 +22,8 @@ class MuZero(nn.Module):
         f_blocks,
         f_channels,
         v_heads,
+        # train or eval mode
+        is_train,
     ):
         super().__init__()
         self.observation_shape = observation_shape
@@ -62,6 +66,7 @@ class MuZero(nn.Module):
             nn.Tanh())
 
     def forward_representation(self, observation):
+        '''h: representation function'''
         x = self.representation(observation)
         x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
         x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
@@ -69,6 +74,7 @@ class MuZero(nn.Module):
         return x
 
     def forward_dynamics(self, state, action):
+        '''g: dynamics function'''
         _, height, width = self.observation_shape
         board_action = self.board[action.long()].view(-1, 1, height, width)
         state = torch.cat((state, board_action), 1)
@@ -83,6 +89,7 @@ class MuZero(nn.Module):
         return x, r
 
     def forward(self, state):
+        '''f: prediction function'''
         _, height, width = self.observation_shape
         x = self.prediction(state)
         # policy head

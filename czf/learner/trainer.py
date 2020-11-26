@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
 import zstandard as zstd
 
@@ -13,8 +14,14 @@ from czf.learner.nn import MuZero, MuZeroAtari
 
 class Trainer:
     '''Trainer'''
-    def __init__(self, config, checkpoint_path, model_path, log_path,
-                 model_name, restore):
+    def __init__(self,
+                 config,
+                 checkpoint_path,
+                 model_path,
+                 log_path,
+                 model_name,
+                 restore,
+                 rank=0):
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -37,6 +44,8 @@ class Trainer:
         state_shape = [h_channels, *config['game']['state_spatial_shape']]
         Model = MuZeroAtari if (config['model']['name']
                                 == 'MuZeroAtari') else MuZero
+        # torch.cuda.set_device(rank)
+        # torch.distributed.init_process_group('nccl', init_method='env://')
         self._model = Model(
             observation_shape=observation_shape,
             state_shape=state_shape,
@@ -48,7 +57,11 @@ class Trainer:
             f_blocks=model_config['f_blocks'],
             f_channels=model_config['f_channels'],
             v_heads=model_config['v_heads'],
+            is_train=True,
         ).to(self._device)
+        # self._model = DataParallelWrapper(self._model,
+        #                                   device_ids=[rank],
+        #                                   output_device=rank)
         self._input_obs = torch.rand(1, *observation_shape).to(self._device)
         self._input_state = torch.rand(1, *state_shape).to(self._device)
         self._input_action = torch.rand(1, 1).to(self._device)
@@ -109,6 +122,11 @@ class Trainer:
             writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
 
     def train(self, replay_buffer):
+        '''distributed training wrapper'''
+        # with self._model.no_sync():
+        self._train(replay_buffer)
+
+    def _train(self, replay_buffer):
         '''optimize the model and increment model version'''
         p_criterion = lambda target_policy, policy: (
             (-target_policy * (1e-8 + policy).log()).sum(dim=1))
@@ -119,9 +137,11 @@ class Trainer:
         states_to_train = int(
             len(replay_buffer) / self._replay_retention *
             self._replay_buffer_reuse)
+        # sampler = DistributedSampler(replay_buffer)
         dataloader = DataLoader(
             dataset=replay_buffer,
             batch_size=self._batch_size,
+            # sampler=sampler,
             shuffle=True,
             collate_fn=RolloutBatch,
             pin_memory=True,
