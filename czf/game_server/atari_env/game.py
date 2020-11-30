@@ -15,7 +15,7 @@ class AtariState:
             grayscale_obs=False,
             scale_obs=True,
         )
-        self._buffer = deque(maxlen=frame_stack)
+        self._buffer = deque(maxlen=frame_stack) if frame_stack > 0 else None
         self._num_action = env.action_space.n
         self._all_actions = list(range(self._num_action))
         self._feat, self._done, self._reward = None, None, None
@@ -24,7 +24,6 @@ class AtariState:
     def _stack_action_observation(self, action, obs):
         '''Stack action and observation (4 x H x W)'''
         # HWC => CHW
-        obs = np.array(obs, dtype=np.float32).transpose((2, 0, 1))
         action_plane = np.full((1, *obs.shape[1:]),
                                (action + 1) / self._num_action,
                                dtype=np.float32)
@@ -34,16 +33,24 @@ class AtariState:
     def apply_action(self, action):
         '''Apply action to current state'''
         obs, reward, self._done, _ = self._env.step(action)
+        obs = np.array(obs, dtype=np.float32).transpose((2, 0, 1))
         self._reward = [reward]
-        self._feat = self._stack_action_observation(action, obs)
-        self._buffer.append(self._feat)
+        if self._buffer is not None:
+            self._feat = self._stack_action_observation(action, obs)
+            self._buffer.append(self._feat)
+        else:
+            self._feat = obs
 
     def reset(self):
         '''reset the environment'''
         obs = self._env.reset()
-        self._feat = self._stack_action_observation(-1, obs)
-        for _ in range(self._buffer.maxlen):
-            self._buffer.append(self._feat)
+        obs = np.array(obs, dtype=np.float32).transpose((2, 0, 1))
+        if self._buffer is not None:
+            self._feat = self._stack_action_observation(-1, obs)
+            for _ in range(self._buffer.maxlen):
+                self._buffer.append(self._feat)
+        else:
+            self._feat = obs
         self._reward, self._done = [0.], False
 
     @property
@@ -70,7 +77,9 @@ class AtariState:
     @property
     def observation_tensor(self):
         '''Returns the input tensor for the neural network'''
-        return np.vstack([f for f in self._buffer]).flatten()
+        if self._buffer:
+            return np.vstack([f for f in self._buffer]).flatten()
+        return self._feat.flatten()
 
     @property
     def feature_tensor(self):

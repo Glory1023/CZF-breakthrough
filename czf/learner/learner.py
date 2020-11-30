@@ -86,6 +86,7 @@ class Learner:
             trajectory_batch = await self._trajectory.get()
             for trajectory in trajectory_batch.trajectories:
                 self._replay_buffer.add_trajectory(trajectory)
+            del trajectory_batch
             if self._replay_buffer.is_ready():
                 self._trainer.log_statistics(self._replay_buffer)
                 self._replay_buffer.save_trajectory(self._trajectory_path,

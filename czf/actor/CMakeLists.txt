@@ -15,15 +15,17 @@ add_library(czf.mcts OBJECT mcts/mcts.cc)
 
 # pybind11 module
 pybind11_add_module(worker module.cc $<TARGET_OBJECTS:czf.workers>
-                    $<TARGET_OBJECTS:czf.mcts> $<TARGET_OBJECTS:czf.proto>)
+                    $<TARGET_OBJECTS:czf.mcts> $<TARGET_OBJECTS:czf.proto_cpp>)
 target_link_libraries(worker PRIVATE ${Protobuf_LIBRARIES} ${TORCH_LIBRARIES})
 install(TARGETS worker LIBRARY DESTINATION czf/actor)
 
 # benchmark
 if(BUILD_BENCHMARK)
-  add_executable(benchmark benchmark.cc $<TARGET_OBJECTS:czf.workers>
-                           $<TARGET_OBJECTS:czf.mcts>)
-  target_link_libraries(benchmark PRIVATE pybind11::embed ${TORCH_LIBRARIES})
+  add_executable(
+    benchmark benchmark.cc $<TARGET_OBJECTS:czf.workers>
+              $<TARGET_OBJECTS:czf.mcts> $<TARGET_OBJECTS:czf.proto_cpp>)
+  target_link_libraries(benchmark PRIVATE pybind11::embed ${Protobuf_LIBRARIES}
+                                          ${TORCH_LIBRARIES})
   install(TARGETS benchmark LIBRARY DESTINATION czf/actor)
 endif()
 

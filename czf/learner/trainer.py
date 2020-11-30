@@ -1,4 +1,5 @@
 '''CZF Trainer'''
+from collections import Counter
 from io import BytesIO
 import os
 import numpy as np
@@ -9,6 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 import zstandard as zstd
 
 from czf.learner.dataloader import RolloutBatch
+from czf.learner.distributed import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
 
 
@@ -42,11 +44,11 @@ class Trainer:
         model_config = config['model']
         h_channels = model_config['h_channels']
         state_shape = [h_channels, *config['game']['state_spatial_shape']]
-        Model = MuZeroAtari if (config['model']['name']
-                                == 'MuZeroAtari') else MuZero
+        self._model_cls = config['model']['name']
+        Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
         # torch.cuda.set_device(rank)
         # torch.distributed.init_process_group('nccl', init_method='env://')
-        self._model = Model(
+        self._model_kwargs = dict(
             observation_shape=observation_shape,
             state_shape=state_shape,
             action_dim=action_dim,
@@ -57,6 +59,9 @@ class Trainer:
             f_blocks=model_config['f_blocks'],
             f_channels=model_config['f_channels'],
             v_heads=model_config['v_heads'],
+        )
+        self._model = Model(
+            **self._model_kwargs,
             is_train=True,
         ).to(self._device)
         # self._model = DataParallelWrapper(self._model,
@@ -93,6 +98,7 @@ class Trainer:
             self._model.load_state_dict(state_dict['model'])
             self._optimizer.load_state_dict(state_dict['optimizer'])
         # tensorboard log
+        self._num_player = config['game']['num_player']
         self._summary_writer = SummaryWriter(log_dir=log_path,
                                              purge_step=self.iteration)
         # note: PyTorch supports the `forward` method currently
@@ -106,20 +112,27 @@ class Trainer:
         writer, step = self._summary_writer, self.iteration
         writer.add_scalar('game/num_games', statistics.num_games, step)
         game_steps = statistics.game_steps
-        writer.add_scalar('game/num_states', sum(game_steps), step)
-        writer.add_scalars(
-            'game/steps', {
-                'mean': np.mean(game_steps),
-                'min': np.min(game_steps),
-                'max': np.max(game_steps),
-                'std': np.std(game_steps),
-            }, step)
-        for p, player_returns in enumerate(statistics.player_returns):
-            returns_rates = {
-                key: value / statistics.num_games
-                for key, value in player_returns.items()
-            }
-            writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
+        if game_steps:
+            writer.add_scalar('game/num_states', sum(game_steps), step)
+            writer.add_scalars(
+                'game/steps', {
+                    'mean': np.mean(game_steps),
+                    'min': np.min(game_steps),
+                    'max': np.max(game_steps),
+                    'std': np.std(game_steps),
+                }, step)
+        if self._num_player == 1:
+            score = statistics.player_returns[0]
+            if score:
+                writer.add_scalar(f'game/score', np.mean(score), step)
+        else:
+            for p, player_returns in enumerate(statistics.player_returns):
+                player_returns = Counter(player_returns)
+                returns_rates = {
+                    str(key): value / statistics.num_games
+                    for key, value in player_returns.items()
+                }
+                writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
 
     def train(self, replay_buffer):
         '''distributed training wrapper'''
@@ -128,10 +141,14 @@ class Trainer:
 
     def _train(self, replay_buffer):
         '''optimize the model and increment model version'''
-        p_criterion = lambda target_policy, policy: (
-            (-target_policy * (1e-8 + policy).log()).sum(dim=1))
-        v_criterion = torch.nn.MSELoss(reduction='none')
-        r_criterion = torch.nn.MSELoss(reduction='none')
+        p_criterion = lambda target, prob: ((-target *
+                                             (1e-8 + prob).log()).sum(dim=1))
+        v_criterion = lambda target, prob: ((-target *
+                                             (1e-8 + prob).log()).sum(dim=1))
+        r_criterion = lambda target, prob: ((-target *
+                                             (1e-8 + prob).log()).sum(dim=1))
+        # v_criterion = torch.nn.MSELoss(reduction='none')
+        # r_criterion = torch.nn.MSELoss(reduction='none')
         scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach(
         ) * (1 - scale))
         states_to_train = int(
@@ -212,9 +229,16 @@ class Trainer:
     def save_model(self, checkpoint=False):
         '''save model to file'''
         buffer = BytesIO()
+        Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
+        model = Model(
+            **self._model_kwargs,
+            is_train=False,
+        ).to(self._device)
+        model.load_state_dict(self._model.state_dict())
+        model.eval()
         with torch.jit.optimized_execution(True):
             frozen_net = torch.jit.trace_module(
-                self._model, {
+                model, {
                     'forward_representation': (self._input_obs, ),
                     'forward_dynamics':
                     (self._input_state, self._input_action),

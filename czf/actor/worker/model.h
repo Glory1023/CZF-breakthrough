@@ -26,11 +26,13 @@ class ModelManager {
 
  private:
   /** models on forward devices */
-  std::vector<ModelPtr> models_;
+  std::vector<std::array<ModelPtr, 2>> models_;
   /** all devices to forward */
   std::vector<torch::Device> forward_devices_;
   /** the latest device index */
   std::atomic_size_t device_switch_{0U};
+  /** the latest model pointer */
+  std::atomic_size_t toggle_{0U};
 };
 
 }  // namespace czf::actor::worker

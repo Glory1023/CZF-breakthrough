@@ -41,6 +41,10 @@ async def main():
     parser.add_argument('--pretrain-trajectory',
                         metavar='TRAJECTORY_DIR',
                         help='pretrain the trajectory')
+    parser.add_argument("--local_rank",
+                        type=int,
+                        default=0,
+                        help='distributed rank (provided by pytorch)')
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())

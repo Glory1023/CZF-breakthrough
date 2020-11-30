@@ -66,7 +66,7 @@ class MuZeroAtari(nn.Module):
         # g => reward head
         self.reward_head_front = nn.Sequential(
             nn.Conv2d(in_channels=h_channels, out_channels=1, kernel_size=1),
-            nn.BatchNorm2d(num_features=1),
+            nn.BatchNorm2d(num_features=1, track_running_stats=False),
             nn.ReLU(),
         )
         self.reward_head_end = nn.Sequential(
@@ -79,7 +79,7 @@ class MuZeroAtari(nn.Module):
         # f => policy head
         self.policy_head_front = nn.Sequential(
             nn.Conv2d(in_channels=f_channels, out_channels=2, kernel_size=1),
-            nn.BatchNorm2d(num_features=2),
+            nn.BatchNorm2d(num_features=2, track_running_stats=False),
             nn.ReLU(),
         )
         self.policy_head_end = nn.Sequential(
@@ -89,7 +89,7 @@ class MuZeroAtari(nn.Module):
         # f => value head
         self.value_head_front = nn.Sequential(
             nn.Conv2d(in_channels=f_channels, out_channels=1, kernel_size=1),
-            nn.BatchNorm2d(num_features=1),
+            nn.BatchNorm2d(num_features=1, track_running_stats=False),
             nn.ReLU(),
         )
         self.value_head_end = nn.Sequential(

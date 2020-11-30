@@ -82,6 +82,8 @@ class EnvManager:
             self._game = atari_env.load_game(env_name,
                                              obs_config['frame_stack'])
         self._envs = [None] * args.num_env
+        self._total_rewards = [None] * self._num_env
+        self._num_steps = [None] * self._num_env
         for index in range(args.num_env):
             self.__reset(index, new=True)
 
@@ -108,6 +110,8 @@ class EnvManager:
             czf_pb2.Trajectory(),
             [czf_pb2.Node()],
         )
+        self._total_rewards[env_index] = [0.] * self._game.num_players
+        self._num_steps[env_index] = 0
 
     def __send_search_job(self, env_index):
         '''helper to send a `Job` to actor'''
@@ -118,16 +122,16 @@ class EnvManager:
                                     version=self._model_info.version),
             procedure=[self.operation],
             step=0,
-            workers=env.workers,
             payload=czf_pb2.Job.Payload(
                 state=czf_pb2.WorkerState(
                     legal_actions=env.state.legal_actions,
                     observation_tensor=env.state.observation_tensor,
-                    tree_option=self._tree_option,
                 ),
                 env_index=self._proc_index * self._num_env + env_index,
             ))
         job.initiator.CopyFrom(self._node)
+        # job.payload.state.workers.CopyFrom(env.workers)
+        job.payload.state.tree_option.CopyFrom(self._tree_option)
         packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(jobs=[job]))
         self._job_queue.put(packet.SerializeToString())
         # self.start_time[env_index] = time.time()
@@ -136,13 +140,13 @@ class EnvManager:
         '''callback on job completion'''
         env_index = job.payload.env_index % self._num_env
         env = self._envs[env_index]
-        env.workers[:] = job.workers
+        # env.workers[:] = job.workers
         # choose action according to the policy
         evaluated_state = job.payload.state
         policy = evaluated_state.evaluation.policy
         legal_actions = env.state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
-        num_moves = len(env.trajectory.states)
+        num_moves = self._num_steps[env_index]
         chosen_action = self._action_policy_fn(num_moves, legal_actions,
                                                legal_actions_policy)
         # add to trajectory
@@ -161,6 +165,8 @@ class EnvManager:
             self._after_apply_callback(evaluated_state, env.state)
         # game transition
         state.transition.rewards[:] = env.state.rewards
+        for player, reward in enumerate(env.state.rewards):
+            self._total_rewards[env_index][player] += reward
 
         if env.state.is_terminal:
             # add the terminal state to the trajectory
@@ -169,6 +175,10 @@ class EnvManager:
             state.evaluation.value = 0
             state.transition.current_player = env.state.current_player
             state.transition.rewards[:] = env.state.rewards
+            # add game statistics
+            env.trajectory.statistics.rewards[:] = self._total_rewards[
+                env_index]
+            env.trajectory.statistics.game_steps = self._num_steps[env_index]
             # send optimize job
             self._trajectory_queue.put(env.trajectory.SerializeToString())
             self.__reset(env_index)
@@ -178,6 +188,7 @@ class EnvManager:
             self._trajectory_queue.put(env.trajectory.SerializeToString())
             env.trajectory = czf_pb2.Trajectory()
 
+        self._num_steps[env_index] += 1
         # send a search job
         self.__send_search_job(env_index)
 

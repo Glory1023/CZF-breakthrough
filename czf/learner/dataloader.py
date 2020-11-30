@@ -1,5 +1,5 @@
 '''CZF Dataloader'''
-from collections import Counter, deque, namedtuple
+from collections import deque, namedtuple
 from dataclasses import dataclass
 from itertools import islice, zip_longest
 import numpy as np
@@ -75,7 +75,6 @@ class TransitionBuffer:
 
     def get_rollout(self, index, kstep):
         '''Get rollout at index with kstep'''
-        index += self._frame_stack
         return list(islice(self._buffer, index, index + kstep))
 
     def get_observation(self, index):
@@ -150,7 +149,7 @@ class ReplayBuffer(Dataset):
         self._num_player = num_player
         self._transform = None
         if transform == 'Atari':
-            # sign(x) * clip(sqrt(|x| + 1) − 1 + eps * x, 0, 300)
+            # sign(x) * clip(sqrt(|x| + 1) − 1 + eps * x, 0, 300)
             epsilon = 0.001
             self._transform = lambda x: np.sign(x) * np.clip(
                 np.sqrt(np.abs(x) + 1) - 1 + epsilon * x, 0, 300)
@@ -221,14 +220,13 @@ class ReplayBuffer(Dataset):
           That is, current number of games is not less than `train_freq`
         '''
         #print('add', len(trajectory.states), 'positions')
-        self._pb_trajectory_batch.trajectories.add().CopyFrom(trajectory)
+        # TODO: toggle save trajectory (may exceed 2G!)
+        # self._pb_trajectory_batch.trajectories.add().CopyFrom(trajectory)
         self._num_games += len(trajectory.states)
         self._statistics.num_games += 1
-        self._statistics.game_steps.append(len(trajectory.states))
         # from the terminal state to the initial state
         nstep, gamma = self._nstep, self._discount_factor
         discounted_return = [[] for _ in range(self._num_player)]
-        total_rewards = 0  # only used for single player
         values = []
         buffer = []
         for i, state in enumerate(reversed(trajectory.states)):
@@ -237,11 +235,6 @@ class ReplayBuffer(Dataset):
             observation = observation.tobytes()
             # observation = self._cctx_observation.compress(observation)
             if i == 0:
-                # update statistics (> 1 player)
-                if self._num_player > 1:
-                    for player in range(self._num_player):
-                        self._statistics.player_returns[player].update(
-                            [str(state.transition.rewards[player])])
                 # terminal returns and values (equal to 0 if _real_ terminal)
                 for player in range(self._num_player):
                     discounted_return[player].append(state.evaluation.value)
@@ -280,7 +273,6 @@ class ReplayBuffer(Dataset):
                     values[-nstep] -
                     discounted_return[player][-nstep - 1]) * gamma**nstep
             reward = state.transition.rewards[state.transition.current_player]
-            total_rewards += reward
             # transform
             if self._transform:
                 nstep_value = self._transform(nstep_value)
@@ -306,11 +298,16 @@ class ReplayBuffer(Dataset):
                     reward=reward,
                     is_terminal=False,
                 ))
-        # update statistics (for single player)
-        if self._num_player == 1:
-            self._statistics.player_returns[0].update([str(total_rewards)])
+            del state
         # add trajectory to buffer (from start to terminal)
         self._buffer.extend(reversed(buffer))
+        # update statistics
+        if trajectory.HasField('statistics'):
+            rewards = trajectory.statistics.rewards
+            for player, reward in enumerate(rewards):
+                self._statistics.player_returns[player].append(reward)
+            game_steps = trajectory.statistics.game_steps
+            self._statistics.game_steps.append(game_steps)
         # train the model when there are N newly generated states
         if self._num_games >= self._train_freq:
             self._ready = True
@@ -325,14 +322,12 @@ class ReplayBuffer(Dataset):
         self._statistics = Statistics(
             num_games=0,
             game_steps=[],
-            player_returns=[Counter() for _ in range(self._num_player)],
+            player_returns=[[] for _ in range(self._num_player)],
         )
 
     def save_trajectory(self, path, iteration):
         '''Save all trajectories to the `path` with compression,
         and clear up all trajactories'''
-        return
-        # TODO: exceed 2GB!
         trajectory = self._pb_trajectory_batch.SerializeToString()
         compressed = self._cctx_trajectory.compress(trajectory)
         trajectory_path = path / f'{iteration:05d}.pb.zst'

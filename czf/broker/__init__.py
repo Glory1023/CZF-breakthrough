@@ -4,6 +4,7 @@ import asyncio
 import zmq.asyncio
 
 from czf.broker.broker import Broker
+from czf.broker.named_broker import NamedBroker
 
 
 async def main():
@@ -15,8 +16,11 @@ async def main():
                         required=True,
                         metavar='port',
                         help='broker listen port. e.g., 5566')
+    parser.add_argument('-a', help='actor identity e.g., actor-NV01')
+    parser.add_argument('-g', help='game server identity e.g., gs-NV01')
     args = parser.parse_args()
-    broker = Broker(args)
+    BrokerCls = NamedBroker if args.a and args.g else Broker
+    broker = BrokerCls(args)
     await broker.loop()
 
 

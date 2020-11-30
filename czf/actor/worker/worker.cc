@@ -83,7 +83,8 @@ py::bytes WorkerManager::wait_dequeue_result(size_t max_batch_size) {
   }
   std::string packet_str;
   packet.SerializeToString(&packet_str);
-  return packet_str;
+  py::gil_scoped_acquire acquire;
+  return py::bytes(packet_str);
 }
 
 void WorkerManager::load_from_bytes(const std::string &bytes) {

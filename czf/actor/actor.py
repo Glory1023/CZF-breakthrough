@@ -80,7 +80,7 @@ class Actor:
         '''enqueue jobs into WorkerManager and send `JobRequest`'''
         jobs = []
         for job in job_batch.jobs:
-            job.workers[job.step].CopyFrom(self._node)
+            # job.workers[job.step].CopyFrom(self._node)
             job.step += 1
             # special job: flush model
             if not job.HasField('payload'):

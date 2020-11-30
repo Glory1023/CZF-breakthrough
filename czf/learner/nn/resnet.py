@@ -9,14 +9,16 @@ class BasicBlock(nn.Module):
                                kernel_size=3,
                                stride=1,
                                padding=1)
-        self.bn1 = nn.BatchNorm2d(num_features=out_channels)
+        self.bn1 = nn.BatchNorm2d(num_features=out_channels,
+                                  track_running_stats=False)
         self.relu1 = nn.ReLU()
         self.conv2 = nn.Conv2d(in_channels=out_channels,
                                out_channels=out_channels,
                                kernel_size=3,
                                stride=1,
                                padding=1)
-        self.bn2 = nn.BatchNorm2d(num_features=out_channels)
+        self.bn2 = nn.BatchNorm2d(num_features=out_channels,
+                                  track_running_stats=False)
         self.relu2 = nn.ReLU()
 
     def forward(self, x):
@@ -39,7 +41,7 @@ class ResNet(nn.Module):
                       kernel_size=3,
                       stride=1,
                       padding=1),
-            nn.BatchNorm2d(out_channels),
+            nn.BatchNorm2d(out_channels, track_running_stats=False),
             nn.ReLU(),
         )
         self.convs = nn.ModuleList([

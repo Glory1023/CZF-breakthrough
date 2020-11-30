@@ -110,13 +110,25 @@ message JobRequest {
 // a collection of Job messages
 message JobBatch { repeated Job jobs = 1; }
 
-// a collection of sequential states
-message Trajectory { repeated WorkerState states = 1; }
+// a message for a game _sequence_ (not necessary a full game)
+message Trajectory {
+  // a message for game statistics
+  message Statistics {
+    // cumulative rewards for the full game
+    repeated float rewards = 1;
+    // total game steps
+    int32 game_steps = 2;
+  }
+  // sequential states
+  repeated WorkerState states = 1;
+  // sequence statistics
+  Statistics statistics = 2;
+}
 
 // a collection of Trajectory messages
 message TrajectoryBatch { repeated Trajectory trajectories = 1; }
 
-// a message for evaluation result
+// a message for an Evaluator result
 message EvaluationResult {
   // evaluation iteration
   int32 iteration = 1;
