@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from itertools import islice, zip_longest
 import numpy as np
 import torch
+import torch.multiprocessing as mp
 from torch.utils.data import Dataset
 import zstandard as zstd
 
@@ -109,40 +110,22 @@ class TransitionBuffer:
         self._buffer.extend(data)
 
 
-class ReplayBuffer(Dataset):
-    '''ReplayBuffer is used to store and sample transitions.
-
-    * `__getitem__` support fetching a data sample for a given index.
-      If the data sample is a terminal state, then the index is shifted
-      in one element forward or backward. A data sample is a list of
-      `torch.Tensor` and may contains several `None` at the end due to
-      terminals.
-
-      In addition, a data sample contains the following:
-      .. code-block:: python
-
-        [
-            observation,                     # a stacked feature
-            gradient_scale,                  # 1 / K
-            *[value, mask, policy, reward],  # K-steps transitions
-        ]
-
-      For example, if the next state of `obs` is terminal, then
-      the data sample is:
-      .. code-block:: python
-
-        [
-            `obs`,
-            1.,              # = 1 / 1
-            terminal_value,  # `value`: the value of terminal state
-            0.,              # `mask`: terminal state has no next state
-            None,            # `policy`: terminal state has no policy
-            None,            # `reward`: terminal state has no reward
-        ]
-    '''
-    def __init__(self, num_player, num_action, observation_config, transform,
-                 r_heads, v_heads, kstep, nstep, discount_factor, capacity,
-                 train_freq):
+class Preprocessor:
+    '''Preprocess raw packet to trajectories'''
+    def __init__(
+        self,
+        result_queue,
+        num_player,
+        num_action,
+        observation_config,
+        transform,
+        r_heads,
+        v_heads,
+        kstep,
+        nstep,
+        discount_factor,
+    ):
+        self._result_queue = result_queue
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
         self._num_action = num_action
@@ -158,41 +141,6 @@ class ReplayBuffer(Dataset):
         self._kstep = kstep
         self._nstep = nstep
         self._discount_factor = discount_factor
-        self._train_freq = train_freq
-        self._buffer = TransitionBuffer(capacity, self._frame_stack,
-                                        self._spatial_shape)
-        self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
-        # self._cctx_observation = zstd.ZstdCompressor()
-        self._cctx_trajectory = zstd.ZstdCompressor()
-        self._num_games = 0
-        self._ready = False
-        self.reset_statistics()
-
-    def __len__(self):
-        return len(self._buffer)
-
-    def __getitem__(self, index):
-        if self._buffer[index].is_terminal:
-            if index == 0:
-                index += 1
-            else:
-                index -= 1
-        observation = self._buffer.get_observation(index)
-        rollout = self._buffer.get_rollout(index, self._kstep)
-        kstep, transitions = 0, []
-        for transition in rollout:
-            kstep += 1
-            transitions.extend([
-                transition.value,
-                torch.tensor(0 if transition.is_terminal else 1),
-                transition.policy,
-                transition.action,
-                transition.reward,
-            ])
-            if transition.is_terminal:
-                break
-        # o, s, [(v, m, p, a, r)]
-        return [observation, torch.tensor(1 / kstep), *transitions]
 
     @staticmethod
     def __get_target_dist(x, heads):
@@ -203,13 +151,6 @@ class ReplayBuffer(Dataset):
         target[x_high + heads] = 1 - target[x_low + heads]
         return target
 
-    def is_ready(self):
-        '''Check if replay buffer is ready for training.'''
-        if self._ready:
-            self._ready = False
-            return True
-        return False
-
     def add_trajectory(self, trajectory: czf_pb2.Trajectory):
         '''Add a trajectory to the replay buffer
 
@@ -219,11 +160,13 @@ class ReplayBuffer(Dataset):
         * Check if the replay buffer is ready to update.
           That is, current number of games is not less than `train_freq`
         '''
+        def to_bytes(x, dtype=np.float32):
+            x = np.array(x, dtype=dtype)
+            return x.tobytes()
+
         #print('add', len(trajectory.states), 'positions')
         # TODO: toggle save trajectory (may exceed 2G!)
         # self._pb_trajectory_batch.trajectories.add().CopyFrom(trajectory)
-        self._num_games += len(trajectory.states)
-        self._statistics.num_games += 1
         # from the terminal state to the initial state
         nstep, gamma = self._nstep, self._discount_factor
         discounted_return = [[] for _ in range(self._num_player)]
@@ -231,8 +174,7 @@ class ReplayBuffer(Dataset):
         buffer = []
         for i, state in enumerate(reversed(trajectory.states)):
             # tensor
-            observation = np.array(state.observation_tensor, dtype=np.float32)
-            observation = observation.tobytes()
+            observation = to_bytes(state.observation_tensor)
             # observation = self._cctx_observation.compress(observation)
             if i == 0:
                 # terminal returns and values (equal to 0 if _real_ terminal)
@@ -248,7 +190,8 @@ class ReplayBuffer(Dataset):
                         terminal_value, self._v_heads)
                 else:
                     terminal_value = [terminal_value]
-                terminal_value = torch.tensor(terminal_value)
+                terminal_value = to_bytes(terminal_value)
+                # terminal_value = None  #debug
                 buffer.append(
                     Transition(
                         observation=observation,
@@ -284,10 +227,10 @@ class ReplayBuffer(Dataset):
                 nstep_value = [nstep_value]
                 reward = [reward]
             # tensor
-            action = torch.tensor(state.transition.action)
-            policy = torch.tensor(state.evaluation.policy)
-            value = torch.tensor(nstep_value)
-            reward = torch.tensor(reward)
+            action = to_bytes(state.transition.action, dtype=np.int64)
+            policy = to_bytes(state.evaluation.policy)
+            value = to_bytes(nstep_value)
+            reward = to_bytes(reward)
             # (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
             buffer.append(
                 Transition(
@@ -299,15 +242,176 @@ class ReplayBuffer(Dataset):
                     is_terminal=False,
                 ))
             del state
-        # add trajectory to buffer (from start to terminal)
-        self._buffer.extend(reversed(buffer))
         # update statistics
+        stats = Statistics(
+            num_games=1,
+            game_steps=[len(trajectory.states)],
+            player_returns=[[] for _ in range(self._num_player)],
+        )
         if trajectory.HasField('statistics'):
-            rewards = trajectory.statistics.rewards
-            for player, reward in enumerate(rewards):
-                self._statistics.player_returns[player].append(reward)
-            game_steps = trajectory.statistics.game_steps
-            self._statistics.game_steps.append(game_steps)
+            stats.game_steps.append(trajectory.statistics.game_steps)
+            for player, reward in enumerate(trajectory.statistics.rewards):
+                stats.player_returns[player].append(reward)
+        # add trajectory to buffer (from start to terminal)
+        self._result_queue.put((stats, list(reversed(buffer))))
+
+
+def run_preprocessor(raw_queue, *args):
+    '''run EnvManager'''
+    preprocessor = Preprocessor(*args)
+    while True:
+        raw = raw_queue.get()
+        packet = czf_pb2.Packet.FromString(raw)
+        batch = packet.trajectory_batch.trajectories
+        for trajectory in batch:
+            preprocessor.add_trajectory(trajectory)
+        packet.ClearField('trajectory_batch')
+
+
+class PreprocessQueue:
+    '''Preprocess job queue'''
+    def __init__(
+        self,
+        num_player,
+        num_action,
+        observation_config,
+        transform,
+        r_heads,
+        v_heads,
+        kstep,
+        nstep,
+        discount_factor,
+    ):
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+        # multiprocessing
+        self._raw_queue = mp.Queue()
+        self._result_queue = mp.Queue()
+        self._process = [
+            mp.Process(target=run_preprocessor,
+                       args=(
+                           self._raw_queue,
+                           self._result_queue,
+                           num_player,
+                           num_action,
+                           observation_config,
+                           transform,
+                           r_heads,
+                           v_heads,
+                           kstep,
+                           nstep,
+                           discount_factor,
+                       )) for _ in range(40)
+        ]
+        for process in self._process:
+            process.start()
+
+    def put(self, raw: bytes):
+        '''Enqueue raw protobuf packet'''
+        self._raw_queue.put(raw)
+
+    def get(self):
+        '''Dequeue preprocessed trajectory'''
+        return self._result_queue.get()
+
+
+class ReplayBuffer(Dataset):
+    '''ReplayBuffer is used to store and sample transitions.
+
+    * `__getitem__` support fetching a data sample for a given index.
+      If the data sample is a terminal state, then the index is shifted
+      in one element forward or backward. A data sample is a list of
+      `torch.Tensor` and may contains several `None` at the end due to
+      terminals.
+
+      In addition, a data sample contains the following:
+      .. code-block:: python
+
+        [
+            observation,                     # a stacked feature
+            gradient_scale,                  # 1 / K
+            *[value, mask, policy, reward],  # K-steps transitions
+        ]
+
+      For example, if the next state of `obs` is terminal, then
+      the data sample is:
+      .. code-block:: python
+
+        [
+            `obs`,
+            1.,              # = 1 / 1
+            terminal_value,  # `value`: the value of terminal state
+            0.,              # `mask`: terminal state has no next state
+            None,            # `policy`: terminal state has no policy
+            None,            # `reward`: terminal state has no reward
+        ]
+    '''
+    def __init__(self, num_player, observation_config, kstep, capacity,
+                 train_freq):
+        self._spatial_shape = observation_config['spatial_shape']
+        self._frame_stack = observation_config['frame_stack']
+        self._num_player = num_player
+        self._kstep = kstep
+        self._train_freq = train_freq
+        self._buffer = TransitionBuffer(capacity, self._frame_stack,
+                                        self._spatial_shape)
+        self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
+        # self._cctx_observation = zstd.ZstdCompressor()
+        self._cctx_trajectory = zstd.ZstdCompressor()
+        self._num_games = 0
+        self._ready = False
+        self.reset_statistics()
+
+    def __len__(self):
+        return len(self._buffer)
+
+    def __getitem__(self, index):
+        def to_tensor(x, dtype=np.float32, squeeze=False):
+            if x is None:
+                return None
+            x = np.frombuffer(x, dtype=dtype)
+            if squeeze:
+                x = x.squeeze()
+            return torch.tensor(x)
+
+        if self._buffer[index].is_terminal:
+            if index == 0:
+                index += 1
+            else:
+                index -= 1
+        observation = self._buffer.get_observation(index)
+        rollout = self._buffer.get_rollout(index, self._kstep)
+        kstep, transitions = 0, []
+        for transition in rollout:
+            kstep += 1
+            transitions.extend([
+                to_tensor(transition.value),
+                torch.tensor(0 if transition.is_terminal else 1),
+                to_tensor(transition.policy),
+                to_tensor(transition.action, dtype=np.int64, squeeze=True),
+                to_tensor(transition.reward),
+            ])
+            if transition.is_terminal:
+                break
+        # o, s, [(v, m, p, a, r)]
+        return [observation, torch.tensor(1 / kstep), *transitions]
+
+    def is_ready(self):
+        '''Check if replay buffer is ready for training.'''
+        if self._ready:
+            self._ready = False
+            return True
+        return False
+
+    def add_trajectory(self, stats: Statistics, trajectory: list):
+        self._num_games += sum(stats.game_steps)
+        # update statistics
+        self._statistics.num_games += stats.num_games
+        self._statistics.game_steps.extend(stats.game_steps)
+        for player, player_returns in enumerate(stats.player_returns):
+            self._statistics.player_returns[player].extend(player_returns)
+        # add trajectory to buffer
+        self._buffer.extend(trajectory)
         # train the model when there are N newly generated states
         if self._num_games >= self._train_freq:
             self._ready = True

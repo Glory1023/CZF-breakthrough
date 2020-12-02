@@ -1,9 +1,10 @@
 '''CZF Learner'''
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from czf.learner.trainer import Trainer
-from czf.learner.dataloader import ReplayBuffer
+from czf.learner.dataloader import PreprocessQueue, ReplayBuffer
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_router, LocalModelManager
 
@@ -21,17 +22,8 @@ class Learner:
                      self._trajectory_path):
             Path(path).mkdir(parents=True, exist_ok=True)
         # queue
-        self._trajectory = asyncio.Queue()
         self._model_request = asyncio.Queue()
-        # model provider
-        self._model_peers = set()  # peers to receive the model
-        self._model_provider = LocalModelManager(
-            storage=model_path,
-            cache_size=8,
-        )
-        self._socket = get_zmq_router(listen_port=args.listen)
-        # replay buffer
-        self._replay_buffer = ReplayBuffer(
+        self._trajectory = PreprocessQueue(
             num_player=config['game']['num_player'],
             num_action=config['game']['actions'],
             observation_config=config['game']['observation'],
@@ -41,6 +33,12 @@ class Learner:
             kstep=config['learner']['rollout_steps'],
             nstep=config['mcts']['nstep'],
             discount_factor=config['mcts']['discount_factor'],
+        )
+        # replay buffer
+        self._replay_buffer = ReplayBuffer(
+            num_player=config['game']['num_player'],
+            observation_config=config['game']['observation'],
+            kstep=config['learner']['rollout_steps'],
             capacity=config['learner']['replay_buffer_size'],
             train_freq=config['learner']['frequency'],
         )
@@ -56,6 +54,13 @@ class Learner:
         # pretrain the trajectory
         if args.pretrain_trajectory:
             pass  # TODO
+        # model provider
+        self._model_peers = set()  # peers to receive the model
+        self._model_provider = LocalModelManager(
+            storage=model_path,
+            cache_size=8,
+        )
+        self._socket = get_zmq_router(listen_port=args.listen)
 
     async def loop(self):
         '''main loop'''
@@ -70,7 +75,7 @@ class Learner:
             packet_type = packet.WhichOneof('payload')
             # print(packet)
             if packet_type == 'trajectory_batch':
-                await self._trajectory.put(packet.trajectory_batch)
+                self._trajectory.put(raw)
             elif packet_type == 'model_request':
                 await self._model_request.put((identity, packet.model_request))
             elif packet_type == 'evaluation_result':
@@ -82,11 +87,12 @@ class Learner:
 
     async def _trajectory_loop(self):
         '''store trajectory loop'''
+        executor = ThreadPoolExecutor(max_workers=1)
+        loop = asyncio.get_event_loop()
         while True:
-            trajectory_batch = await self._trajectory.get()
-            for trajectory in trajectory_batch.trajectories:
-                self._replay_buffer.add_trajectory(trajectory)
-            del trajectory_batch
+            stats, trajectory = await loop.run_in_executor(
+                executor, self._trajectory.get)
+            self._replay_buffer.add_trajectory(stats, trajectory)
             if self._replay_buffer.is_ready():
                 self._trainer.log_statistics(self._replay_buffer)
                 self._replay_buffer.save_trajectory(self._trajectory_path,

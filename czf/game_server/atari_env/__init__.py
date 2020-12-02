@@ -3,9 +3,9 @@ import gym
 from czf.game_server.atari_env.game import AtariGame
 
 
-def load_game(name: str, frame_stack=32):
+def load_game(name: str, frame_stack=32, noop_max=0):
     '''Load AtariGame by name'''
-    return AtariGame(name, frame_stack)
+    return AtariGame(name, frame_stack, noop_max)
 
 
 def available_games():
