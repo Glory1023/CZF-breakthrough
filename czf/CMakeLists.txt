@@ -1,4 +1,4 @@
-find_package(Protobuf)
+find_package(Protobuf REQUIRED)
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
 include_directories(SYSTEM ${CMAKE_CURRENT_BINARY_DIR})
 

@@ -22,11 +22,11 @@ Transition = namedtuple('Transition', [
 
 @dataclass
 class Statistics:
-    '''Statistics for a `ReplayBuffer`
+    '''Statistics for a :class:`ReplayBuffer`
 
-    * `num_games`: total number of games
-    * `game_steps`: a list of steps for each game
-    * `player_returns`: returns for each player
+    :param num_games: total number of games
+    :param game_steps: a list of steps for each game
+    :param player_returns: returns for each player
     '''
     num_games: int
     game_steps: list
@@ -34,7 +34,7 @@ class Statistics:
 
 
 class RolloutBatch:
-    '''RolloutBatch is used to collate data samples from `ReplayBuffer`.
+    '''RolloutBatch is used to collate data samples from :class:`ReplayBuffer`.
 
     Each data sample is a list of `torch.Tensor` and may (intentionally)
     contains serveral `None` at the end. As a result, we not only have to
@@ -59,8 +59,9 @@ class TransitionBuffer:
     When `frame_stack` equals to 0, it essentially works as a deque with compression.
 
     Usage:
-    * Store transitions with compression
-    * Get a transition with stacked features from the buffer
+
+    - Store transitions with compression
+    - Get a transition with stacked features from the buffer
     '''
     def __init__(self, maxlen, frame_stack, spatial_shape):
         self._buffer = deque(maxlen=(maxlen + frame_stack))
@@ -79,7 +80,7 @@ class TransitionBuffer:
         return list(islice(self._buffer, index, index + kstep))
 
     def get_observation(self, index):
-        '''Get observation (stacked features) at index.'''
+        '''Get observation (stacked features) at index'''
         def to_tensor(obs):
             # obs = self._dctx.decompress(obs)
             obs = np.array(np.frombuffer(obs, dtype=np.float32))
@@ -154,11 +155,11 @@ class Preprocessor:
     def add_trajectory(self, trajectory: czf_pb2.Trajectory):
         '''Add a trajectory to the replay buffer
 
-        * Process the trajectory into a sequence of `Transition`:
-          (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
-        * Update the `Statistics` information of the replay buffer.
-        * Check if the replay buffer is ready to update.
-          That is, current number of games is not less than `train_freq`
+        - | Process the trajectory into a sequence of :class:`Transition`:
+          | (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
+        - Update the :class:`Statistics` information of the replay buffer.
+        - | Check if the replay buffer is ready to update.
+          | That is, current number of games is not less than `train_freq`
         '''
         def to_bytes(x, dtype=np.float32):
             x = np.array(x, dtype=dtype)
@@ -191,7 +192,6 @@ class Preprocessor:
                 else:
                     terminal_value = [terminal_value]
                 terminal_value = to_bytes(terminal_value)
-                # terminal_value = None  #debug
                 buffer.append(
                     Transition(
                         observation=observation,
@@ -257,7 +257,7 @@ class Preprocessor:
 
 
 def run_preprocessor(raw_queue, *args):
-    '''run EnvManager'''
+    '''run :class:`EnvManager`'''
     preprocessor = Preprocessor(*args)
     while True:
         raw = raw_queue.get()
@@ -318,33 +318,32 @@ class PreprocessQueue:
 class ReplayBuffer(Dataset):
     '''ReplayBuffer is used to store and sample transitions.
 
-    * `__getitem__` support fetching a data sample for a given index.
-      If the data sample is a terminal state, then the index is shifted
-      in one element forward or backward. A data sample is a list of
-      `torch.Tensor` and may contains several `None` at the end due to
-      terminals.
+    * | `__getitem__` support fetching a data sample for a given index.
+      | If the data sample is a terminal state, then the index is shifted
+      | in one element forward or backward. A data sample is a list of
+      | `torch.Tensor` and may contains several `None` at the end due to terminals.
+      | In addition, a data sample contains the following:
 
-      In addition, a data sample contains the following:
-      .. code-block:: python
+        .. code-block:: python
 
-        [
-            observation,                     # a stacked feature
-            gradient_scale,                  # 1 / K
-            *[value, mask, policy, reward],  # K-steps transitions
-        ]
+            [
+                observation,                     # a stacked feature
+                gradient_scale,                  # 1 / K
+                *[value, mask, policy, reward],  # K-steps transitions
+            ]
 
-      For example, if the next state of `obs` is terminal, then
-      the data sample is:
-      .. code-block:: python
+      | For example, if the next state of `obs` is terminal, then the data sample is:
 
-        [
-            `obs`,
-            1.,              # = 1 / 1
-            terminal_value,  # `value`: the value of terminal state
-            0.,              # `mask`: terminal state has no next state
-            None,            # `policy`: terminal state has no policy
-            None,            # `reward`: terminal state has no reward
-        ]
+        .. code-block:: python
+
+            [
+                obs,
+                1.,              # = 1 / 1
+                terminal_value,  # `value`: the value of terminal state
+                0.,              # `mask`: terminal state has no next state
+                None,            # `policy`: terminal state has no policy
+                None,            # `reward`: terminal state has no reward
+            ]
     '''
     def __init__(self, num_player, observation_config, kstep, capacity,
                  train_freq):
@@ -397,13 +396,14 @@ class ReplayBuffer(Dataset):
         return [observation, torch.tensor(1 / kstep), *transitions]
 
     def is_ready(self):
-        '''Check if replay buffer is ready for training.'''
+        '''Check if replay buffer is ready for training'''
         if self._ready:
             self._ready = False
             return True
         return False
 
     def add_trajectory(self, stats: Statistics, trajectory: list):
+        '''Add a trajectory and its statistics'''
         self._num_games += sum(stats.game_steps)
         # update statistics
         self._statistics.num_games += stats.num_games
@@ -418,11 +418,11 @@ class ReplayBuffer(Dataset):
             self._num_games -= self._train_freq
 
     def get_statistics(self):
-        '''Returns `Statistics` of recent trajectories'''
+        '''Returns :class:`Statistics` of recent trajectories'''
         return self._statistics
 
     def reset_statistics(self):
-        '''Reset the `Statistics` information of recent trajectories'''
+        '''Reset the :class:`Statistics` information of recent trajectories'''
         self._statistics = Statistics(
             num_games=0,
             game_steps=[],

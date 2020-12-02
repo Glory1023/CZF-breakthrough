@@ -14,7 +14,7 @@ from czf.utils import get_zmq_dealer, timer, Queue
 
 
 async def run_env_manager(*args):
-    '''run EnvManager'''
+    '''run :class:`EnvManager`'''
     manager = EnvManager(*args)
     manager.start_search()
     await manager.loop()
@@ -27,7 +27,12 @@ class ModelInfo(ctypes.Structure):
 
 @dataclass
 class EnvInfo:
-    '''Environement information'''
+    '''Environement information
+
+    :param state: the game simulator state
+    :param trajectory: a segment of trajectory (not necessary from intial)
+    :param workers: all workers that has handled the job (reserved for affinity)
+    '''
     state: typing.Any
     trajectory: czf_pb2.Trajectory
     workers: list
