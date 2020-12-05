@@ -2,12 +2,14 @@
 from collections import Counter
 from io import BytesIO
 import os
+import subprocess
+import sys
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
 # from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
-import zstandard as zstd
+# import zstandard as zstd
 
 from czf.learner.dataloader import RolloutBatch
 # from czf.learner.distributed import DataParallelWrapper
@@ -67,9 +69,8 @@ class Trainer:
         # self._model = DataParallelWrapper(self._model,
         #                                   device_ids=[rank],
         #                                   output_device=rank)
-        self._input_obs = torch.rand(1, *observation_shape).to(self._device)
-        self._input_state = torch.rand(1, *state_shape).to(self._device)
-        self._input_action = torch.rand(1, 1).to(self._device)
+        self._observation_shape = observation_shape
+        self._state_shape = state_shape
         # optimizer
         torch.backends.cudnn.benchmark = True
         self._replay_buffer_reuse = config['learner']['replay_buffer_reuse']
@@ -87,17 +88,17 @@ class Trainer:
             nesterov=config['learner']['optimizer']['nesterov'],
         )
         # compressor
-        self._model_compressor = zstd.ZstdCompressor()
-        self._ckpt_compressor = zstd.ZstdCompressor()
+        # self._ckpt_compressor = zstd.ZstdCompressor()
         # restore the latest checkpoint
         if restore:
             print('Restore from', restore)
             with open(restore, 'rb') as model_blob:
-                dctx = zstd.ZstdDecompressor()
-                model = dctx.decompress(model_blob.read())
-            state_dict = torch.load(BytesIO(model))
+                buffer = model_blob.read()
+                # dctx = zstd.ZstdDecompressor()
+                # buffer = dctx.decompress(buffer)
+            state_dict = torch.load(BytesIO(buffer))
             self.iteration = state_dict['iteration']
-            self._model.load_state_dict(state_dict['model'])
+            self._model.load(state_dict['model'])
             self._optimizer.load_state_dict(state_dict['optimizer'])
         # tensorboard log
         self._num_player = config['game']['num_player']
@@ -105,7 +106,10 @@ class Trainer:
                                              purge_step=self.iteration)
         # note: PyTorch supports the `forward` method currently
         # so, we can only trace the prediction model now.
-        self._summary_writer.add_graph(self._model, (self._input_state, ))
+        # input_obs = torch.rand(1, *observation_shape).to(self._device)
+        input_state = torch.rand(1, *state_shape).to(self._device)
+        # input_action = torch.rand(1, 1).to(self._device)
+        self._summary_writer.add_graph(self._model, (input_state, ))
 
     def log_statistics(self, replay_buffer):
         '''log statistics for recent trajectories'''
@@ -152,12 +156,14 @@ class Trainer:
         p_criterion = lambda target, prob: ((-target *
                                              (1e-8 + prob).log()).sum(dim=1))
         if self._v_loss == 'mse':
-            v_criterion = torch.nn.MSELoss(reduction='none')
+            v_criterion = lambda target, pred: torch.nn.MSELoss(
+                reduction='none')(target, pred).squeeze()
         else:  # == 'cross_entropy'
             v_criterion = lambda target, prob: (
                 (-target * (1e-8 + prob).log()).sum(dim=1))
         if self._r_loss == 'mse':
-            r_criterion = torch.nn.MSELoss(reduction='none')
+            r_criterion = lambda target, pred: torch.nn.MSELoss(
+                reduction='none')(target, pred).squeeze()
         else:  # == 'cross_entropy'
             r_criterion = lambda target, prob: (
                 (-target * (1e-8 + prob).log()).sum(dim=1))
@@ -175,6 +181,8 @@ class Trainer:
             # shuffle=True,
             collate_fn=RolloutBatch,
             pin_memory=True,
+            prefetch_factor=4,
+            num_workers=40,  #TODO
         )
         self._model.train()
         num_trained_states = 0
@@ -205,11 +213,11 @@ class Trainer:
                 weight = masked_weight
                 # scale gradient
                 if i > 0:
-                    v_loss_i = scale_gradient(v_loss_i, scale.view(-1, 1))
+                    v_loss_i = scale_gradient(v_loss_i, scale)
                 scale = scale[mask]
                 if i > 0:
                     p_loss_i = scale_gradient(p_loss_i, scale)
-                r_loss_i = scale_gradient(r_loss_i, scale.view(-1, 1))
+                r_loss_i = scale_gradient(r_loss_i, scale)
                 # total loss
                 p_loss_i = p_loss_i.sum()
                 v_loss_i = v_loss_i.sum()
@@ -245,44 +253,34 @@ class Trainer:
     def save_model(self, checkpoint=False):
         '''save model to file'''
         buffer = BytesIO()
-        Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
-        model = Model(
-            **self._model_kwargs,
-            is_train=False,
-        ).to(self._device)
-        model.load_state_dict(self._model.state_dict())
-        model.eval()
-        with torch.jit.optimized_execution(True):
-            frozen_net = torch.jit.trace_module(
-                model, {
-                    'forward_representation': (self._input_obs, ),
-                    'forward_dynamics':
-                    (self._input_state, self._input_action),
-                    'forward': (self._input_state, ),
-                })
-            torch.jit.save(frozen_net, buffer)
+        torch.save(
+            {
+                'name': self.model_name,
+                'iteration': self.iteration,
+                'model': self._model,
+                'optimizer': self._optimizer.state_dict(),
+                'observation_shape': self._observation_shape,
+                'state_shape': self._state_shape,
+            }, buffer)
         buffer.seek(0)
-        compressed = self._model_compressor.compress(buffer.read())
-        model_path = self._model_dir / f'{self.iteration:05d}.pt.zst'
-        model_path.write_bytes(compressed)
-        latest_model = self._model_dir / 'latest.pt.zst'
-        temp_model = self._model_dir / 'latest-temp.pt.zst'
-        os.symlink(model_path, temp_model)
-        os.replace(temp_model, latest_model)
-        # save a checkpoint
+        buffer = buffer.read()
+        # buffer = self._ckpt_compressor.compress(buffer)
+        ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt.zst'
+        ckpt_path.write_bytes(buffer)
+        # frozen model
+        args = [
+            sys.executable,
+            '-m',
+            'czf.utils.model_saver',
+            '--checkpoint',
+            str(ckpt_path),
+            '--model-dir',
+            str(self._model_dir),
+        ]
+        if not checkpoint:
+            args.append('--rm')
+        subprocess.run(args, check=True, env=os.environ.copy())
         if checkpoint:
-            buffer = BytesIO()
-            torch.save(
-                {
-                    'name': self.model_name,
-                    'iteration': self.iteration,
-                    'model': self._model.state_dict(),
-                    'optimizer': self._optimizer.state_dict(),
-                }, buffer)
-            buffer.seek(0)
-            compressed = self._ckpt_compressor.compress(buffer.read())
-            ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt.zst'
-            ckpt_path.write_bytes(compressed)
             # update the latest checkpoint
             latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
             temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'

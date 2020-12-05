@@ -14,9 +14,10 @@ def main(args):
     device = 'cuda'
     # load checkpoint
     with open(args.checkpoint, 'rb') as model_blob:
-        dctx = zstd.ZstdDecompressor()
-        ckpt = dctx.decompress(model_blob.read())
-    state_dict = torch.load(BytesIO(ckpt))
+        buffer = model_blob.read()
+        # dctx = zstd.ZstdDecompressor()
+        # buffer = dctx.decompress(buffer)
+    state_dict = torch.load(BytesIO(buffer))
     model = state_dict['model'].to(device)
     iteration = state_dict['iteration']
     observation_shape = state_dict['observation_shape']
@@ -37,16 +38,16 @@ def main(args):
             })
         torch.jit.save(frozen_net, buffer)
     # save model
-    model_path = Path(args.model_path)
+    model_dir = Path(args.model_dir)
     buffer.seek(0)
     cctx = zstd.ZstdCompressor()
     compressed = cctx.compress(buffer.read())
-    model_file = model_path / f'{iteration:05d}.pt.zst'
-    model_file.write_bytes(compressed)
+    model_path = model_dir / f'{iteration:05d}.pt.zst'
+    model_path.write_bytes(compressed)
     # update the latest model file
-    latest_model = model_path / 'latest.pt.zst'
-    temp_model = model_path / 'latest-temp.pt.zst'
-    os.symlink(model_file, temp_model)
+    latest_model = model_dir / 'latest.pt.zst'
+    temp_model = model_dir / 'latest-temp.pt.zst'
+    os.symlink(model_path, temp_model)
     os.replace(temp_model, latest_model)
     if args.rm:
         os.remove(args.checkpoint)
@@ -58,9 +59,9 @@ def run_main():
     parser.add_argument('--checkpoint',
                         required=True,
                         help='path to load checkpoint')
-    parser.add_argument('--model-path',
+    parser.add_argument('--model-dir',
                         required=True,
-                        help='path to save model')
+                        help='directory to save model')
     parser.add_argument('--rm',
                         action='store_true',
                         help='remove the checkpoint')
