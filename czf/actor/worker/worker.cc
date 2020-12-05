@@ -114,9 +114,9 @@ void WorkerManager::preprocess_pb_job(std::unique_ptr<Job> &job) {
   job_pb.mutable_payload()->mutable_state()->clear_observation_tensor();
   // worker job
   job_pb.SerializeToString(&job->job);
+  job->tree.set_option(tree_option, game_info.is_two_player);
   job->tree.set_forward_result({std::move(observation), {}, 0, 0});
   job->tree.expand_root(legal_actions);
-  job->tree.set_option(tree_option, game_info.is_two_player);
 }
 
 void WorkerManager::postprocess_pb_job(std::unique_ptr<Job> &job) {

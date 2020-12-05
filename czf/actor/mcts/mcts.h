@@ -56,7 +56,7 @@ struct MctsInfo {
   /** get value normalized by `TreeInfo` */
   float get_normalized_value(const TreeInfo &) const;
   /** Mcts update helper function */
-  float update(bool, float, bool, float);
+  float update(float, bool, bool, float);
 };
 
 class Node;

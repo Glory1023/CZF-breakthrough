@@ -4,13 +4,13 @@ from io import BytesIO
 import os
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import DataLoader, WeightedRandomSampler
+# from torch.utils.data.distributed import DistributedSampler
 from torch.utils.tensorboard import SummaryWriter
 import zstandard as zstd
 
 from czf.learner.dataloader import RolloutBatch
-from czf.learner.distributed import DataParallelWrapper
+# from czf.learner.distributed import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
 
 
@@ -77,6 +77,8 @@ class Trainer:
             'replay_buffer_size'] / config['learner']['frequency']
         self._rollout_steps = config['learner']['rollout_steps']
         self._batch_size = config['learner']['batch_size']
+        self._r_loss = model_config['r_loss']
+        self._v_loss = model_config['v_loss']
         self._optimizer = torch.optim.SGD(
             self._model.parameters(),
             lr=config['learner']['optimizer']['learning_rate'],
@@ -124,7 +126,13 @@ class Trainer:
         if self._num_player == 1:
             score = statistics.player_returns[0]
             if score:
-                writer.add_scalar(f'game/score', np.mean(score), step)
+                writer.add_scalars(
+                    'game/score', {
+                        'mean': np.mean(score),
+                        'min': np.min(score),
+                        'max': np.max(score),
+                        'std': np.std(score),
+                    }, step)
         else:
             for p, player_returns in enumerate(statistics.player_returns):
                 player_returns = Counter(player_returns)
@@ -143,29 +151,35 @@ class Trainer:
         '''optimize the model and increment model version'''
         p_criterion = lambda target, prob: ((-target *
                                              (1e-8 + prob).log()).sum(dim=1))
-        v_criterion = lambda target, prob: ((-target *
-                                             (1e-8 + prob).log()).sum(dim=1))
-        r_criterion = lambda target, prob: ((-target *
-                                             (1e-8 + prob).log()).sum(dim=1))
-        # v_criterion = torch.nn.MSELoss(reduction='none')
-        # r_criterion = torch.nn.MSELoss(reduction='none')
+        if self._v_loss == 'mse':
+            v_criterion = torch.nn.MSELoss(reduction='none')
+        else:  # == 'cross_entropy'
+            v_criterion = lambda target, prob: (
+                (-target * (1e-8 + prob).log()).sum(dim=1))
+        if self._r_loss == 'mse':
+            r_criterion = torch.nn.MSELoss(reduction='none')
+        else:  # == 'cross_entropy'
+            r_criterion = lambda target, prob: (
+                (-target * (1e-8 + prob).log()).sum(dim=1))
         scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach(
         ) * (1 - scale))
         states_to_train = int(
             len(replay_buffer) / self._replay_retention *
             self._replay_buffer_reuse)
-        # sampler = DistributedSampler(replay_buffer)
+        sampler = WeightedRandomSampler(replay_buffer.get_weights(),
+                                        len(replay_buffer))
         dataloader = DataLoader(
             dataset=replay_buffer,
             batch_size=self._batch_size,
-            # sampler=sampler,
-            shuffle=True,
+            sampler=sampler,
+            # shuffle=True,
             collate_fn=RolloutBatch,
             pin_memory=True,
         )
         self._model.train()
         num_trained_states = 0
         for rollout in dataloader:
+            weight = rollout.weight.to(self._device)
             observation = rollout.observation.to(self._device)
             scale = rollout.scale.to(self._device)
             transition = [t.to(self._device) for t in rollout.transition]
@@ -184,9 +198,11 @@ class Trainer:
                 state, reward = self._model.forward_dynamics(state, action)
                 state = scale_gradient(state, 0.5)
                 # loss
-                p_loss_i = p_criterion(target_policy, policy)
-                v_loss_i = v_criterion(target_value, value)
-                r_loss_i = r_criterion(target_reward, reward)
+                masked_weight = weight[mask]
+                p_loss_i = masked_weight * p_criterion(target_policy, policy)
+                v_loss_i = weight * v_criterion(target_value, value)
+                r_loss_i = masked_weight * r_criterion(target_reward, reward)
+                weight = masked_weight
                 # scale gradient
                 if i > 0:
                     v_loss_i = scale_gradient(v_loss_i, scale.view(-1, 1))

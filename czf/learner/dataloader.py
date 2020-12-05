@@ -42,7 +42,8 @@ class RolloutBatch:
     `sentinel` of the list.
     '''
     def __init__(self, data):
-        observation, scale, *transition = self.__zip_discard(*data)
+        weight, observation, scale, *transition = self.__zip_discard(*data)
+        self.weight = torch.stack(weight, 0)
         self.observation = torch.stack(observation, 0)
         self.scale = torch.stack(scale, 0)
         self.transition = [torch.stack(d, 0) for d in transition if d]
@@ -64,6 +65,8 @@ class TransitionBuffer:
     - Get a transition with stacked features from the buffer
     '''
     def __init__(self, maxlen, frame_stack, spatial_shape):
+        self._weights_mean = 0.
+        self._weights = deque(maxlen=(maxlen + frame_stack))
         self._buffer = deque(maxlen=(maxlen + frame_stack))
         self._frame_stack = frame_stack
         self._spatial_shape = spatial_shape
@@ -75,9 +78,17 @@ class TransitionBuffer:
     def __getitem__(self, index):
         return self._buffer[index + self._frame_stack]
 
+    def get_weights(self):
+        '''Get weights (not summing up to one) of samples'''
+        self._weights_mean = np.mean([
+            w for i, (w, t) in enumerate(zip(self._weights, self._buffer))
+            if i >= self._frame_stack and not t.is_terminal
+        ])  # alpha == 1
+        return list(self._weights)[self._frame_stack:]
+
     def get_rollout(self, index, kstep):
         '''Get rollout at index with kstep'''
-        return list(islice(self._buffer, index, index + kstep))
+        return list(islice(self, index, index + kstep))
 
     def get_observation(self, index):
         '''Get observation (stacked features) at index'''
@@ -86,29 +97,32 @@ class TransitionBuffer:
             obs = np.array(np.frombuffer(obs, dtype=np.float32))
             return torch.tensor(obs).view(-1, *self._spatial_shape)
 
+        weight = self._weights_mean / self._weights[index + self._frame_stack]
+        weight = torch.tensor(weight)  # beta == 1
         if self._frame_stack == 0:
-            return to_tensor(self._buffer[index].observation)
+            return weight, to_tensor(self.__getitem__(index).observation)
         buffer, first_index = [], index
-        for i in reversed(range(self._frame_stack)):
-            transition = self._buffer[index + i]
+        for i in range(self._frame_stack):
+            transition = self.__getitem__(index - i - 1)
             if transition.is_terminal:
-                first_index = index + i + 1
+                first_index = index - i
                 break
             buffer.append(to_tensor(transition.observation))
         if len(buffer) < self._frame_stack:
             # repeat initial observation
             buffer.extend([
-                to_tensor(self._buffer[first_index].observation)
+                to_tensor(self.__getitem__(first_index).observation)
                 for _ in range(self._frame_stack - len(buffer))
             ])
         # concat feature tensors into an observation
         # (a_1, o_1), (a_2, o_2), ..., (a_n, o_n)
-        return torch.cat(list(reversed(buffer)))
+        return weight, torch.cat(list(reversed(buffer)))
 
-    def extend(self, data):
+    def extend(self, priorities, trajectory):
         '''Extend the right side of the buffer by
         appending elements from the iterable argument.'''
-        self._buffer.extend(data)
+        self._weights.extend(priorities)
+        self._buffer.extend(trajectory)
 
 
 class Preprocessor:
@@ -133,10 +147,10 @@ class Preprocessor:
         self._num_player = num_player
         self._transform = None
         if transform == 'Atari':
-            # sign(x) * clip(sqrt(|x| + 1) − 1 + eps * x, 0, 300)
+            # sign(x) * (sqrt(|x| + 1) − 1 + eps * x)
             epsilon = 0.001
-            self._transform = lambda x: np.sign(x) * np.clip(
-                np.sqrt(np.abs(x) + 1) - 1 + epsilon * x, 0, 300)
+            self._transform = lambda x: np.sign(x) * (np.sqrt(np.abs(x) + 1) -
+                                                      1 + epsilon * x)
         self._r_heads = r_heads
         self._v_heads = v_heads
         self._kstep = kstep
@@ -172,26 +186,32 @@ class Preprocessor:
         nstep, gamma = self._nstep, self._discount_factor
         discounted_return = [[] for _ in range(self._num_player)]
         values = []
-        buffer = []
+        priorities, buffer = [], []
+        has_statistics = trajectory.HasField('statistics')
         for i, state in enumerate(reversed(trajectory.states)):
             # tensor
             observation = to_bytes(state.observation_tensor)
             # observation = self._cctx_observation.compress(observation)
             if i == 0:
                 # terminal returns and values (equal to 0 if _real_ terminal)
+                terminal_next_value = 0. if has_statistics else state.evaluation.value
                 for player in range(self._num_player):
-                    discounted_return[player].append(state.evaluation.value)
-                values.append(state.evaluation.value)
+                    discounted_return[player].append(terminal_next_value)
+                values.append(terminal_next_value)
                 # terminal transition
-                terminal_value = state.transition.rewards[
-                    state.transition.current_player]
-                if self._transform:
+                if self._num_player == 1:
+                    terminal_value = terminal_next_value
+                else:
+                    terminal_value = state.transition.rewards[
+                        state.transition.current_player]
+                if self._transform is not None:
                     terminal_value = self._transform(terminal_value)
                     terminal_value = self.__get_target_dist(
                         terminal_value, self._v_heads)
                 else:
                     terminal_value = [terminal_value]
                 terminal_value = to_bytes(terminal_value)
+                priorities.append(0.)
                 buffer.append(
                     Transition(
                         observation=observation,
@@ -216,8 +236,14 @@ class Preprocessor:
                     values[-nstep] -
                     discounted_return[player][-nstep - 1]) * gamma**nstep
             reward = state.transition.rewards[state.transition.current_player]
+            # priority
+            priority = 1.
+            if self._num_player == 1:
+                # alpha == 1
+                priority = np.abs(state.evaluation.value - nstep_value)
+            priorities.append(priority)
             # transform
-            if self._transform:
+            if self._transform is not None:
                 nstep_value = self._transform(nstep_value)
                 nstep_value = self.__get_target_dist(nstep_value,
                                                      self._v_heads)
@@ -245,15 +271,16 @@ class Preprocessor:
         # update statistics
         stats = Statistics(
             num_games=1,
-            game_steps=[len(trajectory.states)],
+            game_steps=[len(trajectory.states) - 1],
             player_returns=[[] for _ in range(self._num_player)],
         )
-        if trajectory.HasField('statistics'):
-            stats.game_steps.append(trajectory.statistics.game_steps)
+        if has_statistics:
+            stats.game_steps[:] = [trajectory.statistics.game_steps]
             for player, reward in enumerate(trajectory.statistics.rewards):
                 stats.player_returns[player].append(reward)
         # add trajectory to buffer (from start to terminal)
-        self._result_queue.put((stats, list(reversed(buffer))))
+        self._result_queue.put(
+            (stats, list(reversed(priorities)), list(reversed(buffer))))
 
 
 def run_preprocessor(raw_queue, *args):
@@ -301,7 +328,7 @@ class PreprocessQueue:
                            kstep,
                            nstep,
                            discount_factor,
-                       )) for _ in range(40)
+                       )) for _ in range(40)  #TODO
         ]
         for process in self._process:
             process.start()
@@ -378,7 +405,7 @@ class ReplayBuffer(Dataset):
                 index += 1
             else:
                 index -= 1
-        observation = self._buffer.get_observation(index)
+        weight, observation = self._buffer.get_observation(index)
         rollout = self._buffer.get_rollout(index, self._kstep)
         kstep, transitions = 0, []
         for transition in rollout:
@@ -392,8 +419,12 @@ class ReplayBuffer(Dataset):
             ])
             if transition.is_terminal:
                 break
-        # o, s, [(v, m, p, a, r)]
-        return [observation, torch.tensor(1 / kstep), *transitions]
+        # w, o, s, [(v, m, p, a, r)]
+        return [weight, observation, torch.tensor(1 / kstep), *transitions]
+
+    def get_weights(self):
+        '''Get weights (not summing up to one) of samples'''
+        return self._buffer.get_weights()
 
     def is_ready(self):
         '''Check if replay buffer is ready for training'''
@@ -402,8 +433,9 @@ class ReplayBuffer(Dataset):
             return True
         return False
 
-    def add_trajectory(self, stats: Statistics, trajectory: list):
+    def add_trajectory(self, trajectory: tuple):
         '''Add a trajectory and its statistics'''
+        stats, priorities, trajectory = trajectory
         self._num_games += sum(stats.game_steps)
         # update statistics
         self._statistics.num_games += stats.num_games
@@ -411,7 +443,7 @@ class ReplayBuffer(Dataset):
         for player, player_returns in enumerate(stats.player_returns):
             self._statistics.player_returns[player].extend(player_returns)
         # add trajectory to buffer
-        self._buffer.extend(trajectory)
+        self._buffer.extend(priorities, trajectory)
         # train the model when there are N newly generated states
         if self._num_games >= self._train_freq:
             self._ready = True

@@ -166,6 +166,7 @@ class EnvManager:
         # print('apply', self._proc_index, env_index,
         #       time.time() - self.start_time[env_index])
         env.state.apply_action(chosen_action)
+        self._num_steps[env_index] += 1
         if self._after_apply_callback:
             self._after_apply_callback(evaluated_state, env.state)
         # game transition
@@ -188,12 +189,15 @@ class EnvManager:
             self._trajectory_queue.put(env.trajectory.SerializeToString())
             self.__reset(env_index)
         elif self._sequence > 0 and (len(env.trajectory.states) %
-                                     self._sequence == 0):
+                                     (self._sequence + 1) == 0):
             # send optimize job for each sequence
             self._trajectory_queue.put(env.trajectory.SerializeToString())
+            last_state = czf_pb2.WorkerState()
+            last_state.CopyFrom(env.trajectory.states[self._sequence])
             env.trajectory = czf_pb2.Trajectory()
+            env.trajectory.states.append(last_state)
+            del last_state
 
-        self._num_steps[env_index] += 1
         # send a search job
         self.__send_search_job(env_index)
 

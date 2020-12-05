@@ -30,10 +30,12 @@ model:
   # g: dynamics function
   g_blocks: 5
   r_heads: 1
+  r_loss: 'mse'
   # f: prediction function
   f_blocks: 5
   f_channels: 128
   v_heads: 1
+  v_loss: 'mse'
 
 learner:
   # rollout timesteps K
@@ -42,7 +44,7 @@ learner:
   # 80 games * 50 avg_states_per_game
   frequency: 4_000
   # how many states to store in the replay buffer
-  # usually equals to (20 * frequency)
+  # usually equals to (25 * frequency)
   replay_buffer_size: 100_000
   # how many times to reuse each state in the replay buffer
   replay_buffer_reuse: 1

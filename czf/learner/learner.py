@@ -90,9 +90,9 @@ class Learner:
         executor = ThreadPoolExecutor(max_workers=1)
         loop = asyncio.get_event_loop()
         while True:
-            stats, trajectory = await loop.run_in_executor(
-                executor, self._trajectory.get)
-            self._replay_buffer.add_trajectory(stats, trajectory)
+            trajectory = await loop.run_in_executor(executor,
+                                                    self._trajectory.get)
+            self._replay_buffer.add_trajectory(trajectory)
             if self._replay_buffer.is_ready():
                 self._trainer.log_statistics(self._replay_buffer)
                 self._replay_buffer.save_trajectory(self._trajectory_path,

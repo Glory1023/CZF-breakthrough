@@ -87,14 +87,14 @@ def run_main():
         'metric': {},
     }
     # default action policy
-    if isinstance(softmax_step, int):
-        callbacks['action_policy'] = partial(make_default_action_policy_fn,
-                                             softmax_step)
-    elif isinstance(softmax_step, bool):
+    if isinstance(softmax_step, bool):
         if softmax_step:
             callbacks['action_policy'] = softmax_action_policy_fn
         else:
             callbacks['action_policy'] = argmax_action_policy_fn
+    elif isinstance(softmax_step, int):
+        callbacks['action_policy'] = partial(make_default_action_policy_fn,
+                                             softmax_step)
     if args.eval:
         callbacks['action_policy'] = argmax_action_policy_fn
         # np.set_printoptions(precision=3)

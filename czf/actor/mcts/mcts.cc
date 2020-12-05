@@ -19,8 +19,9 @@ float MctsInfo::get_normalized_value(const TreeInfo &tree_info) const {
   return (maxv >= minv) ? value : (value - minv) / (maxv - minv);
 }
 
-float MctsInfo::update(bool same, float z, bool is_two_player, float discount) {
-  const auto w = same ? z : -z;
+float MctsInfo::update(float z, bool is_root_player, bool is_two_player,
+                       float discount) {
+  const auto w = is_two_player && is_root_player ? -z : z;
   ++visits;
   sqrt_visits = std::sqrt(visits);
   value += (w - value) / visits;
@@ -145,7 +146,7 @@ float Node::get_forward_value() const { return mcts_info_.forward_value; }
 bool Node::is_root_player() const { return node_info_.is_root_player; }
 
 float Node::update(float z, bool is_two_player, float discount) {
-  return mcts_info_.update(node_info_.is_root_player, z, is_two_player,
+  return mcts_info_.update(z, node_info_.is_root_player, is_two_player,
                            discount);
 }
 
@@ -182,7 +183,6 @@ bool Tree::after_forward(RNG_t &rng) {
   }
   // update
   auto z = current_node_->get_forward_value();
-  z = (current_node_->is_root_player()) ? -z : z;
   tree_info_.update(z);
   const auto end = std::rend(selection_path_);
   for (auto it = std::rbegin(selection_path_); it != end; ++it) {

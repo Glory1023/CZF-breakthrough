@@ -13,7 +13,7 @@ game:
     # number of frames to stack
     # for 0, (o_1)
     # for n, (a_1, o_1, ...,  a_n, o_n)
-    frame_stack: 32
+    frame_stack: 4
     # C
     channel: 3
     # [H, W]
@@ -26,14 +26,16 @@ model:
   name: 'MuZeroAtari'
   # h: representation function
   h_blocks: 3
-  h_channels: 256
+  h_channels: 128
   # g: dynamics function
   g_blocks: 3
-  r_heads: 300
+  r_heads: 30
+  r_loss: 'cross_entropy'
   # f: prediction function
   f_blocks: 3
-  f_channels: 256
-  v_heads: 300
+  f_channels: 128
+  v_heads: 30
+  v_loss: 'cross_entropy'
 
 learner:
   # transform of rewards and values
@@ -41,19 +43,19 @@ learner:
   # rollout timesteps K
   rollout_steps: 5
   # train the model when there are N newly generated states
-  # 500 games * 8 avg_states_per_game
-  frequency: 20_000
+  # 50 sequence * 200 states_per_sequence
+  frequency: 10_000
   # how many states to store in the replay buffer
-  # usually equals to (20 * frequency)
-  replay_buffer_size: 400_000
+  # usually equals to (25 * frequency)
+  replay_buffer_size: 250_000
   # how many times to reuse each state in the replay buffer
   replay_buffer_reuse: 1
   # how many states to learn from per batch
-  batch_size: 192
+  batch_size: 512
   # save a checkpoint every N steps
   checkpoint_freq: 10
   optimizer:
-    learning_rate: 0.02
+    learning_rate: 0.05
     momentum: 0.9
     weight_decay: 1.e-4
     nesterov: True
@@ -66,20 +68,20 @@ mcts:
   # discount factor of the return
   discount_factor: .997
   # n-step of the return (set `0` to disable)
-  nstep: 0
+  nstep: 10
   # root dirichlet noise
   dirichlet:
     # Dir(alpha)
     alpha: 0.5
     # (1 - epsilon) * policy + epsilon * Dir(a);
-    epsilon: 2.5
+    epsilon: 0.25
 
 game_server:
   # drop the softmax temperature from 1 to 0 after the number of steps
   # (set `True` to always enable)
   softmax_temperature_step: True
   # send a sequence every length N (set `0` to send full game)
-  sequence: 20
+  sequence: 200
 
 evaluator:
   # evaluation mode
