@@ -18,6 +18,7 @@ Transition = namedtuple('Transition', [
     'reward',
     'is_terminal',
 ])
+Transition.__doc__ = '''Transition is used to store in :class:`TransitionBuffer`'''
 
 
 @dataclass
@@ -42,11 +43,13 @@ class RolloutBatch:
     `sentinel` of the list.
     '''
     def __init__(self, data):
-        weight, observation, scale, *transition = self.__zip_discard(*data)
+        index, weight, observation, scale, *transition = self.__zip_discard(
+            *data)
+        self.index = index
         self.weight = torch.stack(weight, 0)
         self.observation = torch.stack(observation, 0)
         self.scale = torch.stack(scale, 0)
-        self.transition = [torch.stack(d, 0) for d in transition if d]
+        self.transition = tuple(torch.stack(d, 0) for d in transition if d)
 
     @staticmethod
     def __zip_discard(*iterables, sentinel=None):
@@ -86,6 +89,11 @@ class TransitionBuffer:
         ])  # alpha == 1
         return list(self._weights)[self._frame_stack:]
 
+    def update_weights(self, index, priorities):
+        '''Update weights'''
+        for i, priority in zip(index, priorities):
+            self._weights[i + self._frame_stack] = priority + 1e-6
+
     def get_rollout(self, index, kstep):
         '''Get rollout at index with kstep'''
         return list(islice(self, index, index + kstep))
@@ -94,7 +102,8 @@ class TransitionBuffer:
         '''Get observation (stacked features) at index'''
         def to_tensor(obs):
             # obs = self._dctx.decompress(obs)
-            obs = np.array(np.frombuffer(obs, dtype=np.float32))
+            obs = np.frombuffer(obs, dtype=np.float32)
+            obs = np.array(obs)  # copy to suppress warning
             return torch.tensor(obs).view(-1, *self._spatial_shape)
 
         weight = self._weights_mean / self._weights[index + self._frame_stack]
@@ -241,7 +250,7 @@ class Preprocessor:
             if self._num_player == 1:
                 # alpha == 1
                 priority = np.abs(state.evaluation.value - nstep_value)
-            priorities.append(priority)
+            priorities.append(priority + 1e-6)
             # transform
             if self._transform is not None:
                 nstep_value = self._transform(nstep_value)
@@ -398,6 +407,7 @@ class ReplayBuffer(Dataset):
             x = np.frombuffer(x, dtype=dtype)
             if squeeze:
                 x = x.squeeze()
+            x = np.array(x)  # copy to suppress warning
             return torch.tensor(x)
 
         if self._buffer[index].is_terminal:
@@ -419,12 +429,22 @@ class ReplayBuffer(Dataset):
             ])
             if transition.is_terminal:
                 break
-        # w, o, s, [(v, m, p, a, r)]
-        return [weight, observation, torch.tensor(1 / kstep), *transitions]
+        # i, w, o, s, [(v, m, p, a, r)]
+        return [
+            index,
+            weight,
+            observation,
+            torch.tensor(1 / kstep),
+            *transitions,
+        ]
 
     def get_weights(self):
         '''Get weights (not summing up to one) of samples'''
         return self._buffer.get_weights()
+
+    def update_weights(self, index, priorities):
+        '''Update weights'''
+        self._buffer.update_weights(index, priorities)
 
     def is_ready(self):
         '''Check if replay buffer is ready for training'''

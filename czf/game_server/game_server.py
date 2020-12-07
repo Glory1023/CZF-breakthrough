@@ -178,7 +178,7 @@ class EnvManager:
             # add the terminal state to the trajectory
             state = env.trajectory.states.add()
             state.observation_tensor[:] = env.state.feature_tensor
-            state.evaluation.value = 0
+            state.evaluation.value = evaluated_state.evaluation.value
             state.transition.current_player = env.state.current_player
             state.transition.rewards[:] = env.state.rewards
             # add game statistics

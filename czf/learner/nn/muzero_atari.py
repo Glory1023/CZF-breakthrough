@@ -125,13 +125,7 @@ class MuZeroAtari(nn.Module):
         r = r.view(-1, height * width)
         r = self.reward_head_end(r)
         if not self._is_train:
-            batch = state.size(0)
-            r_supp = self.r_supp.repeat(batch, 1)
-            r = (r_supp * r).sum(1, keepdim=True)
-            # inverse transform
-            epsilon = self.epsilon
-            r = (((torch.sqrt(4 * epsilon * (r + 1 + epsilon) + 1) - 1) /
-                  (2 * epsilon))**2 - 1)
+            r = MuZeroAtari.to_scalar(self.r_supp, r)
         return x, r
 
     def forward(self, state):
@@ -147,11 +141,17 @@ class MuZeroAtari(nn.Module):
         v = v.view(-1, height * width)
         v = self.value_head_end(v)
         if not self._is_train:
-            batch = state.size(0)
-            v_supp = self.v_supp.repeat(batch, 1)
-            v = (v_supp * v).sum(1, keepdim=True)
-            # inverse transform
-            epsilon = self.epsilon
-            v = (((torch.sqrt(4 * epsilon * (v + 1 + epsilon) + 1) - 1) /
-                  (2 * epsilon))**2 - 1)
+            v = MuZeroAtari.to_scalar(self.v_supp, v)
         return p, v
+
+    @staticmethod
+    def to_scalar(supp, x, epsilon=0.001):
+        '''distribution to scalar'''
+        batch = x.size(0)
+        x_supp = supp.expand(batch, -1)
+        x = (x_supp * x).sum(1, keepdim=True)
+        # inverse transform
+        # sign(x) * (((sqrt(1 + 4 * eps * (|x| + 1 + eps) - 1) / (2 * eps)) ** 2 - 1)
+        return torch.sign(x) * (
+            ((torch.sqrt(1 + 4 * epsilon * (torch.abs(x) + 1 + epsilon)) - 1) /
+             (2 * epsilon))**2 - 1)

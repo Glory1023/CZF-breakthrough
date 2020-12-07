@@ -18,6 +18,8 @@ struct TreeInfo {
 
   /** update the min & max value on tree */
   void update(float);
+  /** get value normalized by `TreeInfo` */
+  float get_normalized_value(float) const;
 };
 
 struct TreeResult {
@@ -53,8 +55,6 @@ struct MctsInfo {
       forward_value;        ///< forward value
   Policy_t policy;          ///< policy of children
 
-  /** get value normalized by `TreeInfo` */
-  float get_normalized_value(const TreeInfo &) const;
   /** Mcts update helper function */
   float update(float, bool, bool, float);
 };

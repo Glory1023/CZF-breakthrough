@@ -173,16 +173,16 @@ class Trainer:
             len(replay_buffer) / self._replay_retention *
             self._replay_buffer_reuse)
         sampler = WeightedRandomSampler(replay_buffer.get_weights(),
-                                        len(replay_buffer))
+                                        states_to_train)
         dataloader = DataLoader(
             dataset=replay_buffer,
             batch_size=self._batch_size,
             sampler=sampler,
-            # shuffle=True,
+            # shuffle=True, # shuffle and sampler are disjoint
             collate_fn=RolloutBatch,
             pin_memory=True,
-            prefetch_factor=4,
-            num_workers=40,  #TODO
+            # prefetch_factor=4,  # only works when `num_workers` > 0
+            num_workers=0,
         )
         self._model.train()
         num_trained_states = 0
@@ -196,37 +196,45 @@ class Trainer:
             state = self._model.forward_representation(observation)
             total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
             for i in range(0, len(transition), 5):
-                target_value, mask, target_policy, action, target_reward = transition[
-                    i:i + 5]
+                target_value, mask, *next_transition = transition[i:i + 5]
+                if next_transition:
+                    target_policy, action, target_reward = next_transition
                 mask = mask.nonzero(as_tuple=True)
                 total_batch += len(state)
                 policy, value = self._model.forward(state)
-                policy = policy[mask]
-                state = state[mask]
-                state, reward = self._model.forward_dynamics(state, action)
-                state = scale_gradient(state, 0.5)
+                if next_transition:
+                    policy = policy[mask]
+                    state = state[mask]
+                    state, reward = self._model.forward_dynamics(state, action)
+                    state = scale_gradient(state, 0.5)
                 # loss
-                masked_weight = weight[mask]
-                p_loss_i = masked_weight * p_criterion(target_policy, policy)
                 v_loss_i = weight * v_criterion(target_value, value)
-                r_loss_i = masked_weight * r_criterion(target_reward, reward)
-                weight = masked_weight
+                if next_transition:
+                    masked_weight = weight[mask]
+                    p_loss_i = masked_weight * p_criterion(
+                        target_policy, policy)
+                    r_loss_i = masked_weight * r_criterion(
+                        target_reward, reward)
+                    weight = masked_weight
                 # scale gradient
                 if i > 0:
                     v_loss_i = scale_gradient(v_loss_i, scale)
-                scale = scale[mask]
-                if i > 0:
-                    p_loss_i = scale_gradient(p_loss_i, scale)
-                r_loss_i = scale_gradient(r_loss_i, scale)
+                if next_transition:
+                    scale = scale[mask]
+                    if i > 0:
+                        p_loss_i = scale_gradient(p_loss_i, scale)
+                    r_loss_i = scale_gradient(r_loss_i, scale)
                 # total loss
-                p_loss_i = p_loss_i.sum()
                 v_loss_i = v_loss_i.sum()
-                r_loss_i = r_loss_i.sum()
-                loss_i = p_loss_i + v_loss_i + r_loss_i
-                loss += loss_i
-                p_loss += p_loss_i.item()
+                loss += v_loss_i
+                if next_transition:
+                    p_loss_i = p_loss_i.sum()
+                    r_loss_i = r_loss_i.sum()
+                    loss += p_loss_i + r_loss_i
                 v_loss += v_loss_i.item()
-                r_loss += r_loss_i.item()
+                if next_transition:
+                    p_loss += p_loss_i.item()
+                    r_loss += r_loss_i.item()
             loss /= total_batch
             p_loss /= total_batch
             v_loss /= total_batch
@@ -237,12 +245,25 @@ class Trainer:
             self._optimizer.zero_grad()
             loss.backward()
             self._optimizer.step()
+            loss = loss.item()
+            del weight, scale, target_value, mask, next_transition
+            del state, action, policy, value, reward
+            # update priority
+            state = self._model.forward_representation(observation)
+            _, value = self._model.forward(state.detach())
+            pred_v = MuZeroAtari.to_scalar(self._model.v_supp, value.detach())
+            scalar_v = MuZeroAtari.to_scalar(self._model.v_supp, transition[0])
+            priority = torch.abs(pred_v - scalar_v).squeeze().tolist()
+            replay_buffer.update_weights(rollout.index, priority)
+            del rollout, observation, transition
+            del state, value, pred_v, scalar_v, priority
             # the end of current training
             if num_trained_states >= states_to_train:
+                # TODO: average loss of each minibatch
                 lr = next(iter(self._optimizer.param_groups))['lr']
                 writer, step = self._summary_writer, self.iteration
                 writer.add_scalar('params/lr', lr, step)
-                writer.add_scalar('loss/', loss.item(), step)
+                writer.add_scalar('loss/', loss, step)
                 writer.add_scalar('loss/policy', p_loss, step)
                 writer.add_scalar('loss/value', v_loss, step)
                 writer.add_scalar('loss/reward', r_loss, step)

@@ -13,10 +13,9 @@ void TreeInfo::update(float value) {
   max_value = std::max(value, max_value);
 }
 
-float MctsInfo::get_normalized_value(const TreeInfo &tree_info) const {
-  const auto &maxv = tree_info.max_value;
-  const auto &minv = tree_info.min_value;
-  return (maxv >= minv) ? value : (value - minv) / (maxv - minv);
+float TreeInfo::get_normalized_value(float value) const {
+  return (max_value > min_value) ? (value - min_value) / (max_value - min_value)
+                                 : value;
 }
 
 float MctsInfo::update(float z, bool is_root_player, bool is_two_player,
@@ -67,8 +66,11 @@ Node *Node::select_child(const TreeInfo &tree_info,
     // calculate pUCT score
     const float child_value =
         child.mcts_info_.visits > 0
-            ? (is_two_player ? child.mcts_info_.value
-                             : child.mcts_info_.get_normalized_value(tree_info))
+            ? (is_two_player
+                   ? child.mcts_info_.value
+                   : tree_info.get_normalized_value(child.mcts_info_.reward +
+                                                    tree_option.discount *
+                                                        child.mcts_info_.value))
             : init_value;
     const float score =
         child_value + tree_option.c_puct *
