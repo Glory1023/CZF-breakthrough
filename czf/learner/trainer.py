@@ -23,6 +23,7 @@ class Trainer:
                  checkpoint_path,
                  model_path,
                  log_path,
+                 num_proc,
                  model_name,
                  restore,
                  rank=0):
@@ -32,6 +33,7 @@ class Trainer:
         self._model_dir = model_path / self.model_name
         for path in (self._ckpt_dir, self._model_dir):
             path.mkdir(parents=True, exist_ok=True)
+        self._num_proc = num_proc
         # game
         observation_config = config['game']['observation']
         frame_stack = observation_config['frame_stack']
@@ -41,7 +43,7 @@ class Trainer:
             observation_shape = [frame_stack * (channel + 1), *spatial_shape]
         else:
             observation_shape = [channel, *spatial_shape]
-        action_dim = config['game']['actions']
+        self._action_dim = config['game']['actions']
         # model
         model_config = config['model']
         h_channels = model_config['h_channels']
@@ -50,17 +52,19 @@ class Trainer:
         Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
         # torch.cuda.set_device(rank)
         # torch.distributed.init_process_group('nccl', init_method='env://')
+        self._r_heads = model_config.get('r_heads', 1)
+        self._v_heads = model_config['v_heads']
         self._model_kwargs = dict(
             observation_shape=observation_shape,
             state_shape=state_shape,
-            action_dim=action_dim,
+            action_dim=self._action_dim,
             h_blocks=model_config['h_blocks'],
             h_channels=h_channels,
             g_blocks=model_config['g_blocks'],
-            r_heads=model_config.get('r_heads', 1),
+            r_heads=self._r_heads,
             f_blocks=model_config['f_blocks'],
             f_channels=model_config['f_channels'],
-            v_heads=model_config['v_heads'],
+            v_heads=self._v_heads,
         )
         self._model = Model(
             **self._model_kwargs,
@@ -181,16 +185,30 @@ class Trainer:
             # shuffle=True, # shuffle and sampler are disjoint
             collate_fn=RolloutBatch,
             pin_memory=True,
-            # prefetch_factor=4,  # only works when `num_workers` > 0
-            num_workers=0,
+            prefetch_factor=4 if self._num_proc > 0 else 0,
+            num_workers=self._num_proc,
+        )
+        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
+            np.array(np.frombuffer(x, dtype=dtype)), device=self._device)
+        shape = (
+            (-1, 2 * self._v_heads + 1),
+            (-1, ),
+            (-1, self._action_dim),
+            (-1, ),
+            (-1, 2 * self._r_heads + 1),
         )
         self._model.train()
         num_trained_states = 0
         for rollout in dataloader:
-            weight = rollout.weight.to(self._device)
-            observation = rollout.observation.to(self._device)
-            scale = rollout.scale.to(self._device)
-            transition = [t.to(self._device) for t in rollout.transition]
+            # tensor
+            weight = to_tensor(rollout.weight)
+            observation = to_tensor(rollout.observation).view(
+                -1, *self._observation_shape)
+            scale = to_tensor(rollout.scale)
+            transition = [
+                to_tensor(t).view(shape[i % 5])
+                for i, t in enumerate(rollout.transition)
+            ]
             num_trained_states += len(observation)
             # forward
             state = self._model.forward_representation(observation)
@@ -253,7 +271,7 @@ class Trainer:
             _, value = self._model.forward(state.detach())
             pred_v = MuZeroAtari.to_scalar(self._model.v_supp, value.detach())
             scalar_v = MuZeroAtari.to_scalar(self._model.v_supp, transition[0])
-            priority = torch.abs(pred_v - scalar_v).squeeze().tolist()
+            priority = torch.abs(pred_v - scalar_v).squeeze(dim=-1).tolist()
             replay_buffer.update_weights(rollout.index, priority)
             del rollout, observation, transition
             del state, value, pred_v, scalar_v, priority

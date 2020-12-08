@@ -14,8 +14,9 @@ void TreeInfo::update(float value) {
 }
 
 float TreeInfo::get_normalized_value(float value) const {
-  return (max_value > min_value) ? (value - min_value) / (max_value - min_value)
-                                 : value;
+  const auto maxv = std::max(value, max_value);
+  const auto minv = std::min(value, min_value);
+  return (maxv > minv) ? (value - minv) / (maxv - minv) : value;
 }
 
 float MctsInfo::update(float z, bool is_root_player, bool is_two_player,

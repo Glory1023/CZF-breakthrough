@@ -43,13 +43,17 @@ class RolloutBatch:
     `sentinel` of the list.
     '''
     def __init__(self, data):
+        def np_stack(x, dtype=np.float32):
+            x = np.stack(x).astype(dtype, copy=False)
+            return x.tobytes()
+
         index, weight, observation, scale, *transition = self.__zip_discard(
             *data)
-        self.index = index
-        self.weight = torch.stack(weight, 0)
-        self.observation = torch.stack(observation, 0)
-        self.scale = torch.stack(scale, 0)
-        self.transition = tuple(torch.stack(d, 0) for d in transition if d)
+        self.index = tuple(index)
+        self.weight = np_stack(weight)
+        self.observation = np_stack(observation)
+        self.scale = np_stack(scale)
+        self.transition = tuple(np_stack(d) for d in transition if d)
 
     @staticmethod
     def __zip_discard(*iterables, sentinel=None):
@@ -100,32 +104,30 @@ class TransitionBuffer:
 
     def get_observation(self, index):
         '''Get observation (stacked features) at index'''
-        def to_tensor(obs):
+        def to_array(obs):
             # obs = self._dctx.decompress(obs)
             obs = np.frombuffer(obs, dtype=np.float32)
-            obs = np.array(obs)  # copy to suppress warning
-            return torch.tensor(obs).view(-1, *self._spatial_shape)
+            return obs.reshape(-1, *self._spatial_shape)
 
         weight = self._weights_mean / self._weights[index + self._frame_stack]
-        weight = torch.tensor(weight)  # beta == 1
         if self._frame_stack == 0:
-            return weight, to_tensor(self.__getitem__(index).observation)
+            return weight, to_array(self.__getitem__(index).observation)
         buffer, first_index = [], index
         for i in range(self._frame_stack):
             transition = self.__getitem__(index - i - 1)
             if transition.is_terminal:
                 first_index = index - i
                 break
-            buffer.append(to_tensor(transition.observation))
+            buffer.append(to_array(transition.observation))
         if len(buffer) < self._frame_stack:
             # repeat initial observation
             buffer.extend([
-                to_tensor(self.__getitem__(first_index).observation)
+                to_array(self.__getitem__(first_index).observation)
                 for _ in range(self._frame_stack - len(buffer))
             ])
         # concat feature tensors into an observation
         # (a_1, o_1), (a_2, o_2), ..., (a_n, o_n)
-        return weight, torch.cat(list(reversed(buffer)))
+        return weight, np.concatenate(list(reversed(buffer)))
 
     def extend(self, priorities, trajectory):
         '''Extend the right side of the buffer by
@@ -317,6 +319,7 @@ class PreprocessQueue:
         kstep,
         nstep,
         discount_factor,
+        num_proc,
     ):
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
@@ -337,7 +340,7 @@ class PreprocessQueue:
                            kstep,
                            nstep,
                            discount_factor,
-                       )) for _ in range(40)  #TODO
+                       )) for _ in range(num_proc)
         ]
         for process in self._process:
             process.start()
@@ -401,14 +404,13 @@ class ReplayBuffer(Dataset):
         return len(self._buffer)
 
     def __getitem__(self, index):
-        def to_tensor(x, dtype=np.float32, squeeze=False):
+        def to_array(x, dtype=np.float32, squeeze=False):
             if x is None:
                 return None
             x = np.frombuffer(x, dtype=dtype)
             if squeeze:
                 x = x.squeeze()
-            x = np.array(x)  # copy to suppress warning
-            return torch.tensor(x)
+            return x
 
         if self._buffer[index].is_terminal:
             if index == 0:
@@ -421,11 +423,11 @@ class ReplayBuffer(Dataset):
         for transition in rollout:
             kstep += 1
             transitions.extend([
-                to_tensor(transition.value),
-                torch.tensor(0 if transition.is_terminal else 1),
-                to_tensor(transition.policy),
-                to_tensor(transition.action, dtype=np.int64, squeeze=True),
-                to_tensor(transition.reward),
+                to_array(transition.value),
+                0 if transition.is_terminal else 1,
+                to_array(transition.policy),
+                to_array(transition.action, dtype=np.int64, squeeze=True),
+                to_array(transition.reward),
             ])
             if transition.is_terminal:
                 break
@@ -434,7 +436,7 @@ class ReplayBuffer(Dataset):
             index,
             weight,
             observation,
-            torch.tensor(1 / kstep),
+            1 / kstep,
             *transitions,
         ]
 
