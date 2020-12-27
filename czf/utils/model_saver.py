@@ -22,7 +22,7 @@ def main(args):
     iteration = state_dict['iteration']
     observation_shape = state_dict['observation_shape']
     state_shape = state_dict['state_shape']
-    model.is_train = False
+    model._is_train = False
     model.eval()
     # JIT
     buffer = BytesIO()

@@ -129,7 +129,7 @@ class Tree {
   /** set the forward result to current node */
   void set_forward_result(ForwardResult);
   /** get the tree result */
-  TreeResult get_tree_result();
+  TreeResult get_tree_result() const;
 
  private:
   /** get the root simulation counts */

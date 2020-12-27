@@ -14,9 +14,8 @@ void TreeInfo::update(float value) {
 }
 
 float TreeInfo::get_normalized_value(float value) const {
-  const auto maxv = std::max(value, max_value);
-  const auto minv = std::min(value, min_value);
-  return (maxv > minv) ? (value - minv) / (maxv - minv) : value;
+  return (max_value > min_value) ? (value - min_value) / (max_value - min_value)
+                                 : value;
 }
 
 float MctsInfo::update(float z, bool is_root_player, bool is_two_player,
@@ -47,19 +46,22 @@ Node *Node::select_child(const TreeInfo &tree_info,
                          bool is_two_player) const {
   // init value
   float init_value = 0.F;
-  if (is_two_player) {
+  // if (is_two_player) {
     float value_sum = 0.F;
     size_t num_selected = 0U;
     for (const auto &child : node_info_.children) {
       if (child.can_select_child()) {
         ++num_selected;
-        value_sum += child.mcts_info_.value;
+      value_sum += is_two_player
+                       ? child.mcts_info_.value
+                       : child.mcts_info_.reward +
+                             tree_option.discount * child.mcts_info_.value;
       }
     }
     if (num_selected > 0) {
       init_value = value_sum / static_cast<float>(num_selected + 1U);
     }
-  }
+  // }
   // selection
   float selected_score = std::numeric_limits<float>::lowest();
   Node *selected_child = nullptr;
@@ -72,7 +74,8 @@ Node *Node::select_child(const TreeInfo &tree_info,
                    : tree_info.get_normalized_value(child.mcts_info_.reward +
                                                     tree_option.discount *
                                                         child.mcts_info_.value))
-            : init_value;
+            : (is_two_player ? init_value
+                             : tree_info.get_normalized_value(init_value));
     const float score =
         child_value + tree_option.c_puct *
                           mcts_info_.policy[child.mcts_info_.action_index] *
@@ -218,7 +221,7 @@ void Tree::set_forward_result(ForwardResult result) {
   current_node_->set_forward_result(std::move(result));
 }
 
-TreeResult Tree::get_tree_result() {
+TreeResult Tree::get_tree_result() const {
   auto value = tree_.get_q_value();
   return {get_root_visits(), tree_.get_children_visits(),
           is_two_player_ ? -value : value};

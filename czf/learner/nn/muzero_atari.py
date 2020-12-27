@@ -35,13 +35,14 @@ class MuZeroAtari(nn.Module):
         _, height, width = self.state_shape
         self.representation = nn.Sequential(
             nn.Conv2d(in_channels=in_channels,
-                      out_channels=in_channels,
+                      out_channels=h_channels // 2,
                       kernel_size=3,
                       stride=2,
                       padding=1),
-            ResNet(in_channels=in_channels, blocks=2,
-                   out_channels=in_channels),
-            nn.Conv2d(in_channels=in_channels,
+            ResNet(in_channels=h_channels // 2,
+                   blocks=1,
+                   out_channels=h_channels // 2),
+            nn.Conv2d(in_channels=h_channels // 2,
                       out_channels=h_channels,
                       kernel_size=3,
                       stride=2,
@@ -107,7 +108,9 @@ class MuZeroAtari(nn.Module):
         x = self.representation(observation)
         x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
         x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
-        x = (x - x_min) / (x_max - x_min)
+        x_scale = x_max - x_min
+        x_scale[x_scale < 1e-6] += 1e-6
+        x = (x - x_min) / x_scale
         return x
 
     def forward_dynamics(self, state, action):
@@ -119,7 +122,9 @@ class MuZeroAtari(nn.Module):
         x = self.dynamics(state)
         x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
         x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
-        x = (x - x_min) / (x_max - x_min)
+        x_scale = x_max - x_min
+        x_scale[x_scale < 1e-6] += 1e-6
+        x = (x - x_min) / x_scale
         # reward head
         r = self.reward_head_front(x)
         r = r.view(-1, height * width)

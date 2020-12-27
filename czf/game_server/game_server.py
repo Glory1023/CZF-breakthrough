@@ -105,8 +105,10 @@ class EnvManager:
 
     def __reset(self, env_index, new=False):
         '''reset env of index'''
-        if not new and hasattr(self._game, 'reset'):
-            state = self._game.reset()
+        if not new:
+            state = self._envs[env_index].state
+        if not new and hasattr(state, 'reset'):
+            state.reset()
         else:
             # self.start_time = [0] * self._num_env
             state = self._game.new_initial_state()

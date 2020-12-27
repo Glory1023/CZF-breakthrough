@@ -7,17 +7,25 @@ from gym.wrappers import AtariPreprocessing
 
 class AtariState:
     '''Atari state wrapper'''
-    def __init__(self, name, frame_stack, noop_max):
+    def __init__(self, name, frame_stack, noop_max, video_dir):
         env = gym.make(name)
-        self._env = AtariPreprocessing(
+        env = AtariPreprocessing(
             env,
             noop_max=noop_max,
             screen_size=96,
             terminal_on_life_loss=True,
-            grayscale_obs=False,
+            grayscale_obs=True,
             grayscale_newaxis=True,
             scale_obs=True,
         )
+        if video_dir is not None:
+            env = gym.wrappers.Monitor(
+                env,
+                video_dir,
+                video_callable=lambda _: True,
+                force=True,
+            )
+        self._env = env
         self._buffer = deque(maxlen=frame_stack) if frame_stack > 0 else None
         self._num_action = env.action_space.n
         self._all_actions = list(range(self._num_action))
@@ -97,9 +105,10 @@ class AtariGame:
         self._frame_stack = frame_stack
         self._noop_max = noop_max
 
-    def new_initial_state(self):
+    def new_initial_state(self, video_dir=None):
         '''Returns a newly allocated initial state'''
-        return AtariState(self._name, self._frame_stack, self._noop_max)
+        return AtariState(self._name, self._frame_stack, self._noop_max,
+                          video_dir)
 
     @property
     def name(self):

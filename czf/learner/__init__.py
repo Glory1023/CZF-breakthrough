@@ -5,7 +5,6 @@ from datetime import datetime
 import os
 from pathlib import Path
 import shutil
-import torch
 import yaml
 import zmq.asyncio
 
@@ -15,7 +14,6 @@ from czf.learner.learner import Learner
 async def main():
     '''czf.learner main program'''
     num_cpu = os.cpu_count()
-    num_gpu = torch.cuda.device_count()
     parser = argparse.ArgumentParser(__package__, description=__doc__)
     parser.add_argument('-f', '--config', required=True, help='config file')
     parser.add_argument('-l',
@@ -48,7 +46,7 @@ async def main():
     parser.add_argument('-np',
                         '--num-proc',
                         type=int,
-                        default=num_cpu - num_gpu,
+                        default=num_cpu,
                         help='number of Preprocessor process')
     parser.add_argument("--local_rank",
                         type=int,

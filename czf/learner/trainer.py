@@ -43,15 +43,13 @@ class Trainer:
             observation_shape = [frame_stack * (channel + 1), *spatial_shape]
         else:
             observation_shape = [channel, *spatial_shape]
+        self._gamma = config['mcts']['discount_factor']
+        # model kwargs
         self._action_dim = config['game']['actions']
-        # model
         model_config = config['model']
         h_channels = model_config['h_channels']
         state_shape = [h_channels, *config['game']['state_spatial_shape']]
         self._model_cls = config['model']['name']
-        Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
-        # torch.cuda.set_device(rank)
-        # torch.distributed.init_process_group('nccl', init_method='env://')
         self._r_heads = model_config.get('r_heads', 1)
         self._v_heads = model_config['v_heads']
         self._model_kwargs = dict(
@@ -66,6 +64,21 @@ class Trainer:
             f_channels=model_config['f_channels'],
             v_heads=self._v_heads,
         )
+        # config
+        self._observation_shape = observation_shape
+        self._state_shape = state_shape
+        self._replay_buffer_reuse = config['learner']['replay_buffer_reuse']
+        self._replay_retention = config['learner'][
+            'replay_buffer_size'] / config['learner']['frequency']
+        self._rollout_steps = config['learner']['rollout_steps']
+        self.frequency = config['learner']['frequency']
+        self._batch_size = config['learner']['batch_size']
+        self._r_loss = model_config['r_loss']
+        self._v_loss = model_config['v_loss']
+        # model
+        # torch.cuda.set_device(rank)
+        # torch.distributed.init_process_group('nccl', init_method='env://')
+        Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
         self._model = Model(
             **self._model_kwargs,
             is_train=True,
@@ -73,26 +86,6 @@ class Trainer:
         # self._model = DataParallelWrapper(self._model,
         #                                   device_ids=[rank],
         #                                   output_device=rank)
-        self._observation_shape = observation_shape
-        self._state_shape = state_shape
-        # optimizer
-        torch.backends.cudnn.benchmark = True
-        self._replay_buffer_reuse = config['learner']['replay_buffer_reuse']
-        self._replay_retention = config['learner'][
-            'replay_buffer_size'] / config['learner']['frequency']
-        self._rollout_steps = config['learner']['rollout_steps']
-        self._batch_size = config['learner']['batch_size']
-        self._r_loss = model_config['r_loss']
-        self._v_loss = model_config['v_loss']
-        self._optimizer = torch.optim.SGD(
-            self._model.parameters(),
-            lr=config['learner']['optimizer']['learning_rate'],
-            momentum=config['learner']['optimizer']['momentum'],
-            weight_decay=config['learner']['optimizer']['weight_decay'],
-            nesterov=config['learner']['optimizer']['nesterov'],
-        )
-        # compressor
-        # self._ckpt_compressor = zstd.ZstdCompressor()
         # restore the latest checkpoint
         if restore:
             print('Restore from', restore)
@@ -102,8 +95,17 @@ class Trainer:
                 # buffer = dctx.decompress(buffer)
             state_dict = torch.load(BytesIO(buffer))
             self.iteration = state_dict['iteration']
-            self._model.load(state_dict['model'])
-            self._optimizer.load_state_dict(state_dict['optimizer'])
+            self._model = state_dict['model']
+            # self._optimizer.load_state_dict(state_dict['optimizer'])
+        # optimizer
+        torch.backends.cudnn.benchmark = True
+        self._optimizer = torch.optim.SGD(
+            self._model.parameters(),
+            lr=config['learner']['optimizer']['learning_rate'],
+            momentum=config['learner']['optimizer']['momentum'],
+            weight_decay=config['learner']['optimizer']['weight_decay'],
+            nesterov=config['learner']['optimizer']['nesterov'],
+        )
         # tensorboard log
         self._num_player = config['game']['num_player']
         self._summary_writer = SummaryWriter(log_dir=log_path,
@@ -154,6 +156,7 @@ class Trainer:
         '''distributed training wrapper'''
         # with self._model.no_sync():
         self._train(replay_buffer)
+        self.iteration += 1
 
     def _train(self, replay_buffer):
         '''optimize the model and increment model version'''
@@ -189,7 +192,7 @@ class Trainer:
             num_workers=self._num_proc,
         )
         to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
-            np.array(np.frombuffer(x, dtype=dtype)), device=self._device)
+            np.frombuffer(x, dtype=dtype), device=self._device)
         shape = (
             (-1, 2 * self._v_heads + 1),
             (-1, ),
@@ -199,6 +202,7 @@ class Trainer:
         )
         self._model.train()
         num_trained_states = 0
+        replay_buffer.copy_weights()
         for rollout in dataloader:
             # tensor
             weight = to_tensor(rollout.weight)
@@ -286,8 +290,7 @@ class Trainer:
                 writer.add_scalar('loss/value', v_loss, step)
                 writer.add_scalar('loss/reward', r_loss, step)
                 break
-
-        self.iteration += 1
+        replay_buffer.write_back_weights()
 
     def save_model(self, checkpoint=False):
         '''save model to file'''

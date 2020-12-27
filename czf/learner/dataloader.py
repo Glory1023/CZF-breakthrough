@@ -1,7 +1,7 @@
 '''CZF Dataloader'''
 from collections import deque, namedtuple
 from dataclasses import dataclass
-from itertools import islice, zip_longest
+from itertools import zip_longest
 import numpy as np
 import torch
 import torch.multiprocessing as mp
@@ -43,17 +43,13 @@ class RolloutBatch:
     `sentinel` of the list.
     '''
     def __init__(self, data):
-        def np_stack(x, dtype=np.float32):
-            x = np.stack(x).astype(dtype, copy=False)
-            return x.tobytes()
-
         index, weight, observation, scale, *transition = self.__zip_discard(
             *data)
         self.index = tuple(index)
-        self.weight = np_stack(weight)
-        self.observation = np_stack(observation)
-        self.scale = np_stack(scale)
-        self.transition = tuple(np_stack(d) for d in transition if d)
+        self.weight = b''.join(weight)
+        self.observation = b''.join(observation)
+        self.scale = b''.join(scale)
+        self.transition = tuple(b''.join(d) for d in transition if d)
 
     @staticmethod
     def __zip_discard(*iterables, sentinel=None):
@@ -87,47 +83,53 @@ class TransitionBuffer:
 
     def get_weights(self):
         '''Get weights (not summing up to one) of samples'''
-        self._weights_mean = np.mean([
-            w for i, (w, t) in enumerate(zip(self._weights, self._buffer))
-            if i >= self._frame_stack and not t.is_terminal
-        ])  # alpha == 1
-        return list(self._weights)[self._frame_stack:]
+        weights = list(self._weights)[self._frame_stack:]
+        self._weights_mean = np.mean(weights)
+        return weights
 
     def update_weights(self, index, priorities):
         '''Update weights'''
         for i, priority in zip(index, priorities):
-            self._weights[i + self._frame_stack] = priority + 1e-6
+            self._weights_temp[i + self._frame_stack] = (priority + 1e-6)
+
+    def copy_weights(self):
+        '''Copy weights for further updates'''
+        self._weights_temp = self._weights.copy()
+
+    def write_back_weights(self):
+        '''Write back updated weights'''
+        self._weights = self._weights_temp.copy()
 
     def get_rollout(self, index, kstep):
         '''Get rollout at index with kstep'''
-        return list(islice(self, index, index + kstep))
+        buffer_len = len(self)
+        return [
+            self.__getitem__(index + i) for i in range(kstep)
+            if index + i < buffer_len
+        ]
 
     def get_observation(self, index):
         '''Get observation (stacked features) at index'''
-        def to_array(obs):
-            # obs = self._dctx.decompress(obs)
-            obs = np.frombuffer(obs, dtype=np.float32)
-            return obs.reshape(-1, *self._spatial_shape)
-
         weight = self._weights_mean / self._weights[index + self._frame_stack]
+        weight = np.array(weight, dtype=np.float32).tobytes()
         if self._frame_stack == 0:
-            return weight, to_array(self.__getitem__(index).observation)
+            return weight, self.__getitem__(index).observation
         buffer, first_index = [], index
         for i in range(self._frame_stack):
             transition = self.__getitem__(index - i - 1)
             if transition.is_terminal:
                 first_index = index - i
                 break
-            buffer.append(to_array(transition.observation))
+            buffer.append(transition.observation)
         if len(buffer) < self._frame_stack:
             # repeat initial observation
             buffer.extend([
-                to_array(self.__getitem__(first_index).observation)
+                self.__getitem__(first_index).observation
                 for _ in range(self._frame_stack - len(buffer))
             ])
         # concat feature tensors into an observation
         # (a_1, o_1), (a_2, o_2), ..., (a_n, o_n)
-        return weight, np.concatenate(list(reversed(buffer)))
+        return weight, b''.join(reversed(buffer))
 
     def extend(self, priorities, trajectory):
         '''Extend the right side of the buffer by
@@ -264,7 +266,7 @@ class Preprocessor:
                 nstep_value = [nstep_value]
                 reward = [reward]
             # tensor
-            action = to_bytes(state.transition.action, dtype=np.int64)
+            action = to_bytes(state.transition.action)
             policy = to_bytes(state.evaluation.policy)
             value = to_bytes(nstep_value)
             reward = to_bytes(reward)
@@ -404,14 +406,6 @@ class ReplayBuffer(Dataset):
         return len(self._buffer)
 
     def __getitem__(self, index):
-        def to_array(x, dtype=np.float32, squeeze=False):
-            if x is None:
-                return None
-            x = np.frombuffer(x, dtype=dtype)
-            if squeeze:
-                x = x.squeeze()
-            return x
-
         if self._buffer[index].is_terminal:
             if index == 0:
                 index += 1
@@ -420,23 +414,26 @@ class ReplayBuffer(Dataset):
         weight, observation = self._buffer.get_observation(index)
         rollout = self._buffer.get_rollout(index, self._kstep)
         kstep, transitions = 0, []
+        np0 = np.array(0, dtype=np.float32).tobytes()
+        np1 = np.array(1, dtype=np.float32).tobytes()
         for transition in rollout:
             kstep += 1
             transitions.extend([
-                to_array(transition.value),
-                0 if transition.is_terminal else 1,
-                to_array(transition.policy),
-                to_array(transition.action, dtype=np.int64, squeeze=True),
-                to_array(transition.reward),
+                transition.value,
+                np0 if transition.is_terminal else np1,
+                transition.policy,
+                transition.action,
+                transition.reward,
             ])
             if transition.is_terminal:
                 break
+        scale = np.array(1. / kstep, dtype=np.float32).tobytes()
         # i, w, o, s, [(v, m, p, a, r)]
         return [
             index,
             weight,
             observation,
-            1 / kstep,
+            scale,
             *transitions,
         ]
 
@@ -447,6 +444,14 @@ class ReplayBuffer(Dataset):
     def update_weights(self, index, priorities):
         '''Update weights'''
         self._buffer.update_weights(index, priorities)
+
+    def copy_weights(self):
+        '''Copy weights for further updates'''
+        self._buffer.copy_weights()
+
+    def write_back_weights(self):
+        '''Write back updated weights'''
+        self._buffer.write_back_weights()
 
     def is_ready(self):
         '''Check if replay buffer is ready for training'''
