@@ -49,7 +49,8 @@ class Learner:
         # trainer
         self._checkpoint_freq = config['learner']['checkpoint_freq']
         self._trainer = Trainer(config, checkpoint_path, model_path, log_path,
-                                args.num_proc, args.model_name, args.restore)
+                                args.num_proc, args.model_name, args.restore,
+                                args.local_rank)
         self._trainer.save_model()
         print('Storage path:', storage_path)
         # pretrain the trajectory

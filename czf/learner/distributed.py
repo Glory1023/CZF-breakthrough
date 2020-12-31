@@ -1,10 +1,11 @@
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
+from torch.nn import DataParallel
 import logging
 
 
-class DataParallelWrapper(DistributedDataParallel):
+class DistributedDataParallelWrapper(DistributedDataParallel):
     def forward_representation(self, *inputs, **kwargs):
         if self.ddp_join_enabled:
             ones = torch.ones(1, device=self.device)

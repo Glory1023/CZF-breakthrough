@@ -12,7 +12,8 @@ from torch.utils.tensorboard import SummaryWriter
 # import zstandard as zstd
 
 from czf.learner.dataloader import RolloutBatch
-# from czf.learner.distributed import DataParallelWrapper
+# from czf.learner.distributed import DistributedDataParallelWrapper
+from czf.learner.data_parallel import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
 
 
@@ -83,7 +84,7 @@ class Trainer:
             **self._model_kwargs,
             is_train=True,
         ).to(self._device)
-        # self._model = DataParallelWrapper(self._model,
+        # self._model = DistributedDataParallelWrapper(self._model,
         #                                   device_ids=[rank],
         #                                   output_device=rank)
         # restore the latest checkpoint
@@ -97,6 +98,7 @@ class Trainer:
             self.iteration = state_dict['iteration']
             self._model = state_dict['model']
             # self._optimizer.load_state_dict(state_dict['optimizer'])
+        self._model = DataParallelWrapper(self._model)
         # optimizer
         torch.backends.cudnn.benchmark = True
         self._optimizer = torch.optim.SGD(
@@ -115,7 +117,7 @@ class Trainer:
         # input_obs = torch.rand(1, *observation_shape).to(self._device)
         input_state = torch.rand(1, *state_shape).to(self._device)
         # input_action = torch.rand(1, 1).to(self._device)
-        self._summary_writer.add_graph(self._model, (input_state, ))
+        self._summary_writer.add_graph(self._model.module, (input_state, ))
 
     def log_statistics(self, replay_buffer):
         '''log statistics for recent trajectories'''
@@ -203,6 +205,7 @@ class Trainer:
         self._model.train()
         num_trained_states = 0
         replay_buffer.copy_weights()
+        print('Weights mean', replay_buffer._buffer._weights_mean)
         for rollout in dataloader:
             # tensor
             weight = to_tensor(rollout.weight)
@@ -213,22 +216,50 @@ class Trainer:
                 to_tensor(t).view(shape[i % 5])
                 for i, t in enumerate(rollout.transition)
             ]
-            num_trained_states += len(observation)
+            num_states = len(observation)
+            num_trained_states += num_states
+            # priority
+            scalar_v = MuZeroAtari.to_scalar(self._model.v_supp, transition[0])
+            nstep_v = torch.zeros((num_states, 1), device=self._device)
+            nstep_v_sum = torch.zeros((num_states, 1), device=self._device)
+            ksteps = torch.zeros((num_states, 1), device=self._device)
+            rollout_index = torch.arange(num_states, device=self._device)
+            target_v_info = MuZeroAtari.to_scalar(self._model.v_supp,
+                                                  transition[0])
             # forward
-            state = self._model.forward_representation(observation)
+            state = self._model.parallel_forward_representation(observation)
             total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
-            for i in range(0, len(transition), 5):
+            for t, i in enumerate(range(0, len(transition), 5)):
                 target_value, mask, *next_transition = transition[i:i + 5]
                 if next_transition:
                     target_policy, action, target_reward = next_transition
                 mask = mask.nonzero(as_tuple=True)
                 total_batch += len(state)
-                policy, value = self._model.forward(state)
+                policy, value = self._model.parallel_forward(state)
+                # predict nstep
+                nstep_v[rollout_index] += MuZeroAtari.to_scalar(
+                    self._model.v_supp, value.detach()) * (self._gamma**t)
+                nstep_v_sum[rollout_index] += nstep_v[rollout_index]
+                ksteps[rollout_index] += 1.
+                target_v_info[rollout_index] += MuZeroAtari.to_scalar(
+                    self._model.v_supp, target_value)
                 if next_transition:
                     policy = policy[mask]
                     state = state[mask]
-                    state, reward = self._model.forward_dynamics(state, action)
+                    state, reward = self._model.parallel_forward_dynamics(
+                        state, action)
                     state = scale_gradient(state, 0.5)
+                    # predict nstep
+                    rollout_index = rollout_index[mask]
+                    nstep_v[rollout_index] += MuZeroAtari.to_scalar(
+                        self._model.r_supp, reward.detach()) * (
+                            self._gamma**t) - MuZeroAtari.to_scalar(
+                                self._model.v_supp,
+                                value[mask].detach()) * (self._gamma**t)
+                    if t == 0:
+                    print('avg target policy',
+                              torch.mean(target_policy, dim=0),
+                              'avg pred policy', torch.mean(policy, dim=0))
                 # loss
                 v_loss_i = weight * v_criterion(target_value, value)
                 if next_transition:
@@ -261,24 +292,36 @@ class Trainer:
             p_loss /= total_batch
             v_loss /= total_batch
             r_loss /= total_batch
-            print('policy loss: {:.3f}, value loss: {:.3f}'.format(
-                p_loss, v_loss))
+            nstep_v_sum /= ksteps
+            target_v_info /= ksteps
+            print(
+                'p_loss: {:.3f}, v_loss: {:.3f}, target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f}, priority ori: {:.3f}'
+                .format(
+                    p_loss, v_loss, torch.mean(target_v_info.detach()),
+                    torch.std(target_v_info.detach()),
+                    torch.mean(nstep_v_sum.detach()),
+                    torch.std(nstep_v_sum.detach()),
+                    torch.mean(replay_buffer._buffer._weights_mean / weight)))
             # optimize
             self._optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self._model.parameters(), 40)
             self._optimizer.step()
             loss = loss.item()
-            del weight, scale, target_value, mask, next_transition
-            del state, action, policy, value, reward
             # update priority
-            state = self._model.forward_representation(observation)
-            _, value = self._model.forward(state.detach())
+            state = self._model.parallel_forward_representation(observation)
+            _, value = self._model.parallel_forward(state.detach())
             pred_v = MuZeroAtari.to_scalar(self._model.v_supp, value.detach())
             scalar_v = MuZeroAtari.to_scalar(self._model.v_supp, transition[0])
             priority = torch.abs(pred_v - scalar_v).squeeze(dim=-1).tolist()
+            # priority = (torch.abs(nstep_v_sum -
+            #                       scalar_v).squeeze(dim=-1)).tolist()
             replay_buffer.update_weights(rollout.index, priority)
-            del rollout, observation, transition
-            del state, value, pred_v, scalar_v, priority
+            del pred_v, priority
+            del weight, observation, scale, transition
+            del rollout, target_value, mask, next_transition
+            del state, action, policy, value, reward
+            del scalar_v, nstep_v, nstep_v_sum, ksteps, rollout_index, target_v_info
             # the end of current training
             if num_trained_states >= states_to_train:
                 # TODO: average loss of each minibatch
@@ -299,7 +342,7 @@ class Trainer:
             {
                 'name': self.model_name,
                 'iteration': self.iteration,
-                'model': self._model,
+                'model': self._model.module,
                 'optimizer': self._optimizer.state_dict(),
                 'observation_shape': self._observation_shape,
                 'state_shape': self._state_shape,

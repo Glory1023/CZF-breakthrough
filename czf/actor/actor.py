@@ -100,7 +100,7 @@ class Actor:
             # enqueue
             jobs.append(job.SerializeToString())
         self._worker_manager.enqueue_job(jobs)
-        await self.__send_job_request()
+        # await self.__send_job_request() #TODO?
 
     async def _load_model_loop(self):
         '''a loop to load model'''

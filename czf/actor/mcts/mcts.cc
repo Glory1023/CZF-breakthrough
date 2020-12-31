@@ -54,8 +54,8 @@ Node *Node::select_child(const TreeInfo &tree_info,
         ++num_selected;
       value_sum += is_two_player
                        ? child.mcts_info_.value
-                       : child.mcts_info_.reward +
-                             tree_option.discount * child.mcts_info_.value;
+                        : tree_info.get_normalized_value(child.mcts_info_.reward +
+                              tree_option.discount * child.mcts_info_.value);
       }
     }
     if (num_selected > 0) {
@@ -74,8 +74,7 @@ Node *Node::select_child(const TreeInfo &tree_info,
                    : tree_info.get_normalized_value(child.mcts_info_.reward +
                                                     tree_option.discount *
                                                         child.mcts_info_.value))
-            : (is_two_player ? init_value
-                             : tree_info.get_normalized_value(init_value));
+            : init_value;
     const float score =
         child_value + tree_option.c_puct *
                           mcts_info_.policy[child.mcts_info_.action_index] *

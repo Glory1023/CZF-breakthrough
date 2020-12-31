@@ -116,9 +116,9 @@ class TransitionBuffer:
             return weight, self.__getitem__(index).observation
         buffer, first_index = [], index
         for i in range(self._frame_stack):
-            transition = self.__getitem__(index - i - 1)
+            transition = self.__getitem__(index - i)
             if transition.is_terminal:
-                first_index = index - i
+                first_index = index - i + 1
                 break
             buffer.append(transition.observation)
         if len(buffer) < self._frame_stack:
