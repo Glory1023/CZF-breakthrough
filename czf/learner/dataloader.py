@@ -2,6 +2,7 @@
 from collections import deque, namedtuple
 from dataclasses import dataclass
 from itertools import zip_longest
+from multiprocessing import Queue
 import numpy as np
 import torch
 import torch.multiprocessing as mp
@@ -17,6 +18,7 @@ Transition = namedtuple('Transition', [
     'value',
     'reward',
     'is_terminal',
+    'valid',
 ])
 Transition.__doc__ = '''Transition is used to store in :class:`TransitionBuffer`'''
 
@@ -100,6 +102,13 @@ class TransitionBuffer:
         '''Write back updated weights'''
         self._weights = self._weights_temp.copy()
 
+    def get_valid_index(self, index):
+        '''Get a valid index'''
+        transition = self.__getitem__(index)
+        assert transition.valid
+        # self._frame_stack + self._mstep
+        return index
+
     def get_rollout(self, index, kstep):
         '''Get rollout at index with kstep'''
         buffer_len = len(self)
@@ -114,22 +123,12 @@ class TransitionBuffer:
         weight = np.array(weight, dtype=np.float32).tobytes()
         if self._frame_stack == 0:
             return weight, self.__getitem__(index).observation
-        buffer, first_index = [], index
-        for i in range(self._frame_stack):
-            transition = self.__getitem__(index - i)
-            if transition.is_terminal:
-                first_index = index - i + 1
-                break
-            buffer.append(transition.observation)
-        if len(buffer) < self._frame_stack:
-            # repeat initial observation
-            buffer.extend([
-                self.__getitem__(first_index).observation
-                for _ in range(self._frame_stack - len(buffer))
-            ])
         # concat feature tensors into an observation
         # (a_1, o_1), (a_2, o_2), ..., (a_n, o_n)
-        return weight, b''.join(reversed(buffer))
+        return weight, b''.join([
+            self.__getitem__(index - i).observation
+            for i in reversed(range(self._frame_stack))
+        ])
 
     def extend(self, priorities, trajectory):
         '''Extend the right side of the buffer by
@@ -168,6 +167,7 @@ class Preprocessor:
         self._v_heads = v_heads
         self._kstep = kstep
         self._nstep = nstep
+        self._mstep = max(kstep, nstep)
         self._discount_factor = discount_factor
 
     @staticmethod
@@ -233,8 +233,23 @@ class Preprocessor:
                         value=terminal_value,
                         reward=None,
                         is_terminal=True,
+                        valid=False,
                     ))
                 continue
+            if not state.HasField('transition'):  # is_frame_stack
+                priorities.append(0.)
+                buffer.append(
+                    Transition(
+                        observation=observation,
+                        action=None,
+                        policy=None,
+                        value=None,
+                        reward=None,
+                        is_terminal=False,
+                        valid=False,
+                    ))
+                continue
+            is_valid = has_statistics or (i >= self._mstep)
             # monte carlo returns
             for player in range(self._num_player):
                 rewards = state.transition.rewards
@@ -254,7 +269,10 @@ class Preprocessor:
             if self._num_player == 1:
                 # alpha == 1
                 priority = np.abs(state.evaluation.value - nstep_value)
+            if is_valid:
             priorities.append(priority + 1e-6)
+            else:
+                priorities.append(0.)
             # transform
             if self._transform is not None:
                 nstep_value = self._transform(nstep_value)
@@ -279,21 +297,25 @@ class Preprocessor:
                     value=value,
                     reward=reward,
                     is_terminal=False,
+                    valid=is_valid,
                 ))
             del state
         # update statistics
         stats = Statistics(
             num_games=1,
-            game_steps=[len(trajectory.states) - 1],
-            player_returns=[[] for _ in range(self._num_player)],
+            game_steps=(len(trajectory.states) - 1, ),
+            player_returns=tuple(tuple() for _ in range(self._num_player)),
         )
         if has_statistics:
-            stats.game_steps[:] = [trajectory.statistics.game_steps]
-            for player, reward in enumerate(trajectory.statistics.rewards):
-                stats.player_returns[player].append(reward)
+            stats = Statistics(
+                num_games=1,
+                game_steps=(trajectory.statistics.game_steps, ),
+                player_returns=tuple(
+                    (reward, ) for reward in trajectory.statistics.rewards),
+            )
         # add trajectory to buffer (from start to terminal)
         self._result_queue.put(
-            (stats, list(reversed(priorities)), list(reversed(buffer))))
+            (stats, tuple(reversed(priorities)), tuple(reversed(buffer))))
 
 
 def run_preprocessor(raw_queue, *args):
@@ -326,8 +348,8 @@ class PreprocessQueue:
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
         # multiprocessing
-        self._raw_queue = mp.Queue()
-        self._result_queue = mp.Queue()
+        self._raw_queue = Queue()
+        self._result_queue = Queue()
         self._process = [
             mp.Process(target=run_preprocessor,
                        args=(
@@ -406,13 +428,9 @@ class ReplayBuffer(Dataset):
         return len(self._buffer)
 
     def __getitem__(self, index):
-        if self._buffer[index].is_terminal:
-            if index == 0:
-                index += 1
-            else:
-                index -= 1
+        index = self._buffer.get_valid_index(index)
         weight, observation = self._buffer.get_observation(index)
-        rollout = self._buffer.get_rollout(index, self._kstep)
+        rollout = self._buffer.get_rollout(index, self._kstep + 1)
         kstep, transitions = 0, []
         np0 = np.array(0, dtype=np.float32).tobytes()
         np1 = np.array(1, dtype=np.float32).tobytes()

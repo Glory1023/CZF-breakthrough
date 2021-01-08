@@ -67,8 +67,10 @@ class DataParallelWrapper(torch.nn.Module):
 
         if len(self.device_ids) == 1:
             self.module.to(self.src_device_obj)
-        self.v_supp = self.module.v_supp
-        self.r_supp = self.module.r_supp
+        if hasattr(self.module, 'v_supp'):
+            self.v_supp = self.module.v_supp
+        if hasattr(self.module, 'r_supp'):
+            self.r_supp = self.module.r_supp
 
     def parallel_forward(self, *inputs, **kwargs):
         if not self.device_ids:

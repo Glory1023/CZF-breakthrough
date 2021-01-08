@@ -88,8 +88,8 @@ class AtariState:
     @property
     def observation_tensor(self):
         '''Returns the input tensor for the neural network'''
-        if self._buffer:
-            return np.vstack([f for f in self._buffer]).flatten()
+        if self._buffer is not None:
+            return np.vstack(self._buffer).flatten()
         return self._feat.flatten()
 
     @property

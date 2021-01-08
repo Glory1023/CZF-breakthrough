@@ -43,8 +43,10 @@ class MuZero(nn.Module):
         )
         self.reward_head_end = nn.Sequential(
             nn.Linear(in_features=height * width, out_features=h_channels),
-            nn.ReLU(), nn.Linear(in_features=h_channels, out_features=r_heads),
-            nn.Tanh())
+            nn.ReLU(),
+            nn.Linear(in_features=h_channels, out_features=r_heads),
+            nn.Tanh(),
+        )
         # f => policy head
         self.policy_head_front = nn.Sequential(
             nn.Conv2d(in_channels=f_channels, out_channels=2, kernel_size=1),
@@ -53,7 +55,8 @@ class MuZero(nn.Module):
         )
         self.policy_head_end = nn.Sequential(
             nn.Linear(in_features=2 * height * width, out_features=action_dim),
-            nn.Softmax(dim=1))
+            nn.Softmax(dim=1),
+        )
         # f => value head
         self.value_head_front = nn.Sequential(
             nn.Conv2d(in_channels=f_channels, out_channels=1, kernel_size=1),
@@ -62,15 +65,19 @@ class MuZero(nn.Module):
         )
         self.value_head_end = nn.Sequential(
             nn.Linear(in_features=height * width, out_features=f_channels),
-            nn.ReLU(), nn.Linear(in_features=f_channels, out_features=v_heads),
-            nn.Tanh())
+            nn.ReLU(),
+            nn.Linear(in_features=f_channels, out_features=v_heads),
+            nn.Tanh(),
+        )
 
     def forward_representation(self, observation):
         '''h: representation function'''
         x = self.representation(observation)
         x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
         x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
-        x = (x - x_min) / (x_max - x_min)
+        x_scale = x_max - x_min
+        x_scale[x_scale < 1e-6] += 1e-6
+        x = (x - x_min) / x_scale
         return x
 
     def forward_dynamics(self, state, action):
@@ -81,7 +88,9 @@ class MuZero(nn.Module):
         x = self.dynamics(state)
         x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
         x_min = x.flatten(1).min(dim=1).values.view(-1, 1, 1, 1)
-        x = (x - x_min) / (x_max - x_min)
+        x_scale = x_max - x_min
+        x_scale[x_scale < 1e-6] += 1e-6
+        x = (x - x_min) / x_scale
         # reward head
         r = self.reward_head_front(x)
         r = r.view(-1, height * width)

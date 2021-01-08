@@ -1,6 +1,7 @@
 '''CZF Game Server'''
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
 import multiprocessing as mp
@@ -10,7 +11,7 @@ import czf_env
 
 from czf.game_server import atari_env
 from czf.pb import czf_pb2
-from czf.utils import get_zmq_dealer, timer, Queue
+from czf.utils import get_zmq_dealer, Queue
 
 
 async def run_env_manager(*args):
@@ -68,6 +69,8 @@ class EnvManager:
         )
         if args.eval:
             self._tree_option.dirichlet_epsilon = 0.
+        self._mstep = max(mcts_config['nstep'],
+                          config['learner']['rollout_steps'])
         # game_server config
         self._sequence = config['game_server']['sequence']
         # game env
@@ -75,6 +78,7 @@ class EnvManager:
         game_config = config['game']
         obs_config = game_config['observation']
         env_name = game_config['name']
+        self._video_dir = None
         if env_name in czf_env.available_games():
             self._game = czf_env.load_game(env_name)
             # check game config in lightweight game
@@ -86,6 +90,9 @@ class EnvManager:
         else:
             self._game = atari_env.load_game(env_name,
                                              obs_config['frame_stack'])
+            self._video_dir = 'demo/videos/' + args.suffix + '_' + datetime.today(
+            ).strftime('%Y%m%d_%H%M')
+        self._frame_stack = obs_config['frame_stack']
         self._envs = [None] * args.num_env
         self._total_rewards = [None] * self._num_env
         self._num_steps = [None] * self._num_env
@@ -111,12 +118,20 @@ class EnvManager:
             state.reset()
         else:
             # self.start_time = [0] * self._num_env
-            state = self._game.new_initial_state()
+            if self._video_dir is not None and self._proc_index == 0 and env_index == 0:
+                state = self._game.new_initial_state(video_dir=self._video_dir)
+            else:
+                state = self._game.new_initial_state()
         self._envs[env_index] = EnvInfo(
             state,
             czf_pb2.Trajectory(),
             [czf_pb2.Node()],
         )
+        if self._frame_stack > 1:
+            env = self._envs[env_index]
+            for _ in range(self._frame_stack - 1):
+                state = env.trajectory.states.add()
+                state.observation_tensor[:] = env.state.feature_tensor
         self._total_rewards[env_index] = [0.] * self._game.num_players
         self._num_steps[env_index] = 0
 
@@ -188,17 +203,27 @@ class EnvManager:
                 env_index]
             env.trajectory.statistics.game_steps = self._num_steps[env_index]
             # send optimize job
-            self._trajectory_queue.put(env.trajectory.SerializeToString())
+            print('send 1 traj of len', len(env.trajectory.states))
+            packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
+                trajectories=[env.trajectory]))
+            self._trajectory_queue.put(packet.SerializeToString())
             self.__reset(env_index)
         elif self._sequence > 0 and (len(env.trajectory.states) %
-                                     (self._sequence + 1) == 0):
-            # send optimize job for each sequence
-            self._trajectory_queue.put(env.trajectory.SerializeToString())
-            last_state = czf_pb2.WorkerState()
-            last_state.CopyFrom(env.trajectory.states[self._sequence])
-            env.trajectory = czf_pb2.Trajectory()
-            env.trajectory.states.append(last_state)
-            del last_state
+                                     (self._sequence + self._mstep) == 0):
+            # send optimize job of length (sequence + mstep)
+            print('send 1 traj of len', len(env.trajectory.states))
+            packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
+                trajectories=[env.trajectory]))
+            self._trajectory_queue.put(packet.SerializeToString())
+            # keep the last (frame_stack - 1 + mstep) states
+            trajectory = czf_pb2.Trajectory()
+            if self._frame_stack > 1:
+                for i in reversed(range(self._frame_stack - 1)):
+                    state = trajectory.states.add()
+                    state.observation_tensor[:] = env.trajectory.states[
+                        -i - 1 - self._mstep].observation_tensor
+            trajectory.states.extend(env.trajectory.states[-self._mstep:])
+            env.trajectory = trajectory
 
         # send a search job
         self.__send_search_job(env_index)
@@ -311,28 +336,10 @@ class GameServer:
         loop = asyncio.get_event_loop()
         queue = self._trajectory_queue
         while True:
-            trajectory = await loop.run_in_executor(executor, queue.get)
-            batch = czf_pb2.TrajectoryBatch(
-                trajectories=[czf_pb2.Trajectory.FromString(trajectory)])
-            for timeout in timer(wait_time=0.1):
-                try:
-                    trajectory = await asyncio.wait_for(
-                        loop.run_in_executor(executor, queue.get),
-                        timeout=timeout,
-                    )
-                    batch.trajectories.append(
-                        czf_pb2.Trajectory.FromString(trajectory))
-                except asyncio.exceptions.TimeoutError:
-                    break
-            await self.__send_trajectory(batch)
+            raw = await loop.run_in_executor(executor, queue.get)
+            await self._upstream.send(raw)
 
     async def __send_model_subscribe(self):
         '''helper to send a `model_subscribe` to optimizer'''
         packet = czf_pb2.Packet(model_subscribe=czf_pb2.Heartbeat())
-        await self._upstream.send(packet.SerializeToString())
-
-    async def __send_trajectory(self, batch: czf_pb2.TrajectoryBatch):
-        '''helper to send a `TrajectoryBatch` to optimizer'''
-        print('send traj', len(batch.trajectories))
-        packet = czf_pb2.Packet(trajectory_batch=batch)
         await self._upstream.send(packet.SerializeToString())
