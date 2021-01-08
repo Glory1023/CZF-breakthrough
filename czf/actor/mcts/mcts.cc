@@ -188,6 +188,9 @@ bool Tree::after_forward(RNG_t &rng) {
   }
   // update
   auto z = current_node_->get_forward_value();
+  if (is_two_player_ && !current_node_->is_root_player()) {
+    z = -z;
+  }
   tree_info_.update(z);
   const auto end = std::rend(selection_path_);
   for (auto it = std::rbegin(selection_path_); it != end; ++it) {

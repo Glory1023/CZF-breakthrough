@@ -51,8 +51,12 @@ class Trainer:
         h_channels = model_config['h_channels']
         state_shape = [h_channels, *config['game']['state_spatial_shape']]
         self._model_cls = config['model']['name']
-        self._r_heads = model_config.get('r_heads', 1)
-        self._v_heads = model_config['v_heads']
+        has_transform = 'transform' in config['learner']
+        r_heads = model_config.get('r_heads', 1)
+        v_heads = model_config['v_heads']
+        self._r_heads = 2 * r_heads + 1 if has_transform else r_heads
+        self._v_heads = 2 * v_heads + 1 if has_transform else v_heads
+        self._has_transform = None
         self._model_kwargs = dict(
             observation_shape=observation_shape,
             state_shape=state_shape,
@@ -60,10 +64,10 @@ class Trainer:
             h_blocks=model_config['h_blocks'],
             h_channels=h_channels,
             g_blocks=model_config['g_blocks'],
-            r_heads=self._r_heads,
+            r_heads=r_heads,
             f_blocks=model_config['f_blocks'],
             f_channels=model_config['f_channels'],
-            v_heads=self._v_heads,
+            v_heads=v_heads,
         )
         # config
         self._observation_shape = observation_shape
@@ -165,8 +169,8 @@ class Trainer:
         p_criterion = lambda target, prob: ((-target *
                                              (1e-8 + prob).log()).sum(dim=1))
         if self._v_loss == 'mse':
-            v_criterion = lambda target, pred: torch.nn.MSELoss(
-                reduction='none')(target, pred).squeeze()
+            v_criterion = lambda target, pred: (target - pred).square(
+            ).squeeze()
         else:  # == 'cross_entropy'
             v_criterion = lambda target, prob: (
                 (-target * (1e-8 + prob).log()).sum(dim=1))
@@ -196,16 +200,24 @@ class Trainer:
         to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
             np.frombuffer(x, dtype=dtype), device=self._device)
         shape = (
-            (-1, 2 * self._v_heads + 1),
+            (-1, self._v_heads),
             (-1, ),
             (-1, self._action_dim),
             (-1, ),
-            (-1, 2 * self._r_heads + 1),
+            (-1, self._r_heads),
         )
         self._model.train()
         num_trained_states = 0
         replay_buffer.copy_weights()
-        print('Weights mean', replay_buffer._buffer._weights_mean)
+        print(f'Weights mean: {replay_buffer._buffer._weights_mean:.5f}')
+        if self._model_cls == 'MuZeroAtari':
+            value_transform = lambda x: MuZeroAtari.to_scalar(
+                self._model.v_supp, x)
+            reward_transform = lambda x: MuZeroAtari.to_scalar(
+                self._model.r_supp, x)
+        else:
+            value_transform = lambda x: x
+            reward_transform = lambda x: x
         for rollout in dataloader:
             # tensor
             weight = to_tensor(rollout.weight)
@@ -219,13 +231,12 @@ class Trainer:
             num_states = len(observation)
             num_trained_states += num_states
             # priority
-            scalar_v = MuZeroAtari.to_scalar(self._model.v_supp, transition[0])
             nstep_v = torch.zeros((num_states, 1), device=self._device)
             nstep_v_sum = torch.zeros((num_states, 1), device=self._device)
             ksteps = torch.zeros((num_states, 1), device=self._device)
             rollout_index = torch.arange(num_states, device=self._device)
-            target_v_info = MuZeroAtari.to_scalar(self._model.v_supp,
-                                                  transition[0])
+            target_v_info = value_transform(transition[0])
+            scalar_v = value_transform(transition[0])
             # forward
             state = self._model.parallel_forward_representation(observation)
             total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
@@ -237,12 +248,22 @@ class Trainer:
                 total_batch += len(state)
                 policy, value = self._model.parallel_forward(state)
                 # predict nstep
-                nstep_v[rollout_index] += MuZeroAtari.to_scalar(
-                    self._model.v_supp, value.detach()) * (self._gamma**t)
-                nstep_v_sum[rollout_index] += nstep_v[rollout_index]
+                nstep_v[rollout_index] += value_transform(
+                    value.detach()) * (self._gamma**t)
+                nstep_v_sum[rollout_index] += nstep_v[
+                    rollout_index] if self._num_player == 1 else value_transform(
+                        value.detach()) * (self._gamma**t) * ((-1)**t)
                 ksteps[rollout_index] += 1.
-                target_v_info[rollout_index] += MuZeroAtari.to_scalar(
-                    self._model.v_supp, target_value)
+                target_v_info[rollout_index] += value_transform(
+                    target_value
+                ) if self._num_player == 1 else value_transform(
+                    target_value) * ((-1)**t)
+                if t == 0 and self.use_prioritize:
+                    priority = torch.abs(
+                        value_transform(value.detach()) -
+                        value_transform(target_value)).squeeze(
+                            dim=-1).tolist()
+                    replay_buffer.update_weights(rollout.index, priority)
                 if next_transition:
                     policy = policy[mask]
                     state = state[mask]
@@ -251,10 +272,8 @@ class Trainer:
                     state = scale_gradient(state, 0.5)
                     # predict nstep
                     rollout_index = rollout_index[mask]
-                    nstep_v[rollout_index] += MuZeroAtari.to_scalar(
-                        self._model.r_supp, reward.detach()) * (
-                            self._gamma**t) - MuZeroAtari.to_scalar(
-                                self._model.v_supp,
+                    nstep_v[rollout_index] += reward_transform(
+                        reward.detach()) * (self._gamma**t) - value_transform(
                                 value[mask].detach()) * (self._gamma**t)
                     if t == 0:
                     print('avg target policy',
@@ -301,23 +320,14 @@ class Trainer:
                     torch.std(target_v_info.detach()),
                     torch.mean(nstep_v_sum.detach()),
                     torch.std(nstep_v_sum.detach()),
-                    torch.mean(replay_buffer._buffer._weights_mean / weight)))
+                    torch.mean(replay_buffer._buffer._weights_mean /
+                               to_tensor(rollout.weight))))
             # optimize
             self._optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self._model.parameters(), 40)
             self._optimizer.step()
             loss = loss.item()
-            # update priority
-            state = self._model.parallel_forward_representation(observation)
-            _, value = self._model.parallel_forward(state.detach())
-            pred_v = MuZeroAtari.to_scalar(self._model.v_supp, value.detach())
-            scalar_v = MuZeroAtari.to_scalar(self._model.v_supp, transition[0])
-            priority = torch.abs(pred_v - scalar_v).squeeze(dim=-1).tolist()
-            # priority = (torch.abs(nstep_v_sum -
-            #                       scalar_v).squeeze(dim=-1)).tolist()
-            replay_buffer.update_weights(rollout.index, priority)
-            del pred_v, priority
             del weight, observation, scale, transition
             del rollout, target_value, mask, next_transition
             del state, action, policy, value, reward
@@ -364,12 +374,11 @@ class Trainer:
         ]
         if not checkpoint:
             args.append('--rm')
-        subprocess.run(args, check=True, env=os.environ.copy())
-        if checkpoint:
+        # subprocess.run(args, check=True, env=os.environ.copy())
+        # if checkpoint:
+        if True:
             # update the latest checkpoint
             latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
             temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
-            if not latest_ckpt.exists():
-                os.symlink(ckpt_path, latest_ckpt)
             os.symlink(ckpt_path, temp_ckpt)
             os.replace(temp_ckpt, latest_ckpt)

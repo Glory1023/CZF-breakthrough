@@ -5,6 +5,7 @@ import platform
 import zstandard as zstd
 
 from czf.utils import get_zmq_dealer, RemoteModelManager
+from czf.utils.model_saver import jit
 from czf.pb import czf_pb2
 
 
@@ -117,7 +118,8 @@ class Actor:
         assert len(model.blobs) == 1
         print('load model', model.info.name, 'iteration', model.info.version)
         blob = model.blobs[0]
-        model_blob = self._dctx.decompress(blob)
+        # model_blob = self._dctx.decompress(blob)
+        _, model_blob = jit(blob)
         self._worker_manager.load_from_bytes(model_blob)
 
     async def __initialize(self):

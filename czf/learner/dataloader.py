@@ -86,7 +86,7 @@ class TransitionBuffer:
     def get_weights(self):
         '''Get weights (not summing up to one) of samples'''
         weights = list(self._weights)[self._frame_stack:]
-        self._weights_mean = np.mean(weights)
+        self._weights_mean = np.mean([w for w in weights if w > 0.])
         return weights
 
     def update_weights(self, index, priorities):

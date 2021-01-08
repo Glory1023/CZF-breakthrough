@@ -9,14 +9,8 @@ import torch.jit
 import zstandard as zstd
 
 
-def main(args):
-    '''czf.utils.model_server main program'''
-    device = 'cuda'
-    # load checkpoint
-    with open(args.checkpoint, 'rb') as model_blob:
-        buffer = model_blob.read()
-        # dctx = zstd.ZstdDecompressor()
-        # buffer = dctx.decompress(buffer)
+def jit(buffer, device='cuda'):
+    '''jit model'''
     state_dict = torch.load(BytesIO(buffer))
     model = state_dict['model'].to(device)
     iteration = state_dict['iteration']
@@ -37,13 +31,17 @@ def main(args):
                 'forward': (input_state, ),
             })
         torch.jit.save(frozen_net, buffer)
-    # save model
-    model_dir = Path(args.model_dir)
     buffer.seek(0)
-    cctx = zstd.ZstdCompressor()
-    compressed = cctx.compress(buffer.read())
+    return iteration, buffer.read()
+
+
+def save(args, iteration, buffer):
+    '''save jit model'''
+    model_dir = Path(args.model_dir)
     model_path = model_dir / f'{iteration:05d}.pt.zst'
-    model_path.write_bytes(compressed)
+    cctx = zstd.ZstdCompressor()
+    buffer = cctx.compress(buffer)
+    model_path.write_bytes(buffer)
     # update the latest model file
     latest_model = model_dir / 'latest.pt.zst'
     temp_model = model_dir / 'latest-temp.pt.zst'
@@ -51,6 +49,18 @@ def main(args):
     os.replace(temp_model, latest_model)
     if args.rm:
         os.remove(args.checkpoint)
+
+
+def main(args):
+    '''czf.utils.model_server main program'''
+    device = 'cuda'
+    # load checkpoint
+    with open(args.checkpoint, 'rb') as model_blob:
+        buffer = model_blob.read()
+        # dctx = zstd.ZstdDecompressor()
+        # buffer = dctx.decompress(buffer)
+    iteration, buffer = jit(buffer, device)
+    save(args, iteration, buffer)
 
 
 def run_main():
