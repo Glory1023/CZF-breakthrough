@@ -28,10 +28,12 @@ class Statistics:
     '''Statistics for a :class:`ReplayBuffer`
 
     :param num_games: total number of games
-    :param game_steps: a list of steps for each game
+    :param num_states: total number of states
+    :param game_steps: a list of total number of game steps
     :param player_returns: returns for each player
     '''
     num_games: int
+    num_states: int
     game_steps: list
     player_returns: list
 
@@ -203,6 +205,7 @@ class Preprocessor:
         values = []
         priorities, buffer = [], []
         has_statistics = trajectory.HasField('statistics')
+        num_states = 0
         for i, state in enumerate(reversed(trajectory.states)):
             # tensor
             observation = to_bytes(state.observation_tensor)
@@ -273,6 +276,7 @@ class Preprocessor:
                 priority = np.abs(state.evaluation.value - nstep_value)
             if is_valid:
             priorities.append(priority + 1e-6)
+                num_states += 1
             else:
                 priorities.append(0.)
             # transform
@@ -305,12 +309,14 @@ class Preprocessor:
         # update statistics
         stats = Statistics(
             num_games=1,
-            game_steps=(len(trajectory.states) - 1, ),
+            num_states=num_states,
+            game_steps=tuple(),
             player_returns=tuple(tuple() for _ in range(self._num_player)),
         )
         if has_statistics:
             stats = Statistics(
                 num_games=1,
+                num_states=num_states,
                 game_steps=(trajectory.statistics.game_steps, ),
                 player_returns=tuple(
                     (reward, ) for reward in trajectory.statistics.rewards),
@@ -321,7 +327,7 @@ class Preprocessor:
 
 
 def run_preprocessor(raw_queue, *args):
-    '''run :class:`EnvManager`'''
+    '''run :class:`Preprocessor`'''
     preprocessor = Preprocessor(*args)
     while True:
         raw = raw_queue.get()
@@ -381,6 +387,12 @@ class PreprocessQueue:
         '''Dequeue preprocessed trajectory'''
         return self._result_queue.get()
 
+    def get_all(self):
+        '''Dequeue all preprocessed trajectory'''
+        x = self._result_queue.get()
+        qsize = self._result_queue.qsize()
+        return [x] + [self._result_queue.get() for _ in range(qsize)]
+
 
 class ReplayBuffer(Dataset):
     '''ReplayBuffer is used to store and sample transitions.
@@ -424,7 +436,7 @@ class ReplayBuffer(Dataset):
         self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
         # self._cctx_observation = zstd.ZstdCompressor()
         self._cctx_trajectory = zstd.ZstdCompressor()
-        self._num_games = 0
+        self._num_states = 0
         self._ready = False
         self.reset_statistics()
 
@@ -485,18 +497,19 @@ class ReplayBuffer(Dataset):
     def add_trajectory(self, trajectory: tuple):
         '''Add a trajectory and its statistics'''
         stats, priorities, trajectory = trajectory
-        self._num_games += sum(stats.game_steps)
+        self._num_states += stats.num_states
         # update statistics
         self._statistics.num_games += stats.num_games
+        self._statistics.num_states += stats.num_states
         self._statistics.game_steps.extend(stats.game_steps)
         for player, player_returns in enumerate(stats.player_returns):
             self._statistics.player_returns[player].extend(player_returns)
         # add trajectory to buffer
         self._buffer.extend(priorities, trajectory)
         # train the model when there are N newly generated states
-        if self._num_games >= self._train_freq:
+        if self._num_states >= self._train_freq:
             self._ready = True
-            self._num_games -= self._train_freq
+            self._num_states -= self._train_freq
 
     def get_statistics(self):
         '''Returns :class:`Statistics` of recent trajectories'''
@@ -506,6 +519,7 @@ class ReplayBuffer(Dataset):
         '''Reset the :class:`Statistics` information of recent trajectories'''
         self._statistics = Statistics(
             num_games=0,
+            num_states=0,
             game_steps=[],
             player_returns=[[] for _ in range(self._num_player)],
         )

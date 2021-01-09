@@ -1,8 +1,11 @@
 '''CZF Trainer'''
 from collections import Counter
+from datetime import datetime
 from io import BytesIO
+import multiprocessing as mp
 import os
-import subprocess
+# import subprocess
+import time
 import sys
 import numpy as np
 import torch
@@ -11,10 +14,79 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 from torch.utils.tensorboard import SummaryWriter
 # import zstandard as zstd
 
-from czf.learner.dataloader import RolloutBatch
+from czf.learner.dataloader import ReplayBuffer, RolloutBatch
 # from czf.learner.distributed import DistributedDataParallelWrapper
 from czf.learner.data_parallel import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
+
+
+def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
+    '''run :class:`Trainer`'''
+    storage_path, checkpoint_path, model_path, log_path, trajectory_path = path
+    # replay buffer
+    replay_buffer = ReplayBuffer(
+        num_player=config['game']['num_player'],
+        observation_config=config['game']['observation'],
+        kstep=config['learner']['rollout_steps'],
+        capacity=config['learner']['replay_buffer_size'],
+        train_freq=config['learner']['frequency'],
+    )
+    # restore the replay buffer
+    if args.restore_buffer:
+        pass  # TODO
+    # trainer
+    checkpoint_freq = checkpoint_freq = config['learner']['checkpoint_freq']
+    trainer = Trainer(config, checkpoint_path, model_path, log_path,
+                      args.num_proc, args.model_name, args.restore,
+                      args.local_rank, config['learner']['prioritized'])
+    trainer.save_model()
+    print('Storage path:', storage_path)
+    # pretrain the trajectory
+    if args.pretrain_trajectory:
+        pass  # TODO
+    # training loop
+    while True:
+        trajectories = trajectory_queue.get_all()
+        tjs_len = [stat.num_states for stat, _, _ in trajectories]
+        states_to_add = replay_buffer._train_freq - replay_buffer._num_states
+        print('preprocessed', sum(tjs_len), 'total need', states_to_add)
+        if sum(tjs_len) > states_to_add:
+            tjs_sum = 0
+            for i, tj_len in enumerate(reversed(tjs_len)):
+                tjs_sum += tj_len
+                if tjs_sum > states_to_add:
+                    del trajectories[:-i - 1]
+                    break
+        for trajectory in trajectories:
+            replay_buffer.add_trajectory(trajectory)
+        if replay_buffer.is_ready():
+            print(
+                f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> Start optimization'
+            )
+            start = time.time()
+            trainer.log_statistics(replay_buffer)
+            replay_buffer.save_trajectory(trajectory_path, trainer.iteration)
+            trainer.train(replay_buffer)
+            save_ckpt = (trainer.iteration % checkpoint_freq == 0)
+            trainer.save_model(save_ckpt)
+            notify_model_queue.put((trainer.model_name, trainer.iteration))
+            print(
+                f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> Finish optimization with time {time.time() - start:.3f}'
+            )
+
+
+class TrainerRunner:
+    '''Manage :class:`Trainer` to run in another process.'''
+    def __init__(self, args, config, path, trajectory_queue):
+        self._notify_model_queue = mp.Queue()
+        self._trainer = mp.Process(target=run_trainer,
+                                   args=(args, config, path, trajectory_queue,
+                                         self._notify_model_queue))
+        self._trainer.start()
+
+    def get_notify(self):
+        '''get notify for a new model'''
+        return self._notify_model_queue.get()
 
 
 class Trainer:
@@ -131,9 +203,9 @@ class Trainer:
         replay_buffer.reset_statistics()
         writer, step = self._summary_writer, self.iteration
         writer.add_scalar('game/num_games', statistics.num_games, step)
+        writer.add_scalar('game/num_states', statistics.num_states, step)
         game_steps = statistics.game_steps
         if game_steps:
-            writer.add_scalar('game/num_states', sum(game_steps), step)
             writer.add_scalars(
                 'game/steps', {
                     'mean': np.mean(game_steps),

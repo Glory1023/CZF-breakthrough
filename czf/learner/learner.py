@@ -3,8 +3,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from czf.learner.trainer import Trainer
-from czf.learner.dataloader import PreprocessQueue, ReplayBuffer
+from czf.learner.dataloader import PreprocessQueue
+from czf.learner.trainer import TrainerRunner
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_router, LocalModelManager
 
@@ -17,9 +17,10 @@ class Learner:
         checkpoint_path = storage_path / 'checkpoint'
         model_path = storage_path / 'model'
         log_path = storage_path / 'log'
-        self._trajectory_path = storage_path / 'trajectory'
-        for path in (checkpoint_path, model_path, log_path,
-                     self._trajectory_path):
+        trajectory_path = storage_path / 'trajectory'
+        all_path = (storage_path, checkpoint_path, model_path, log_path,
+                    trajectory_path)
+        for path in all_path:
             Path(path).mkdir(parents=True, exist_ok=True)
         # queue
         self._model_request = asyncio.Queue()
@@ -36,28 +37,9 @@ class Learner:
             num_proc=args.num_proc,
             use_prioritize=config['learner']['prioritized'],
         )
-        # replay buffer
-        self._replay_buffer = ReplayBuffer(
-            num_player=config['game']['num_player'],
-            observation_config=config['game']['observation'],
-            kstep=config['learner']['rollout_steps'],
-            capacity=config['learner']['replay_buffer_size'],
-            train_freq=config['learner']['frequency'],
-        )
-        # restore the replay buffer
-        if args.restore_buffer:
-            pass  # TODO
         # trainer
-        self._checkpoint_freq = config['learner']['checkpoint_freq']
-        self._trainer = Trainer(config, checkpoint_path, model_path, log_path,
-                                args.num_proc, args.model_name, args.restore,
-                                args.local_rank,
-                                config['learner']['prioritized'])
-        self._trainer.save_model()
-        print('Storage path:', storage_path)
-        # pretrain the trajectory
-        if args.pretrain_trajectory:
-            pass  # TODO
+        self._trainer_runner = TrainerRunner(args, config, all_path,
+                                             self._trajectory)
         # model provider
         self._model_peers = set()  # peers to receive the model
         self._model_provider = LocalModelManager(
@@ -69,7 +51,7 @@ class Learner:
     async def loop(self):
         '''main loop'''
         await asyncio.gather(self._recv_loop(), self._model_request_loop(),
-                             self._trajectory_loop())
+                             self._notify_model_loop())
 
     async def _recv_loop(self):
         '''receive loop'''
@@ -89,24 +71,20 @@ class Learner:
             elif packet_type == 'goodbye':
                 self._model_peers.remove(identity)
 
-    async def _trajectory_loop(self):
-        '''store trajectory loop'''
+    async def _notify_model_loop(self):
+        '''loop to notify model update to peers'''
         executor = ThreadPoolExecutor(max_workers=1)
         loop = asyncio.get_event_loop()
         while True:
-            trajectory = await loop.run_in_executor(executor,
-                                                    self._trajectory.get)
-            self._replay_buffer.add_trajectory(trajectory)
-            if self._replay_buffer.is_ready():
-                self._trainer.log_statistics(self._replay_buffer)
-                self._replay_buffer.save_trajectory(self._trajectory_path,
-                                                    self._trainer.iteration)
-                self._trainer.train(self._replay_buffer)
-                save_ckpt = (self._trainer.iteration %
-                             self._checkpoint_freq == 0)
-                self._trainer.save_model(save_ckpt)
-                await self.__notify_model_update(self._trainer.model_name,
-                                                 self._trainer.iteration)
+            name, version = await loop.run_in_executor(
+                executor, self._trainer_runner.get_notify)
+            print('notify model', name, 'iteration', version)
+            raw = czf_pb2.Packet(model_info=czf_pb2.ModelInfo(
+                name=name,
+                version=version,
+            )).SerializeToString()
+            for peer in self._model_peers:
+                await self.__send_raw(peer, raw)
 
     async def _model_request_loop(self):
         '''send `Model` loop'''
@@ -133,16 +111,6 @@ class Learner:
             'lose': result.lose,
         }, step)
         writer.flush()
-
-    async def __notify_model_update(self, name: str, version: str):
-        '''notify model update to peers'''
-        print('notify model', name, 'iteration', version)
-        raw = czf_pb2.Packet(model_info=czf_pb2.ModelInfo(
-            name=name,
-            version=version,
-        )).SerializeToString()
-        for peer in self._model_peers:
-            await self.__send_raw(peer, raw)
 
     async def __send_packet(self, identity: bytes, packet: czf_pb2.Packet):
         '''helper to send a `Packet` to `identity`'''
