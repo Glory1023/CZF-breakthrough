@@ -151,6 +151,7 @@ class Preprocessor:
         kstep,
         nstep,
         discount_factor,
+        use_prioritize,
     ):
         self._result_queue = result_queue
         self._spatial_shape = observation_config['spatial_shape']
@@ -169,6 +170,7 @@ class Preprocessor:
         self._nstep = nstep
         self._mstep = max(kstep, nstep)
         self._discount_factor = discount_factor
+        self._use_prioritize = use_prioritize
 
     @staticmethod
     def __get_target_dist(x, heads):
@@ -266,7 +268,7 @@ class Preprocessor:
             reward = state.transition.rewards[state.transition.current_player]
             # priority
             priority = 1.
-            if self._num_player == 1:
+            if self._num_player == 1 and self._use_prioritize:
                 # alpha == 1
                 priority = np.abs(state.evaluation.value - nstep_value)
             if is_valid:
@@ -344,6 +346,7 @@ class PreprocessQueue:
         nstep,
         discount_factor,
         num_proc,
+        use_prioritize,
     ):
         torch.set_num_threads(1)
         torch.set_num_interop_threads(1)
@@ -364,6 +367,7 @@ class PreprocessQueue:
                            kstep,
                            nstep,
                            discount_factor,
+                           use_prioritize,
                        )) for _ in range(num_proc)
         ]
         for process in self._process:

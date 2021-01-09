@@ -34,6 +34,7 @@ class Learner:
             nstep=config['mcts']['nstep'],
             discount_factor=config['mcts']['discount_factor'],
             num_proc=args.num_proc,
+            use_prioritize=config['learner']['prioritized'],
         )
         # replay buffer
         self._replay_buffer = ReplayBuffer(
@@ -51,6 +52,7 @@ class Learner:
         self._trainer = Trainer(config, checkpoint_path, model_path, log_path,
                                 args.num_proc, args.model_name, args.restore,
                                 args.local_rank,
+                                config['learner']['prioritized'])
         self._trainer.save_model()
         print('Storage path:', storage_path)
         # pretrain the trajectory

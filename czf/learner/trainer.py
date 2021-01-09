@@ -27,7 +27,9 @@ class Trainer:
                  num_proc,
                  model_name,
                  restore,
-                 rank=0):
+                 rank=0,
+                 use_prioritize=True):
+        self.use_prioritize = use_prioritize
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
