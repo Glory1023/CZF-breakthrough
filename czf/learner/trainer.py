@@ -3,28 +3,94 @@ from collections import Counter
 from datetime import datetime
 from io import BytesIO
 import multiprocessing as mp
+from multiprocessing.managers import BaseManager
 import os
 # import subprocess
 import time
 import sys
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, WeightedRandomSampler
-# from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import WeightedRandomSampler
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 # import zstandard as zstd
 
 from czf.learner.dataloader import ReplayBuffer, RolloutBatch
-# from czf.learner.distributed import DistributedDataParallelWrapper
 from czf.learner.data_parallel import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
+
+
+def run_sampler(index_queue, sample_queue, replay_buffer, prefetch_factor):
+    '''run sampler'''
+    while True:
+        index = [index_queue.get()]
+        try:
+            for _ in range(prefetch_factor):
+                index.append(index_queue.get(block=False))
+        except:
+            pass
+        finally:
+            for i in index:
+                sample_queue.put(replay_buffer[i])
+
+
+class MyDataLoader:
+    '''DataLoader'''
+    def __init__(
+        self,
+        index_queue,
+        sample_queue,
+        batch_size,
+        collate_fn,
+    ):
+        self._index_queue = index_queue
+        self._sample_queue = sample_queue
+        self._batch_size = batch_size
+        self._collate_fn = collate_fn
+        self._num_sample = 0
+
+    def put(self, sampler):
+        '''Put all samples from `sampler` into `index_queue`'''
+        for index in sampler:
+            self._num_sample += 1
+            self._index_queue.put(index)
+
+    def __iter__(self):
+        while self._num_sample >= self._batch_size:
+            data = self._collate_fn(
+                [self._sample_queue.get() for _ in range(self._batch_size)])
+            self._num_sample -= self._batch_size
+            yield data
+        data = self._collate_fn(
+            [self._sample_queue.get() for _ in range(self._num_sample)])
+        self._num_sample = 0
+        yield data
 
 
 def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
     '''run :class:`Trainer`'''
     storage_path, checkpoint_path, model_path, log_path, trajectory_path = path
     # replay buffer
-    replay_buffer = ReplayBuffer(
+    BaseManager.register('ReplayBuffer',
+                         ReplayBuffer,
+                         exposed=[
+                             '__len__',
+                             '__getitem__',
+                             'get_mean_weight',
+                             'get_weights',
+                             'update_weights',
+                             'copy_weights',
+                             'write_back_weights',
+                             'is_ready',
+                             'get_states_to_add',
+                             'add_trajectory',
+                             'get_statistics',
+                             'reset_statistics',
+                             'save_trajectory',
+                         ])
+    manager = BaseManager()
+    manager.start()
+    replay_buffer = manager.ReplayBuffer(
         num_player=config['game']['num_player'],
         observation_config=config['game']['observation'],
         kstep=config['learner']['rollout_steps'],
@@ -34,45 +100,75 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
     # restore the replay buffer
     if args.restore_buffer:
         pass  # TODO
+    # sampler
+    index_queue = mp.Queue()
+    sample_queue = mp.Queue()
+    prefetch_factor = 4
+    samplers = [
+        mp.Process(target=run_sampler,
+                   args=(
+                       index_queue,
+                       sample_queue,
+                       replay_buffer,
+                       prefetch_factor,
+                   )) for _ in range(args.num_proc)
+    ]
+    for sampler in samplers:
+        sampler.start()
     # trainer
     checkpoint_freq = checkpoint_freq = config['learner']['checkpoint_freq']
     trainer = Trainer(config, checkpoint_path, model_path, log_path,
-                      args.num_proc, args.model_name, args.restore,
-                      args.local_rank, config['learner']['prioritized'])
+                      args.model_name, args.restore,
+                      config['learner']['prioritized'])
     trainer.save_model()
     print('Storage path:', storage_path)
     # pretrain the trajectory
     if args.pretrain_trajectory:
         pass  # TODO
+    # dataloader
+    dataloader = MyDataLoader(
+        index_queue,
+        sample_queue,
+        batch_size=config['learner']['batch_size'],
+        collate_fn=RolloutBatch,
+    )
+    pbar = tqdm(total=replay_buffer.get_states_to_add(), desc='Collect Trajs')
     # training loop
     while True:
         trajectories = trajectory_queue.get_all()
         tjs_len = [stat.num_states for stat, _, _ in trajectories]
-        states_to_add = replay_buffer._train_freq - replay_buffer._num_states
-        print('preprocessed', sum(tjs_len), 'total need', states_to_add)
+        states_to_add = replay_buffer.get_states_to_add()
         if sum(tjs_len) > states_to_add:
             tjs_sum = 0
             for i, tj_len in enumerate(reversed(tjs_len)):
                 tjs_sum += tj_len
                 if tjs_sum > states_to_add:
+                    del tjs_len[:-i - 1]
                     del trajectories[:-i - 1]
                     break
+        pbar.update(min(sum(tjs_len), pbar.total - pbar.n))
         for trajectory in trajectories:
             replay_buffer.add_trajectory(trajectory)
         if replay_buffer.is_ready():
+            pbar.close()
             print(
                 f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> Start optimization'
             )
             start = time.time()
             trainer.log_statistics(replay_buffer)
             replay_buffer.save_trajectory(trajectory_path, trainer.iteration)
-            trainer.train(replay_buffer)
+            sampler = WeightedRandomSampler(replay_buffer.get_weights(),
+                                            trainer.states_to_train)
+            dataloader.put(sampler)
+            trainer.train(dataloader, replay_buffer)
             save_ckpt = (trainer.iteration % checkpoint_freq == 0)
             trainer.save_model(save_ckpt)
             notify_model_queue.put((trainer.model_name, trainer.iteration))
             print(
                 f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> Finish optimization with time {time.time() - start:.3f}'
             )
+            pbar = tqdm(total=replay_buffer.get_states_to_add(),
+                        desc='Collect Trajs')
 
 
 class TrainerRunner:
@@ -96,10 +192,8 @@ class Trainer:
                  checkpoint_path,
                  model_path,
                  log_path,
-                 num_proc,
                  model_name,
                  restore,
-                 rank=0,
                  use_prioritize=True):
         self.use_prioritize = use_prioritize
         self._device = 'cuda'
@@ -108,7 +202,6 @@ class Trainer:
         self._model_dir = model_path / self.model_name
         for path in (self._ckpt_dir, self._model_dir):
             path.mkdir(parents=True, exist_ok=True)
-        self._num_proc = num_proc
         # game
         observation_config = config['game']['observation']
         frame_stack = observation_config['frame_stack']
@@ -146,12 +239,10 @@ class Trainer:
         # config
         self._observation_shape = observation_shape
         self._state_shape = state_shape
-        self._replay_buffer_reuse = config['learner']['replay_buffer_reuse']
-        self._replay_retention = config['learner'][
-            'replay_buffer_size'] / config['learner']['frequency']
         self._rollout_steps = config['learner']['rollout_steps']
-        self.frequency = config['learner']['frequency']
         self._batch_size = config['learner']['batch_size']
+        self.states_to_train = int(config['learner']['frequency'] *
+                                   config['learner']['replay_buffer_reuse'])
         self._r_loss = model_config['r_loss']
         self._v_loss = model_config['v_loss']
         # model
@@ -232,13 +323,12 @@ class Trainer:
                 }
                 writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
 
-    def train(self, replay_buffer):
+    def train(self, dataloader, replay_buffer):
         '''distributed training wrapper'''
-        # with self._model.no_sync():
-        self._train(replay_buffer)
+        self._train(dataloader, replay_buffer)
         self.iteration += 1
 
-    def _train(self, replay_buffer):
+    def _train(self, dataloader, replay_buffer):
         '''optimize the model and increment model version'''
         p_criterion = lambda target, prob: ((-target *
                                              (1e-8 + prob).log()).sum(dim=1))
@@ -256,21 +346,6 @@ class Trainer:
                 (-target * (1e-8 + prob).log()).sum(dim=1))
         scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach(
         ) * (1 - scale))
-        states_to_train = int(
-            len(replay_buffer) / self._replay_retention *
-            self._replay_buffer_reuse)
-        sampler = WeightedRandomSampler(replay_buffer.get_weights(),
-                                        states_to_train)
-        dataloader = DataLoader(
-            dataset=replay_buffer,
-            batch_size=self._batch_size,
-            sampler=sampler,
-            # shuffle=True, # shuffle and sampler are disjoint
-            collate_fn=RolloutBatch,
-            pin_memory=True,
-            prefetch_factor=4 if self._num_proc > 0 else 0,
-            num_workers=self._num_proc,
-        )
         to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
             np.frombuffer(x, dtype=dtype), device=self._device)
         shape = (
@@ -283,7 +358,7 @@ class Trainer:
         self._model.train()
         num_trained_states = 0
         replay_buffer.copy_weights()
-        print(f'Weights mean: {replay_buffer._buffer._weights_mean:.5f}')
+        print(f'>> Priority Mean: {replay_buffer.get_mean_weight():.5f}')
         if self._model_cls == 'MuZeroAtari':
             value_transform = lambda x: MuZeroAtari.to_scalar(
                 self._model.v_supp, x)
@@ -349,10 +424,14 @@ class Trainer:
                     nstep_v[rollout_index] += reward_transform(
                         reward.detach()) * (self._gamma**t) - value_transform(
                                 value[mask].detach()) * (self._gamma**t)
-                    if t == 0:
-                    print('avg target policy',
-                              torch.mean(target_policy, dim=0),
-                              'avg pred policy', torch.mean(policy, dim=0))
+                    if t == 0 and self._num_player == 1:
+                        print('>>> avg target_p:', [
+                            round(p, 3)
+                            for p in torch.mean(target_policy, dim=0).tolist()
+                        ], 'avg pred_p:', [
+                            round(p, 3)
+                            for p in torch.mean(policy, dim=0).tolist()
+                        ])
                 # loss
                 v_loss_i = weight * v_criterion(target_value, value)
                 if next_transition:
@@ -388,13 +467,15 @@ class Trainer:
             nstep_v_sum /= ksteps
             target_v_info /= ksteps
             print(
-                'p_loss: {:.3f}, v_loss: {:.3f}, target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f}, priority ori: {:.3f}'
+                '... p_loss: {:.3f}, v_loss: {:.3f}, target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f}, priority: {:.3f} \u00b1 {:.3f}'
                 .format(
                     p_loss, v_loss, torch.mean(target_v_info.detach()),
                     torch.std(target_v_info.detach()),
                     torch.mean(nstep_v_sum.detach()),
                     torch.std(nstep_v_sum.detach()),
-                    torch.mean(replay_buffer._buffer._weights_mean /
+                    torch.mean(replay_buffer.get_mean_weight() /
+                               to_tensor(rollout.weight)),
+                    torch.std(replay_buffer.get_mean_weight() /
                                to_tensor(rollout.weight))))
             # optimize
             self._optimizer.zero_grad()
@@ -407,7 +488,7 @@ class Trainer:
             del state, action, policy, value, reward
             del scalar_v, nstep_v, nstep_v_sum, ksteps, rollout_index, target_v_info
             # the end of current training
-            if num_trained_states >= states_to_train:
+            if num_trained_states >= self.states_to_train:
                 # TODO: average loss of each minibatch
                 lr = next(iter(self._optimizer.param_groups))['lr']
                 writer, step = self._summary_writer, self.iteration

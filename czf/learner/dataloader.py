@@ -85,6 +85,10 @@ class TransitionBuffer:
     def __getitem__(self, index):
         return self._buffer[index + self._frame_stack]
 
+    def get_mean_weight(self):
+        '''Get average weights of prioritized replay'''
+        return self._weights_mean
+
     def get_weights(self):
         '''Get weights (not summing up to one) of samples'''
         weights = list(self._weights)[self._frame_stack:]
@@ -471,6 +475,10 @@ class ReplayBuffer(Dataset):
             *transitions,
         ]
 
+    def get_mean_weight(self):
+        '''Get average weights of prioritized replay'''
+        return self._buffer.get_mean_weight()
+
     def get_weights(self):
         '''Get weights (not summing up to one) of samples'''
         return self._buffer.get_weights()
@@ -493,6 +501,10 @@ class ReplayBuffer(Dataset):
             self._ready = False
             return True
         return False
+
+    def get_states_to_add(self):
+        '''Get number of states needed for next training iteration'''
+        return self._train_freq - self._num_states
 
     def add_trajectory(self, trajectory: tuple):
         '''Add a trajectory and its statistics'''
