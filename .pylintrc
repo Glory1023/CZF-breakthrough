@@ -1,7 +1,10 @@
 [MESSAGES CONTROL]
 disable=
-    too-few-public-methods
+    too-few-public-methods,
+    invalid-name,
+    protobuf-undefined-attribute
 
 [TYPECHECK]
 ignored-modules=czf_env
+ignored-classes=BaseManager
 generated-members=LINGER,ROUTER,DEALER,IDENTITY,torch.*

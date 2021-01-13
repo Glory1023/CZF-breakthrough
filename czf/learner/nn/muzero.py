@@ -22,7 +22,7 @@ class MuZero(nn.Module):
         f_blocks,
         f_channels,
         v_heads,
-        # train or eval mode
+        # train or eval mode pylint: disable=unused-argument
         is_train,
     ):
         super().__init__()

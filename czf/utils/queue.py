@@ -1,3 +1,4 @@
+# pylint: skip-file
 import multiprocessing as mp
 import queue as Queue_
 from threading import Thread

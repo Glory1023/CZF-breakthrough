@@ -1,7 +1,9 @@
+'''ResNet Blocks'''
 from torch import nn
 
 
 class BasicBlock(nn.Module):
+    '''BasicBlock'''
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.conv1 = nn.Conv2d(in_channels,
@@ -22,6 +24,7 @@ class BasicBlock(nn.Module):
         self.relu2 = nn.ReLU()
 
     def forward(self, x):
+        '''forward'''
         y = self.conv1(x)
         y = self.bn1(y)
         y = self.relu1(y)
@@ -33,6 +36,7 @@ class BasicBlock(nn.Module):
 
 
 class ResNet(nn.Module):
+    '''ResNet'''
     def __init__(self, in_channels, blocks, out_channels):
         super().__init__()
         self.conv1 = nn.Sequential(
@@ -50,6 +54,7 @@ class ResNet(nn.Module):
         ])
 
     def forward(self, x):
+        '''forward'''
         x = self.conv1(x)
         for conv in self.convs:
             x = conv(x)

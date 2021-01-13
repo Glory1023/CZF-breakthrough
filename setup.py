@@ -126,6 +126,7 @@ with open('README.md') as fd:
             'gym',
             'pyyaml',
             'tensorboard',
+            'tqdm',
             'zmq',
             'zstandard',
         ],

@@ -1,3 +1,4 @@
+# pylint: skip-file
 import operator
 import torch
 import warnings

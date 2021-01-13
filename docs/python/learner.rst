@@ -6,18 +6,18 @@ Learner
    :undoc-members:
    :private-members:
 
+.. autoclass:: czf.learner.trainer::TrainerRunner
+   :members:
+
 .. autoclass:: czf.learner.trainer::Trainer
    :members:
    :undoc-members:
    :private-members:
 
-.. autoclass:: czf.learner.dataloader::Statistics
+.. autoclass:: czf.learner.trainer::MyDataLoader
    :members:
 
 .. autoclass:: czf.learner.dataloader::RolloutBatch
-   :members:
-
-.. autoclass:: czf.learner.dataloader::TransitionBuffer
    :members:
 
 .. autoclass:: czf.learner.dataloader::Preprocessor
@@ -27,4 +27,10 @@ Learner
    :members:
 
 .. autoclass:: czf.learner.dataloader::ReplayBuffer
+   :members:
+
+.. autoclass:: czf.learner.dataloader::TransitionBuffer
+   :members:
+
+.. autoclass:: czf.learner.dataloader::Statistics
    :members:

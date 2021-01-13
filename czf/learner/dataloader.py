@@ -73,6 +73,7 @@ class TransitionBuffer:
     '''
     def __init__(self, maxlen, frame_stack, spatial_shape):
         self._weights_mean = 0.
+        self._weights_temp = None
         self._weights = deque(maxlen=(maxlen + frame_stack))
         self._buffer = deque(maxlen=(maxlen + frame_stack))
         self._frame_stack = frame_stack

@@ -1,9 +1,11 @@
+'''AlphaZero Model'''
 from torch import nn
 
 from czf.learner.nn import ResNet
 
 
 class AlphaZero(nn.Module):
+    '''AlphaZero'''
     def __init__(
         self,
         observation_tensor_shape,
@@ -38,6 +40,7 @@ class AlphaZero(nn.Module):
             nn.Tanh())
 
     def forward(self, x):
+        '''forward'''
         _, height, width = self.observation_tensor_shape
         x = self.resnet(x)
         # policy head

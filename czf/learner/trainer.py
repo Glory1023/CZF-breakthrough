@@ -5,9 +5,8 @@ from io import BytesIO
 import multiprocessing as mp
 from multiprocessing.managers import BaseManager
 import os
-# import subprocess
+from queue import Empty
 import time
-import sys
 import numpy as np
 import torch
 from torch.utils.data import WeightedRandomSampler
@@ -27,7 +26,7 @@ def run_sampler(index_queue, sample_queue, replay_buffer, prefetch_factor):
         try:
             for _ in range(prefetch_factor):
                 index.append(index_queue.get(block=False))
-        except:
+        except Empty:
             pass
         finally:
             for i in index:
@@ -99,7 +98,7 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
     )
     # restore the replay buffer
     if args.restore_buffer:
-        pass  # TODO
+        pass  # TODO: restore the replay buffer
     # sampler
     index_queue = mp.Queue()
     sample_queue = mp.Queue()
@@ -124,7 +123,7 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
     print('Storage path:', storage_path)
     # pretrain the trajectory
     if args.pretrain_trajectory:
-        pass  # TODO
+        pass  # TODO: pretrain the trajectory
     # dataloader
     dataloader = MyDataLoader(
         index_queue,
@@ -195,7 +194,6 @@ class Trainer:
                  model_name,
                  restore,
                  use_prioritize=True):
-        self.use_prioritize = use_prioritize
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -241,6 +239,7 @@ class Trainer:
         # config
         self._observation_shape = observation_shape
         self._state_shape = state_shape
+        self._use_prioritize = use_prioritize
         self._rollout_steps = config['learner']['rollout_steps']
         self._batch_size = config['learner']['batch_size']
         self.states_to_train = int(config['learner']['frequency'] *
@@ -248,16 +247,11 @@ class Trainer:
         self._r_loss = model_config['r_loss']
         self._v_loss = model_config['v_loss']
         # model
-        # torch.cuda.set_device(rank)
-        # torch.distributed.init_process_group('nccl', init_method='env://')
         Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
         self._model = Model(
             **self._model_kwargs,
             is_train=True,
         ).to(self._device)
-        # self._model = DistributedDataParallelWrapper(self._model,
-        #                                   device_ids=[rank],
-        #                                   output_device=rank)
         # restore the latest checkpoint
         if restore:
             print('Restore from', restore)
@@ -285,9 +279,7 @@ class Trainer:
                                              purge_step=self.iteration)
         # note: PyTorch supports the `forward` method currently
         # so, we can only trace the prediction model now.
-        # input_obs = torch.rand(1, *observation_shape).to(self._device)
         input_state = torch.rand(1, *state_shape).to(self._device)
-        # input_action = torch.rand(1, 1).to(self._device)
         self._summary_writer.add_graph(self._model.module, (input_state, ))
 
     def log_statistics(self, replay_buffer):
@@ -411,7 +403,7 @@ class Trainer:
                     target_value
                 ) if self._num_player == 1 else value_transform(
                     target_value) * ((-1)**t)
-                if t == 0 and self.use_prioritize:
+                if t == 0 and self._use_prioritize:
                     priority = torch.abs(
                         value_transform(value.detach()) -
                         value_transform(target_value)).squeeze(
@@ -483,7 +475,8 @@ class Trainer:
                     torch.std(replay_buffer.get_mean_weight() /
                               to_tensor(rollout.weight))))
             print(
-                '... target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f}, target_r_sum: {:.3f} \u00b1 {:.3f}, rollout_r_sum: {:.3f} \u00b1 {:.3f}'
+                '... target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f},'
+                ' target_r_sum: {:.3f} \u00b1 {:.3f}, rollout_r_sum: {:.3f} \u00b1 {:.3f}'
                 .format(
                     torch.mean(target_v_info.detach()),
                     torch.std(target_v_info.detach()),
@@ -505,7 +498,6 @@ class Trainer:
             del state, action, policy, value, reward
             del scalar_v, nstep_v, nstep_v_sum, ksteps, rollout_index, target_v_info
             # the end of current training
-            if num_trained_states >= self.states_to_train:
                 # TODO: average loss of each minibatch
                 lr = next(iter(self._optimizer.param_groups))['lr']
                 writer, step = self._summary_writer, self.iteration
@@ -514,7 +506,7 @@ class Trainer:
                 writer.add_scalar('loss/policy', p_loss, step)
                 writer.add_scalar('loss/value', v_loss, step)
                 writer.add_scalar('loss/reward', r_loss, step)
-                break
+        # write back priorities
         replay_buffer.write_back_weights()
 
     def save_model(self, checkpoint=False):
@@ -534,21 +526,6 @@ class Trainer:
         # buffer = self._ckpt_compressor.compress(buffer)
         ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt.zst'
         ckpt_path.write_bytes(buffer)
-        # frozen model
-        args = [
-            sys.executable,
-            '-m',
-            'czf.utils.model_saver',
-            '--checkpoint',
-            str(ckpt_path),
-            '--model-dir',
-            str(self._model_dir),
-        ]
-        if not checkpoint:
-            args.append('--rm')
-        # subprocess.run(args, check=True, env=os.environ.copy())
-        # if checkpoint:
-        if True:
             # update the latest checkpoint
             latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
             temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
