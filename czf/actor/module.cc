@@ -42,7 +42,8 @@ PYBIND11_MODULE(worker, m) {  // NOLINT
       .def("run", &WorkerManager::run, "num_cpu_worker"_a = 1,
            "num_gpu_worker"_a = 1, "num_gpu_root_worker"_a = 1, "num_gpu"_a = 1)
       .def("terminate", &WorkerManager::terminate)
-      .def("enqueue_job", &WorkerManager::enqueue_job, "jobs"_a)
+      .def("enqueue_job_batch", &WorkerManager::enqueue_job_batch, "jobs"_a,
+           py::call_guard<py::gil_scoped_release>())
       .def("wait_dequeue_result", &WorkerManager::wait_dequeue_result,
            py::call_guard<py::gil_scoped_release>(),
            py::return_value_policy::move)

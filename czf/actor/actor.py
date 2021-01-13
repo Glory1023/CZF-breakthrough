@@ -2,7 +2,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import platform
-import zstandard as zstd
+# import zstandard as zstd
 
 from czf.utils import get_zmq_dealer, RemoteModelManager
 from czf.utils.model_saver import jit
@@ -40,7 +40,7 @@ class Actor:
         self._model_info = czf_pb2.ModelInfo(name='default', version=-1)
         self._has_new_model = asyncio.Event()
         self._has_load_model = asyncio.Event()
-        self._dctx = zstd.ZstdDecompressor()
+        # self._dctx = zstd.ZstdDecompressor()
         # connect to the remote model provider
         self._model_manager = RemoteModelManager(
             identity=f'model-manager-{args.suffix}',
@@ -54,17 +54,14 @@ class Actor:
 
     async def loop(self):
         '''main loop'''
-        await asyncio.gather(self._recv_job_batch_loop(), self._dequeue_loop(),
+        await asyncio.gather(self._recv_loop(), self._dequeue_loop(),
                              self._load_model_loop())
 
-    async def _recv_job_batch_loop(self):
-        '''a loop to receive `JobBatch` from broker'''
+    async def _recv_loop(self):
+        '''a loop to receive `Packet` (`JobBatch`) from broker'''
         while True:
             raw = await self._broker.recv()
-            packet = czf_pb2.Packet.FromString(raw)
-            packet_type = packet.WhichOneof('payload')
-            if packet_type == 'job_batch':
-                await self.__on_job_batch(packet.job_batch)
+            await self.__on_job_batch(raw)
 
     async def _dequeue_loop(self):
         '''a loop to dequeue from WorkerManager and send `JobBatch`'''
@@ -77,30 +74,17 @@ class Actor:
                 break
             await self._broker.send(raw)
 
-    async def __on_job_batch(self, job_batch: czf_pb2.JobBatch):
+    async def __on_job_batch(self, raw: bytes):
         '''enqueue jobs into WorkerManager and send `JobRequest`'''
-        jobs = []
-        for job in job_batch.jobs:
-            # job.workers[job.step].CopyFrom(self._node)
-            job.step += 1
-            # special job: flush model
-            if not job.HasField('payload'):
-                if self._model_info != job.model:
-                    self._model_info.CopyFrom(job.model)
-                    self._has_load_model.clear()
-                    self._has_new_model.set()
-                    await self._has_load_model.wait()
-                await self.__send_job(job)
-                continue
-            # update model
-            is_muzero_search = self._operation == czf_pb2.Job.Operation.MUZERO_SEARCH
-            if is_muzero_search and job.model.version > self._model_info.version:
-                # assert self._model_info.name == job.model.name
-                self._model_info.version = job.model.version
-                self._has_new_model.set()
-            # enqueue
-            jobs.append(job.SerializeToString())
-        self._worker_manager.enqueue_job(jobs)
+        flush_job, name, version = self._worker_manager.enqueue_job_batch(raw)
+        if name != self._model_info.name or version > self._model_info.version:
+            self._model_info.name = name
+            self._model_info.version = version
+            self._has_load_model.clear()
+            self._has_new_model.set()
+        if flush_job != b'':
+            await self._has_load_model.wait()
+            await self._broker.send(flush_job)
         # await self.__send_job_request() #TODO?
 
     async def _load_model_loop(self):
@@ -132,16 +116,8 @@ class Actor:
         # start to send job
         await self.__send_job_request()
 
-    async def __send_job(self, job: czf_pb2.Job):
-        '''helper to send a `Job`'''
-        await self.__send_packet(czf_pb2.Packet(job=job))
-
     async def __send_job_request(self, capacity=1280):
         '''helper to send a `JobRequest`'''
         packet = czf_pb2.Packet(job_request=czf_pb2.JobRequest(
             operation=self._operation, capacity=capacity))
-        await self.__send_packet(packet)
-
-    async def __send_packet(self, packet: czf_pb2.Packet):
-        '''helper to send a `Packet`'''
         await self._broker.send(packet.SerializeToString())

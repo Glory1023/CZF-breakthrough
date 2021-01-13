@@ -27,8 +27,8 @@ class WorkerManager {
   void run(size_t, size_t, size_t, size_t);
   /** terminate all workers */
   void terminate();
-  /** enqueue a vector of serialized `Job` */
-  void enqueue_job(std::vector<std::string>);
+  /** enqueue a serialized `JobBatch` */
+  std::tuple<py::bytes, std::string, int> enqueue_job_batch(const std::string&);
   /** dequeue a serialized `Packet` from the result queue */
   py::bytes wait_dequeue_result(size_t);
   /** load model from bytes */

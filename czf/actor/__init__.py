@@ -110,7 +110,7 @@ def run_main():
         '-gpu-root',
         '--num_gpu_root_worker',
         type=int,
-        default=1,
+        default=num_gpu,
         help='Number of gpu root worker per manager (default: %(default)s)')
     parser.add_argument('--num_gpu',
                         type=int,

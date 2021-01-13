@@ -49,12 +49,32 @@ void WorkerManager::terminate() {
   }
 }
 
-void WorkerManager::enqueue_job(std::vector<std::string> jobs) {
-  for (auto &job_str : jobs) {
+std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(
+    const std::string &raw) {
+  czf::pb::Packet packet;
+  packet.ParseFromString(raw);
+  auto *jobs_pb = packet.mutable_job_batch()->mutable_jobs();
+  std::string model_name;
+  int model_version = -1;
+  for (auto &job_pb : *jobs_pb) {
+    // TODO(chengscott): job.workers[job.step]
+    job_pb.set_step(job_pb.step() + 1);
+    model_name = job_pb.model().name();
+    model_version = std::max(model_version, job_pb.model().version());
+    if (!job_pb.has_payload()) {  // special job: flush model
+      std::string packet_str;
+      packet.SerializeToString(&packet_str);
+      py::gil_scoped_acquire acquire;
+      return {py::bytes(packet_str), model_name, model_version};
+    }
+    std::string job_str;
+    job_pb.SerializeToString(&job_str);
     auto job = std::make_unique<Job>();
     job->job = std::move(job_str);
     cpu_queue_.enqueue(std::move(job));
   }
+  py::gil_scoped_acquire acquire;
+  return {{}, model_name, model_version};
 }
 
 py::bytes WorkerManager::wait_dequeue_result(size_t max_batch_size) {
