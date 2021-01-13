@@ -1,0 +1,44 @@
+FROM nvidia/cuda:11.1-cudnn8-devel-ubuntu20.04
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt update; \
+    apt install -y \
+    cmake \
+    clang \
+    clangd \
+    clang-format \
+    clang-tidy \
+    doxygen \
+    ffmpeg \
+    git \
+    graphviz \
+    libarchive-tools \
+    libgl1-mesa-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
+    python3-pip \
+    wget; \
+    ln -s /usr/bin/python3 /usr/bin/python
+RUN PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=cpp \
+  python3 -m pip install -U \
+  breathe \
+  cmake-format \
+  gym[atari] \
+  pip \
+  protobuf \
+  pylint \
+  pytest \
+  pyyaml \
+  Sphinx \
+  sphinx-copybutton \
+  sphinx_rtd_theme \
+  tensorboard \
+  tqdm \
+  yapf \
+  zmq \
+  zstandard; \
+  python3 -m pip install torch==1.7.1+cu110 -f https://download.pytorch.org/whl/torch_stable.html; \
+  python3 -m pip cache purge
+RUN wget -qO- https://download.pytorch.org/libtorch/cu110/libtorch-cxx11-abi-shared-with-deps-1.7.1%2Bcu110.zip | bsdtar -xvf- -C /usr/local
+ENV TORCH_PATH /usr/local/libtorch
+ENV CMAKE_PREFIX_PATH ${TORCH_PATH}/share/cmake/Torch
+ENV LD_LIBRARY_PATH ${TORCH_PATH}/lib
