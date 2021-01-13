@@ -47,20 +47,21 @@ Node *Node::select_child(const TreeInfo &tree_info,
   // init value
   float init_value = 0.F;
   // if (is_two_player) {
-    float value_sum = 0.F;
-    size_t num_selected = 0U;
-    for (const auto &child : node_info_.children) {
-      if (child.can_select_child()) {
-        ++num_selected;
+  float value_sum = 0.F;
+  size_t num_selected = 0U;
+  for (const auto &child : node_info_.children) {
+    if (child.can_select_child()) {
+      ++num_selected;
       value_sum += is_two_player
                        ? child.mcts_info_.value
-                        : tree_info.get_normalized_value(child.mcts_info_.reward +
-                              tree_option.discount * child.mcts_info_.value);
-      }
+                       : tree_info.get_normalized_value(
+                             child.mcts_info_.reward +
+                             tree_option.discount * child.mcts_info_.value);
     }
-    if (num_selected > 0) {
-      init_value = value_sum / static_cast<float>(num_selected + 1U);
-    }
+  }
+  if (num_selected > 0) {
+    init_value = value_sum / static_cast<float>(num_selected + 1U);
+  }
   // }
   // selection
   float selected_score = std::numeric_limits<float>::lowest();

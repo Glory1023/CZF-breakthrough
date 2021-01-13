@@ -17,12 +17,12 @@ class MuZeroAtari(nn.Module):
         h_channels,
         # g: dynamics function
         g_blocks,
-        # reward support: [-r_heads, r_heads]
+        # reward support: [r_low, r_high]
         r_heads,
         # f: prediction function
         f_blocks,
         f_channels,
-        # value support: [-v_heads, v_heads]
+        # value support: [v_low, v_high]
         v_heads,
         # train or eval mode
         is_train,
@@ -73,10 +73,12 @@ class MuZeroAtari(nn.Module):
         self.reward_head_end = nn.Sequential(
             nn.Linear(in_features=height * width, out_features=h_channels),
             nn.ReLU(),
-            nn.Linear(in_features=h_channels, out_features=2 * r_heads + 1),
+            nn.Linear(in_features=h_channels,
+                      out_features=r_heads[1] - r_heads[0] + 1),
             nn.Softmax(dim=1),
         )
-        self.register_buffer('r_supp', torch.arange(-r_heads, r_heads + 1))
+        self.register_buffer('r_supp', torch.arange(r_heads[0],
+                                                    r_heads[1] + 1))
         # f => policy head
         self.policy_head_front = nn.Sequential(
             nn.Conv2d(in_channels=f_channels, out_channels=2, kernel_size=1),
@@ -96,10 +98,12 @@ class MuZeroAtari(nn.Module):
         self.value_head_end = nn.Sequential(
             nn.Linear(in_features=height * width, out_features=f_channels),
             nn.ReLU(),
-            nn.Linear(in_features=f_channels, out_features=2 * v_heads + 1),
+            nn.Linear(in_features=f_channels,
+                      out_features=v_heads[1] - v_heads[0] + 1),
             nn.Softmax(dim=1),
         )
-        self.register_buffer('v_supp', torch.arange(-v_heads, v_heads + 1))
+        self.register_buffer('v_supp', torch.arange(v_heads[0],
+                                                    v_heads[1] + 1))
         self.epsilon = 0.001
         self._is_train = is_train
 

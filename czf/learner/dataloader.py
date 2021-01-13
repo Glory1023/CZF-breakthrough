@@ -181,10 +181,12 @@ class Preprocessor:
     @staticmethod
     def __get_target_dist(x, heads):
         '''Returns the target distribution of a reward or a value'''
+        h_low, h_high = heads
+        x = np.clip(x, h_low, h_high)
         x_low, x_high = int(np.floor(x)), int(np.ceil(x))
-        target = np.zeros(2 * heads + 1, dtype=np.float32)
-        target[x_low + heads] = x_high - x
-        target[x_high + heads] = 1 - target[x_low + heads]
+        target = np.zeros(h_high - h_low + 1, dtype=np.float32)
+        target[x_low + h_low] = x_high - x
+        target[x_high + h_low] = 1 - target[x_low + h_low]
         return target
 
     def add_trajectory(self, trajectory: czf_pb2.Trajectory):

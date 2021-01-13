@@ -221,8 +221,10 @@ class Trainer:
         has_transform = 'transform' in config['learner']
         r_heads = model_config.get('r_heads', 1)
         v_heads = model_config['v_heads']
-        self._r_heads = 2 * r_heads + 1 if has_transform else r_heads
-        self._v_heads = 2 * v_heads + 1 if has_transform else v_heads
+        self._r_heads = r_heads[1] - r_heads[
+            0] + 1 if has_transform else r_heads
+        self._v_heads = v_heads[1] - v_heads[
+            0] + 1 if has_transform else v_heads
         self._has_transform = None
         self._model_kwargs = dict(
             observation_shape=observation_shape,
@@ -386,6 +388,8 @@ class Trainer:
             rollout_index = torch.arange(num_states, device=self._device)
             target_v_info = value_transform(transition[0])
             scalar_v = value_transform(transition[0])
+            target_r_sum = torch.zeros((num_states, 1), device=self._device)
+            nstep_r_sum = torch.zeros((num_states, 1), device=self._device)
             # forward
             state = self._model.parallel_forward_representation(observation)
             total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
@@ -424,6 +428,10 @@ class Trainer:
                     nstep_v[rollout_index] += reward_transform(
                         reward.detach()) * (self._gamma**t) - value_transform(
                             value[mask].detach()) * (self._gamma**t)
+                    nstep_r_sum[rollout_index] += reward_transform(
+                        reward.detach())
+                    target_r_sum[rollout_index] += reward_transform(
+                        target_reward)
                     if t == 0 and self._num_player == 1:
                         print('>>> avg target_p:', [
                             round(p, 3)
@@ -467,16 +475,25 @@ class Trainer:
             nstep_v_sum /= ksteps
             target_v_info /= ksteps
             print(
-                '... p_loss: {:.3f}, v_loss: {:.3f}, target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f}, priority: {:.3f} \u00b1 {:.3f}'
+                '... p_loss: {:.3f}, v_loss: {:.3f}, r_loss: {:.3f}, priority: {:.3f} \u00b1 {:.3f}'
                 .format(
-                    p_loss, v_loss, torch.mean(target_v_info.detach()),
-                    torch.std(target_v_info.detach()),
-                    torch.mean(nstep_v_sum.detach()),
-                    torch.std(nstep_v_sum.detach()),
+                    p_loss, v_loss, r_loss,
                     torch.mean(replay_buffer.get_mean_weight() /
                                to_tensor(rollout.weight)),
                     torch.std(replay_buffer.get_mean_weight() /
                               to_tensor(rollout.weight))))
+            print(
+                '... target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f}, target_r_sum: {:.3f} \u00b1 {:.3f}, rollout_r_sum: {:.3f} \u00b1 {:.3f}'
+                .format(
+                    torch.mean(target_v_info.detach()),
+                    torch.std(target_v_info.detach()),
+                    torch.mean(nstep_v_sum.detach()),
+                    torch.std(nstep_v_sum.detach()),
+                    torch.mean(target_r_sum),
+                    torch.std(target_r_sum),
+                    torch.mean(nstep_r_sum),
+                    torch.std(nstep_r_sum),
+                ))
             # optimize
             self._optimizer.zero_grad()
             loss.backward()

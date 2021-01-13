@@ -41,15 +41,17 @@ learner:
   # rollout timesteps K
   rollout_steps: 5
   # train the model when there are N newly generated states
-  # 80 games * 50 avg_states_per_game
-  frequency: 4_000
+  # 250 games * 40 avg_states_per_game
+  frequency: 10_000
   # how many states to store in the replay buffer
-  # usually equals to (25 * frequency)
-  replay_buffer_size: 100_000
+  # usually equals to (20 * frequency)
+  replay_buffer_size: 200_000
   # how many times to reuse each state in the replay buffer
   replay_buffer_reuse: 1
+  # whether to enable prioritized experience replay
+  prioritized: False
   # how many states to learn from per batch
-  batch_size: 256
+  batch_size: 1024
   # save a checkpoint every N steps
   checkpoint_freq: 10
   optimizer:
