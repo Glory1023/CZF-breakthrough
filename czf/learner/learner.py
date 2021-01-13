@@ -43,7 +43,7 @@ class Learner:
         # model provider
         self._model_peers = set()  # peers to receive the model
         self._model_provider = LocalModelManager(
-            storage=model_path,
+            storage=checkpoint_path,
             cache_size=8,
         )
         self._socket = get_zmq_router(listen_port=args.listen)

@@ -423,7 +423,7 @@ class Trainer:
                     rollout_index = rollout_index[mask]
                     nstep_v[rollout_index] += reward_transform(
                         reward.detach()) * (self._gamma**t) - value_transform(
-                                value[mask].detach()) * (self._gamma**t)
+                            value[mask].detach()) * (self._gamma**t)
                     if t == 0 and self._num_player == 1:
                         print('>>> avg target_p:', [
                             round(p, 3)
@@ -476,7 +476,7 @@ class Trainer:
                     torch.mean(replay_buffer.get_mean_weight() /
                                to_tensor(rollout.weight)),
                     torch.std(replay_buffer.get_mean_weight() /
-                               to_tensor(rollout.weight))))
+                              to_tensor(rollout.weight))))
             # optimize
             self._optimizer.zero_grad()
             loss.backward()

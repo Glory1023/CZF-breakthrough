@@ -279,7 +279,7 @@ class Preprocessor:
                 # alpha == 1
                 priority = np.abs(state.evaluation.value - nstep_value)
             if is_valid:
-            priorities.append(priority + 1e-6)
+                priorities.append(priority + 1e-6)
                 num_states += 1
             else:
                 priorities.append(0.)
