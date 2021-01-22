@@ -55,7 +55,7 @@ class MyDataLoader:
             self._index_queue.put(index)
 
     def __iter__(self):
-        while self._num_sample >= self._batch_size:
+        while self._num_sample > self._batch_size:
             data = self._collate_fn(
                 [self._sample_queue.get() for _ in range(self._batch_size)])
             self._num_sample -= self._batch_size
@@ -80,8 +80,8 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
                              'update_weights',
                              'copy_weights',
                              'write_back_weights',
-                             'is_ready',
-                             'get_states_to_add',
+                             'get_num_to_add',
+                             'get_states_to_train',
                              'add_trajectory',
                              'get_statistics',
                              'reset_statistics',
@@ -94,7 +94,10 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
         observation_config=config['game']['observation'],
         kstep=config['learner']['rollout_steps'],
         capacity=config['learner']['replay_buffer_size'],
-        train_freq=config['learner']['frequency'],
+        states_to_train=config['learner'].get('states_to_train', None),
+        sequences_to_train=config['learner'].get('sequences_to_train', None),
+        sample_ratio=config['learner'].get('sample_ratio', None),
+        sample_states=config['learner'].get('sample_states', None),
     )
     # restore the replay buffer
     if args.restore_buffer:
@@ -131,42 +134,33 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
         batch_size=config['learner']['batch_size'],
         collate_fn=RolloutBatch,
     )
-    pbar = tqdm(total=replay_buffer.get_states_to_add(), desc='Collect Trajs')
+    pbar = tqdm(total=replay_buffer.get_num_to_add(), desc='Collect Trajs')
     # training loop
     while True:
         trajectories = trajectory_queue.get_all()
-        tjs_len = [stat.num_states for stat, _, _ in trajectories]
-        states_to_add = replay_buffer.get_states_to_add()
-        if sum(tjs_len) > states_to_add:
-            tjs_sum = 0
-            for i, tj_len in enumerate(reversed(tjs_len)):
-                tjs_sum += tj_len
-                if tjs_sum > states_to_add:
-                    del tjs_len[:-i - 1]
-                    del trajectories[:-i - 1]
-                    break
-        pbar.update(min(sum(tjs_len), pbar.total - pbar.n))
+        progress = 0
         for trajectory in trajectories:
-            replay_buffer.add_trajectory(trajectory)
-        if replay_buffer.is_ready():
+            progress += replay_buffer.add_trajectory(trajectory)
+        pbar.update(min(progress, pbar.total - pbar.n))
+        states_to_train = replay_buffer.get_states_to_train()
+        if states_to_train > 0:
             pbar.close()
-            print(
-                f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> Start optimization'
-            )
+            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
+                  'Start optimization')
+            print('>> States to train:', states_to_train)
             start = time.time()
             trainer.log_statistics(replay_buffer)
             replay_buffer.save_trajectory(trajectory_path, trainer.iteration)
             sampler = WeightedRandomSampler(replay_buffer.get_weights(),
-                                            trainer.states_to_train)
+                                            states_to_train)
             dataloader.put(sampler)
             trainer.train(dataloader, replay_buffer)
             save_ckpt = (trainer.iteration % checkpoint_freq == 0)
             trainer.save_model(save_ckpt)
             notify_model_queue.put((trainer.model_name, trainer.iteration))
-            print(
-                f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> Finish optimization with time {time.time() - start:.3f}'
-            )
-            pbar = tqdm(total=replay_buffer.get_states_to_add(),
+            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
+                  f'Finish optimization with time {time.time() - start:.3f}')
+            pbar = tqdm(total=replay_buffer.get_num_to_add(),
                         desc='Collect Trajs')
 
 
@@ -242,8 +236,6 @@ class Trainer:
         self._use_prioritize = use_prioritize
         self._rollout_steps = config['learner']['rollout_steps']
         self._batch_size = config['learner']['batch_size']
-        self.states_to_train = int(config['learner']['frequency'] *
-                                   config['learner']['replay_buffer_reuse'])
         self._r_loss = model_config['r_loss']
         self._v_loss = model_config['v_loss']
         # model
@@ -497,15 +489,15 @@ class Trainer:
             del rollout, target_value, mask, next_transition
             del state, action, policy, value, reward
             del scalar_v, nstep_v, nstep_v_sum, ksteps, rollout_index, target_v_info
-            # the end of current training
-                # TODO: average loss of each minibatch
-                lr = next(iter(self._optimizer.param_groups))['lr']
-                writer, step = self._summary_writer, self.iteration
-                writer.add_scalar('params/lr', lr, step)
-                writer.add_scalar('loss/', loss, step)
-                writer.add_scalar('loss/policy', p_loss, step)
-                writer.add_scalar('loss/value', v_loss, step)
-                writer.add_scalar('loss/reward', r_loss, step)
+        # the end of current training
+        # TODO: average loss of each minibatch
+        lr = next(iter(self._optimizer.param_groups))['lr']
+        writer, step = self._summary_writer, self.iteration
+        writer.add_scalar('params/lr', lr, step)
+        writer.add_scalar('loss/', loss, step)
+        writer.add_scalar('loss/policy', p_loss, step)
+        writer.add_scalar('loss/value', v_loss, step)
+        writer.add_scalar('loss/reward', r_loss, step)
         # write back priorities
         replay_buffer.write_back_weights()
 
@@ -526,8 +518,8 @@ class Trainer:
         # buffer = self._ckpt_compressor.compress(buffer)
         ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt.zst'
         ckpt_path.write_bytes(buffer)
-            # update the latest checkpoint
-            latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
-            temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
-            os.symlink(ckpt_path, temp_ckpt)
-            os.replace(temp_ckpt, latest_ckpt)
+        # update the latest checkpoint
+        latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
+        temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
+        os.symlink(ckpt_path, temp_ckpt)
+        os.replace(temp_ckpt, latest_ckpt)

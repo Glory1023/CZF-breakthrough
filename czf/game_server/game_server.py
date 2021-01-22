@@ -203,7 +203,8 @@ class EnvManager:
                 env_index]
             env.trajectory.statistics.game_steps = self._num_steps[env_index]
             # send optimize job
-            print('send 1 traj of len', len(env.trajectory.states))
+            print('send 1 traj with len', len(env.trajectory.states),
+                  'of score', int(self._total_rewards[env_index][0]))
             packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
                 trajectories=[env.trajectory]))
             self._trajectory_queue.put(packet.SerializeToString())

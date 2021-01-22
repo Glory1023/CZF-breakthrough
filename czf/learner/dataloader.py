@@ -99,7 +99,7 @@ class TransitionBuffer:
     def update_weights(self, index, priorities):
         '''Update weights'''
         for i, priority in zip(index, priorities):
-            self._weights_temp[i + self._frame_stack] = (priority + 1e-6)
+            self._weights_temp[i + self._frame_stack] = (priority + 1e-5)
 
     def copy_weights(self):
         '''Copy weights for further updates'''
@@ -282,7 +282,7 @@ class Preprocessor:
                 # alpha == 1
                 priority = np.abs(state.evaluation.value - nstep_value)
             if is_valid:
-                priorities.append(priority + 1e-6)
+                priorities.append(priority + 1e-5)
                 num_states += 1
             else:
                 priorities.append(0.)
@@ -432,18 +432,25 @@ class ReplayBuffer(Dataset):
             ]
     '''
     def __init__(self, num_player, observation_config, kstep, capacity,
-                 train_freq):
+                 states_to_train, sequences_to_train, sample_ratio,
+                 sample_states):
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
         self._num_player = num_player
         self._kstep = kstep
-        self._train_freq = train_freq
+        assert states_to_train != sequences_to_train, 'the two options are disjoint.'
+        self._states_to_train = states_to_train
+        self._sequences_to_train = sequences_to_train
+        assert sample_ratio != sample_states, 'the two options are disjoint.'
+        self._sample_ratio = sample_ratio
+        self._sample_states = sample_states
         self._buffer = TransitionBuffer(capacity, self._frame_stack,
                                         self._spatial_shape)
         self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
         # self._cctx_observation = zstd.ZstdCompressor()
         self._cctx_trajectory = zstd.ZstdCompressor()
         self._num_states = 0
+        self._num_games = 0
         self._ready = False
         self.reset_statistics()
 
@@ -498,21 +505,35 @@ class ReplayBuffer(Dataset):
         '''Write back updated weights'''
         self._buffer.write_back_weights()
 
-    def is_ready(self):
-        '''Check if replay buffer is ready for training'''
+    def get_num_to_add(self):
+        '''Get number of states or sequences needed for next training iteration'''
+        if self._states_to_train is not None:
+            return self._states_to_train - self._num_states
+        # if self._sequences_to_train is not None:
+        return self._sequences_to_train - self._num_games
+
+    def get_states_to_train(self):
+        '''Get number of states or sequences needed for current training iteration'''
         if self._ready:
             self._ready = False
-            return True
-        return False
-
-    def get_states_to_add(self):
-        '''Get number of states needed for next training iteration'''
-        return self._train_freq - self._num_states
+            if self._states_to_train is not None:
+                num_states = self._states_to_train
+                self._num_states -= self._states_to_train
+                self._num_games = 0
+            else:  #if self._sequences_to_train is not None:
+                num_states = self._num_states
+                self._num_states = 0
+                self._num_games -= self._sequences_to_train
+            if self._sample_ratio is not None:
+                return int(num_states * self._sample_ratio)
+            return self._sample_states
+        return 0
 
     def add_trajectory(self, trajectory: tuple):
         '''Add a trajectory and its statistics'''
         stats, priorities, trajectory = trajectory
         self._num_states += stats.num_states
+        self._num_games += stats.num_games
         # update statistics
         self._statistics.num_games += stats.num_games
         self._statistics.num_states += stats.num_states
@@ -522,9 +543,15 @@ class ReplayBuffer(Dataset):
         # add trajectory to buffer
         self._buffer.extend(priorities, trajectory)
         # train the model when there are N newly generated states
-        if self._num_states >= self._train_freq:
-            self._ready = True
-            self._num_states -= self._train_freq
+        if self._states_to_train is not None:
+            if self._num_states >= self._states_to_train:
+                self._ready = True
+            return stats.num_states
+        # train the model when there are N newly generated sequences
+        else:  #if self._sequences_to_train is not None:
+            if self._num_games >= self._sequences_to_train:
+                self._ready = True
+            return stats.num_games
 
     def get_statistics(self):
         '''Returns :class:`Statistics` of recent trajectories'''
