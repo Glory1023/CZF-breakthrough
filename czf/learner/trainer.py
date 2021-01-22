@@ -353,6 +353,11 @@ class Trainer:
         else:
             value_transform = lambda x: x
             reward_transform = lambda x: x
+        # logging
+        value_target, value_rollout = [], []
+        policy_target, policy_rollout = [], []
+        reward_sum_target, reward_sum_rollout = [], []
+        priority_sampled = []
         for rollout in dataloader:
             # tensor
             weight = to_tensor(rollout.weight)
@@ -416,6 +421,9 @@ class Trainer:
                         reward.detach())
                     target_r_sum[rollout_index] += reward_transform(
                         target_reward)
+                    # logging
+                    policy_target.extend(target_policy.tolist())
+                    policy_rollout.extend(policy.detach().tolist())
                     if t == 0 and self._num_player == 1:
                         print('>>> avg target_p:', [
                             round(p, 3)
@@ -458,6 +466,13 @@ class Trainer:
             r_loss /= total_batch
             nstep_v_sum /= ksteps
             target_v_info /= ksteps
+            # logging
+            value_target.extend(target_v_info.tolist())
+            value_rollout.extend(nstep_v_sum.tolist())
+            reward_sum_rollout.extend(nstep_r_sum.tolist())
+            reward_sum_target.extend(target_r_sum.tolist())
+            priority_sampled.extend((replay_buffer.get_mean_weight() /
+                                     to_tensor(rollout.weight)).tolist())
             print(
                 '... p_loss: {:.3f}, v_loss: {:.3f}, r_loss: {:.3f}, priority: {:.3f} \u00b1 {:.3f}'
                 .format(
@@ -490,7 +505,8 @@ class Trainer:
             del state, action, policy, value, reward
             del scalar_v, nstep_v, nstep_v_sum, ksteps, rollout_index, target_v_info
         # the end of current training
-        # TODO: average loss of each minibatch
+        # logging: loss
+        # TODO: average loss of each minibatch?
         lr = next(iter(self._optimizer.param_groups))['lr']
         writer, step = self._summary_writer, self.iteration
         writer.add_scalar('params/lr', lr, step)
@@ -498,6 +514,27 @@ class Trainer:
         writer.add_scalar('loss/policy', p_loss, step)
         writer.add_scalar('loss/value', v_loss, step)
         writer.add_scalar('loss/reward', r_loss, step)
+        # logging: train
+        get_logging_info = lambda x: dict(
+            mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
+        writer.add_scalars('train/value_target',
+                           get_logging_info(value_target), step)
+        writer.add_scalars('train/value_rollout',
+                           get_logging_info(value_rollout), step)
+        writer.add_scalars('log/policy_target', {
+            f'action {i}': np.mean(p)
+            for i, p in enumerate(zip(*policy_target))
+        }, step)
+        writer.add_scalars('log/policy_rollout', {
+            f'action {i}': np.mean(p)
+            for i, p in enumerate(zip(*policy_rollout))
+        }, step)
+        writer.add_scalars('train/reward_target',
+                           get_logging_info(reward_sum_target), step)
+        writer.add_scalars('train/reward_rollout',
+                           get_logging_info(reward_sum_rollout), step)
+        writer.add_scalars('train/priority',
+                           get_logging_info(priority_sampled), step)
         # write back priorities
         replay_buffer.write_back_weights()
 
