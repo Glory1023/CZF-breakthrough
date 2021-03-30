@@ -10,34 +10,48 @@ import yaml
 import zmq
 
 from czf.actor.actor import Actor
-from czf.actor import worker
 
 
 def create_worker_manager(args, config):
+    assert config['algorithm'] in ('AlphaZero', 'MuZero')
     '''create a worker manager from args and config'''
-    manager = worker.WorkerManager()
-    # GameInfo
-    game_config = config['game']
-    obs_config = game_config['observation']
-    frame_stack = obs_config['frame_stack']
-    channel = obs_config['channel']
-    spatial_shape = obs_config['spatial_shape']
-    if frame_stack > 0:
-        manager.game_info.observation_shape = [
-            frame_stack * (channel + 1), *spatial_shape
+    if config['algorithm'] == 'AlphaZero':
+        # import worker here since importing both two workers will encounter protobuf error
+        from czf.actor import alphazero_worker
+        game_config = config['game']
+        mcts_config = config['mcts']
+        manager = alphazero_worker.WorkerManager()
+        manager.load_game(game_config['name'])
+        manager.worker_option.seed = args.seed
+        manager.worker_option.timeout_us = args.gpu_timeout
+        manager.worker_option.batch_size = args.batch_size
+        manager.worker_option.num_sampled_transformations = mcts_config['num_sampled_transformations']
+    elif config['algorithm'] == 'MuZero':
+        # import worker here since importing both two workers will encounter protobuf error
+        from czf.actor import muzero_worker
+        manager = muzero_worker.WorkerManager()
+        # GameInfo
+        game_config = config['game']
+        obs_config = game_config['observation']
+        frame_stack = obs_config['frame_stack']
+        channel = obs_config['channel']
+        spatial_shape = obs_config['spatial_shape']
+        if frame_stack > 0:
+            manager.game_info.observation_shape = [
+                frame_stack * (channel + 1), *spatial_shape
+            ]
+        else:
+            manager.game_info.observation_shape = [channel, *spatial_shape]
+        manager.game_info.state_shape = [
+            config['model']['h_channels'], *game_config['state_spatial_shape']
         ]
-    else:
-        manager.game_info.observation_shape = [channel, *spatial_shape]
-    manager.game_info.state_shape = [
-        config['model']['h_channels'], *game_config['state_spatial_shape']
-    ]
-    manager.game_info.num_actions = game_config['actions']
-    manager.game_info.all_actions = list(range(game_config['actions']))
-    manager.game_info.two_player = (game_config.get('num_player', 2) == 2)
-    # JobOption
-    manager.worker_option.seed = args.seed
-    manager.worker_option.timeout_us = args.gpu_timeout
-    manager.worker_option.batch_size = args.batch_size
+        manager.game_info.num_actions = game_config['actions']
+        manager.game_info.all_actions = list(range(game_config['actions']))
+        manager.game_info.two_player = (game_config.get('num_player', 2) == 2)
+        # JobOption
+        manager.worker_option.seed = args.seed
+        manager.worker_option.timeout_us = args.gpu_timeout
+        manager.worker_option.batch_size = args.batch_size
     return manager
 
 
@@ -45,7 +59,7 @@ async def main(args):
     '''czf.actor main program'''
     config = yaml.safe_load(Path(args.config).read_text())
     worker_manager = create_worker_manager(args, config)
-    actor = Actor(args, worker_manager)
+    actor = Actor(args, config, worker_manager)
     try:
         await actor.loop()
     except asyncio.CancelledError:

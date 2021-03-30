@@ -51,30 +51,51 @@ def save(args, iteration, buffer):
         os.remove(args.checkpoint)
 
 
+def alphazero_model_save(args):
+    import faulthandler
+    faulthandler.enable()
+
+    model_path = args.path
+    model_info = torch.load(args.path)
+    model = model_info['model']
+    game = model_info['game']
+    model.eval()
+    os.remove(args.path)
+
+    sample_input = torch.rand(1, *game)
+    traced_model = torch.jit.trace(model, sample_input)
+    traced_model.save(model_path)
+
+
 def main(args):
     '''czf.utils.model_server main program'''
-    device = 'cuda'
-    # load checkpoint
-    with open(args.checkpoint, 'rb') as model_blob:
-        buffer = model_blob.read()
-        # dctx = zstd.ZstdDecompressor()
-        # buffer = dctx.decompress(buffer)
-    iteration, buffer = jit(buffer, device)
-    save(args, iteration, buffer)
+    if args.path:
+        alphazero_model_save(args)
+    else:
+        device = 'cuda'
+        # load checkpoint
+        with open(args.checkpoint, 'rb') as model_blob:
+            buffer = model_blob.read()
+            # dctx = zstd.ZstdDecompressor()
+            # buffer = dctx.decompress(buffer)
+        iteration, buffer = jit(buffer, device)
+        save(args, iteration, buffer)
 
 
 def run_main():
     '''Run main program'''
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint',
-                        required=True,
                         help='path to load checkpoint')
     parser.add_argument('--model-dir',
-                        required=True,
                         help='directory to save model')
     parser.add_argument('--rm',
                         action='store_true',
                         help='remove the checkpoint')
+    parser.add_argument('--path',
+                        type=str,
+                        default='',
+                        help='(AlphaZero) model path to save')
     args = parser.parse_args()
     main(args)
 

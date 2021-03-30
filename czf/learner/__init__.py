@@ -5,10 +5,9 @@ from datetime import datetime
 import os
 from pathlib import Path
 import shutil
+import torch
 import yaml
 import zmq.asyncio
-
-from czf.learner.learner import Learner
 
 
 async def main():
@@ -29,18 +28,27 @@ async def main():
     parser.add_argument('-s',
                         '--storage-dir',
                         help='path to store model, trajectory, and log')
+    # TODO: remove args.restore & args.checkpoint in AlphaZero
     parser.add_argument('-r',
                         '--restore',
+                        action='store_true',
+                        help='whether to restore from previous training (for AlphaZero)')
+    parser.add_argument('-pt',
+                        '--checkpoint',
+                        default='latest.pt',
+                        type=str,
+                        help='which checkpoint to restore from (for AlphaZero)')
+    parser.add_argument('--restore-checkpoint-path',
                         nargs='?',
                         const='',
                         metavar='CHECKPOINT',
                         help='restore the latest checkpoint')
-    parser.add_argument('--restore-buffer',
+    parser.add_argument('--restore-buffer-dir',
                         nargs='?',
                         const='',
                         metavar='TRAJECTORY_DIR',
                         help='restore the replay buffer')
-    parser.add_argument('--pretrain-trajectory',
+    parser.add_argument('--pretrain-trajectory-dir',
                         metavar='TRAJECTORY_DIR',
                         help='pretrain the trajectory')
     parser.add_argument('-np',
@@ -48,31 +56,36 @@ async def main():
                         type=int,
                         default=num_cpu,
                         help='number of Preprocessor process')
-    parser.add_argument("--local_rank",
+    parser.add_argument('--local_rank',
                         type=int,
                         default=0,
                         help='distributed rank (provided by pytorch)')
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
-    # default storage dir: `storage_{game}_{date}`
+    algorithm = config['algorithm']
+    assert config['algorithm'] in ('AlphaZero', 'MuZero')
+    # default storage dir: `storage_{algorithm}_{game}_{date}`
     if not args.storage_dir:
         game = config['game']['name']
-        path = 'storage_' + game + '_' + datetime.today().strftime(
-            '%Y%m%d_%H%M')
+        path = f"storage_{algorithm}_{game}_{datetime.today().strftime('%Y%m%d_%H%M')}"
         args.storage_dir = str(Path(path).resolve())
     storage_path = Path(args.storage_dir)
     # default restore checkpoint: `{storage}/checkpoint/{model_name}/latest.pt.zst`
-    if args.restore == '':
-        args.restore = storage_path / 'checkpoint' / args.model_name / 'latest.pt.zst'
+    if args.restore_checkpoint_path == '':
+        args.restore_checkpoint_path = storage_path / 'checkpoint' / args.model_name / 'latest.pt.zst'
     # default restore buffer: `{storage}/trajectory`
-    if args.restore_buffer == '':
-        args.restore_buffer = storage_path / 'trajectory'
+    if args.restore_buffer_dir == '':
+        args.restore_buffer_dir = storage_path / 'trajectory'
     # copy config.yaml if not exists
     if not storage_path.exists():
         storage_path.mkdir(parents=True, exist_ok=True)
         shutil.copy(Path(args.config), storage_path / 'config.yaml')
 
+    if algorithm == 'AlphaZero':
+        from czf.learner.alphazero_learner.learner import Learner
+    elif algorithm == 'MuZero':
+        from czf.learner.muzero_learner.learner import Learner
     learner = Learner(args, config)
     await learner.loop()
 

@@ -1,0 +1,90 @@
+algorithm: 'AlphaZero'
+
+game:
+  name: 'gomoku'
+  num_player: 2
+  # number of total actions
+  actions: 81
+  # if frame_stack equals to 0, then
+  #   observation_shape is [channel, H, W]
+  #   feature_shape is [channel, H, W]
+  # otherwise,
+  #   observation_shape is [frame_stack * (channel + 1), H, W]
+  #   feature_shape is [(channel + 1), H, W]
+  observation:
+    # number of frames to stack
+    # for 0, (o_1)
+    # for n, (a_1, o_1, ...,  a_n, o_n)
+    frame_stack: 0
+    # C
+    channel: 4
+    # [H, W]
+    spatial_shape: [9, 9]
+  # if a state_spatial_shape is [H, W],
+  # then the state_shape is [h_channels, H, W]
+  state_spatial_shape: [9, 9]
+
+model:
+  # backbone can set "ResNet" or "SE-ResNet", if didn't set, default is "ResNet"
+  backbone: ResNet
+  # if backbone is "SE-ResNet", you can set the fc_hidden_dimension, default is 16
+  # fc_hidden_dimension: 16
+  channels: 64
+  blocks: 10
+
+learner:
+  learning_rate:
+    reset_lr: false # true / false : also mean without scheduler
+    initial: 0.1
+    gamma: 0.1
+    milestones:
+      - 200
+      - 400
+  momentum: 0.9
+  weight_decay: 1.e-4
+  # Train the model when there are N newly generated states.
+  frequency: 40960
+  # How many states to store in the replay buffer.
+  replay_buffer_size: 720000
+  # How many times to reuse each state in the replay buffer.
+  replay_buffer_reuse: 1
+  # How many states to learn from per batch.
+  batch_size: 1024
+  # Save a checkpoint every N steps.
+  checkpoint_freq: 10
+  # Whether to augment data by rotation, reflection, etc.
+  use_transformation: False
+
+mcts:
+  # Mcts simulation counts
+  simulation_count: 400
+  # pUCT exploration constant
+  c_puct: 1.5
+  # root dirichlet noise
+  dirichlet:
+    # Dir(alpha)
+    alpha: 0.05
+    # (1 - epsilon) * policy + epsilon * Dir(alpha);
+    epsilon: 0.25
+  # How many transformations to sample in evaluation step.
+  num_sampled_transformations: 0
+
+misc:
+  # Data (trajectories) compression level. Valid values are integers between 1 and 22.
+  compression_level: 3
+
+game_server:
+  # drop the softmax temperature from 1 to 0 after the number of steps
+  # (set `True` to always enable)
+  softmax_temperature_step: 100
+  # send a sequence every length N (set `0` to send full game)
+  sequence: 0
+
+evaluator:
+  # How many games to play
+  num_games: 100
+  # evaluation mode
+  mode: 'best'
+  replace_rate: 0.55
+  # evaluate performance every N iterations
+  frequency: 100

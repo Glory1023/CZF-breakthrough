@@ -2,7 +2,8 @@
 import asyncio
 import numpy as np
 
-from czf.game_server.game_server import GameServer, EnvManager
+from czf.game_server.game_server import GameServer
+from czf.game_server.env_manager import EnvManager
 from czf.pb import czf_pb2
 
 

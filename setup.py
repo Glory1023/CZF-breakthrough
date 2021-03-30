@@ -110,7 +110,7 @@ with open('README.md') as fd:
         long_description=fd.read(),
         long_description_content_type='text/markdown',
         license='BSD-3-Clause',
-        ext_modules=[CMakeExtension('czf_env')],
+        ext_modules=[CMakeExtension('czf')],
         cmdclass={
             'build_ext': CMakeBuild,
             'build_docs': CMakeBuildDocs,
@@ -122,7 +122,6 @@ with open('README.md') as fd:
         tests_require=['pytest'],
         zip_safe=False,
         install_requires=[
-            'czf-env @ git+https://github.com/chengscott/czf_env',
             'gym',
             'pyyaml',
             'tensorboard',

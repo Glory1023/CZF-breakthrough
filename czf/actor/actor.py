@@ -2,6 +2,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import platform
+import tempfile
 # import zstandard as zstd
 
 from czf.utils import get_zmq_dealer, RemoteModelManager
@@ -11,31 +12,50 @@ from czf.pb import czf_pb2
 
 class Actor:
     '''Actor'''
-    def __init__(self, args, worker_manager):
+    def __init__(self, args, config, worker_manager):
         self._node = czf_pb2.Node(
             hostname=platform.node(),
             identity=f'actor-{args.suffix}',
         )
+
         # Actor mode
+        self.algorithm = config['algorithm']
+        assert self.algorithm in ('AlphaZero', 'MuZero')
         operation = {
-            None: czf_pb2.Job.Operation.MUZERO_SEARCH,
-            '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
-            '2P': czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
+            'AlphaZero': {
+                None: czf_pb2.Job.Operation.ALPHAZERO_SEARCH,
+                '1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P,
+                '2P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_2P,
+            },
+            'MuZero': {
+                None: czf_pb2.Job.Operation.MUZERO_SEARCH,
+                '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
+                '2P': czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
+            },
         }
+        self._operation = operation[self.algorithm][args.eval]
         if args.eval:
             assert args.eval in ('1P', '2P')
-            print(f'[Evaluation {args.eval} Mode]', self._node.identity)
+            print(f'[{self.algorithm} Evaluation {args.eval} Mode]', self._node.identity)
         else:
-            print('[Training Mode]', self._node.identity)
-        self._operation = operation[args.eval]
+            print(f'[{self.algorithm} Training Mode]', self._node.identity)
+        
         # worker manager
         self._worker_manager = worker_manager
-        worker_manager.run(
-            num_cpu_worker=args.num_cpu_worker,
-            num_gpu_worker=args.num_gpu_worker,
-            num_gpu_root_worker=args.num_gpu_root_worker,
-            num_gpu=args.num_gpu,
-        )
+        if self.algorithm == 'AlphaZero':
+            self._worker_manager.run(
+                num_cpu_worker=args.num_cpu_worker,
+                num_gpu_worker=args.num_gpu_worker,
+                num_gpu=args.num_gpu,
+            )
+        elif self.algorithm == 'MuZero':
+            self._worker_manager.run(
+                num_cpu_worker=args.num_cpu_worker,
+                num_gpu_worker=args.num_gpu_worker,
+                num_gpu_root_worker=args.num_gpu_root_worker,
+                num_gpu=args.num_gpu,
+            )
+
         # model
         self._model_info = czf_pb2.ModelInfo(name='default', version=-1)
         self._has_new_model = asyncio.Event()
@@ -61,6 +81,8 @@ class Actor:
         '''a loop to receive `Packet` (`JobBatch`) from broker'''
         while True:
             raw = await self._broker.recv()
+            # packet = czf_pb2.Packet.FromString(raw)
+            # print(packet)
             await self.__on_job_batch(raw)
 
     async def _dequeue_loop(self):
@@ -101,10 +123,16 @@ class Actor:
         '''WorkerManager load model'''
         assert len(model.blobs) == 1
         print('load model', model.info.name, 'iteration', model.info.version)
-        blob = model.blobs[0]
-        # model_blob = self._dctx.decompress(blob)
-        _, model_blob = jit(blob)
-        self._worker_manager.load_from_bytes(model_blob)
+
+        if self.algorithm == 'AlphaZero':
+            with tempfile.NamedTemporaryFile() as tmp_file:
+                tmp_file.write(model.blobs[0])
+                self._worker_manager.load_from_file(tmp_file.name)
+        elif self.algorithm == 'MuZero':
+            blob = model.blobs[0]
+            # model_blob = self._dctx.decompress(blob)
+            _, model_blob = jit(blob)
+            self._worker_manager.load_from_bytes(model_blob)
 
     async def __initialize(self):
         '''initialize model and start to send job'''
