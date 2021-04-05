@@ -5,6 +5,8 @@ from io import BytesIO
 import multiprocessing as mp
 from multiprocessing.managers import BaseManager
 import os
+import subprocess
+import sys
 from queue import Empty
 import time
 import numpy as np
@@ -555,8 +557,22 @@ class Trainer:
         # buffer = self._ckpt_compressor.compress(buffer)
         ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt.zst'
         ckpt_path.write_bytes(buffer)
-        # update the latest checkpoint
-        latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
-        temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
-        os.symlink(ckpt_path, temp_ckpt)
-        os.replace(temp_ckpt, latest_ckpt)
+        # frozen model
+        args = [
+            sys.executable,
+            '-m',
+            'czf.utils.model_saver',
+            '--checkpoint',
+            str(ckpt_path),
+            '--model-dir',
+            str(self._model_dir),
+        ]
+        if not checkpoint:
+            args.append('--rm')
+        subprocess.run(args, check=True, env=os.environ.copy())
+        if checkpoint:
+            # update the latest checkpoint
+            latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
+            temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
+            os.symlink(ckpt_path, temp_ckpt)
+            os.replace(temp_ckpt, latest_ckpt)

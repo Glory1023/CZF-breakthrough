@@ -3,7 +3,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import platform
 import tempfile
-# import zstandard as zstd
+import zstandard as zstd
 
 from czf.utils import get_zmq_dealer, RemoteModelManager
 from czf.utils.model_saver import jit
@@ -60,7 +60,7 @@ class Actor:
         self._model_info = czf_pb2.ModelInfo(name='default', version=-1)
         self._has_new_model = asyncio.Event()
         self._has_load_model = asyncio.Event()
-        # self._dctx = zstd.ZstdDecompressor()
+        self._dctx = zstd.ZstdDecompressor()
         # connect to the remote model provider
         self._model_manager = RemoteModelManager(
             identity=f'model-manager-{args.suffix}',
@@ -130,8 +130,8 @@ class Actor:
                 self._worker_manager.load_from_file(tmp_file.name)
         elif self.algorithm == 'MuZero':
             blob = model.blobs[0]
-            # model_blob = self._dctx.decompress(blob)
-            _, model_blob = jit(blob)
+            model_blob = self._dctx.decompress(blob)
+            # _, model_blob = jit(blob)
             self._worker_manager.load_from_bytes(model_blob)
 
     async def __initialize(self):
