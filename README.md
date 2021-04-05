@@ -28,8 +28,10 @@ podman run --rm -d -v $PWD:/czf -w /czf --name="czf" -it --network=host --shm-si
 podman exec -w=/czf -it czf bash
 ```
 
-## Install
+## Install (TODO: Build a new image for missing packages)
 ```shell
+pip install psutil
+
 # Either release build
 python setup.py build
 
