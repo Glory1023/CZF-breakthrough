@@ -31,6 +31,7 @@ class TicTacToeState final : public State {
   std::array<short, 9> board_;
   int turn_;
   Player winner_;
+  std::vector<Action> history_;
 };
 
 class TicTacToeGame final : public Game {

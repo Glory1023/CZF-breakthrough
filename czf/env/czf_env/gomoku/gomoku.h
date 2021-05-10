@@ -26,6 +26,8 @@ class GomokuState final : public State {
 
   bool has_line(const Player&, const Action&) const;
 
+  std::string serialize() const override;
+
  private:
   // 0 -> ●
   // 1 -> ○
@@ -33,6 +35,7 @@ class GomokuState final : public State {
   std::array<short, NUM_GRIDS> board_;
   int turn_;
   Player winner_;
+  std::vector<Action> history_;
 };
 
 class GomokuGame final : public Game {
@@ -42,6 +45,8 @@ class GomokuGame final : public Game {
   int num_distinct_actions() const override;
   StatePtr new_initial_state() const override;
   std::vector<int> observation_tensor_shape() const override;
+
+  StatePtr deserialize_state(const std::string& str = "") const override;
 };
 
 // *IMPORTANT* Register this game to the factory

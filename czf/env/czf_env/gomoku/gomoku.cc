@@ -22,6 +22,7 @@ void GomokuState::apply_action(const Action& action) {
   if (has_line(player, action)) {
     winner_ = player;
   }
+  history_.push_back(action);
 }
 
 std::vector<Action> GomokuState::legal_actions() const {
@@ -101,6 +102,14 @@ bool GomokuState::has_line(const Player& player, const Action& action) const {
   return false;
 }
 
+std::string GomokuState::serialize() const {
+  std::stringstream ss;
+  for (const Action action : history_) {
+    ss << action << " ";
+  }
+  return ss.str();
+}
+
 std::vector<float> GomokuState::rewards() const {
   if (winner_ == -1) {
     return {0.0F, 0.0F};
@@ -121,6 +130,16 @@ std::vector<int> GomokuGame::observation_tensor_shape() const {
 
 StatePtr GomokuGame::new_initial_state() const {
   return std::make_unique<GomokuState>(shared_from_this());
+}
+
+StatePtr GomokuGame::deserialize_state(const std::string& str) const {
+  std::stringstream ss(str);
+  int action;
+  StatePtr state = new_initial_state();
+  while (ss >> action) {
+    state->apply_action(action);
+  }
+  return state->clone();
 }
 
 }  // namespace czf::env::czf_env::gomoku

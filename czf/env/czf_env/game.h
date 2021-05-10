@@ -35,7 +35,6 @@ class State {
 
  protected:
   GamePtr game_;
-  std::vector<Action> history_;
 };
 
 class Game : public std::enable_shared_from_this<Game> {

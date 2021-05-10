@@ -11,7 +11,7 @@ class ModelProvider:
     def __init__(self, args):
         self._provider = get_zmq_router(listen_port=args.listen)
         if args.storage:
-            model_path = Path(args.storage) / 'checkpoint'
+            model_path = Path(args.storage) / 'model'
             self._model_manager = LocalModelManager(
                 storage=model_path,
                 cache_size=args.cache_size,

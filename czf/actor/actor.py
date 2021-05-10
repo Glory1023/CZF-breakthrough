@@ -99,7 +99,7 @@ class Actor:
     async def __on_job_batch(self, raw: bytes):
         '''enqueue jobs into WorkerManager and send `JobRequest`'''
         flush_job, name, version = self._worker_manager.enqueue_job_batch(raw)
-        if name != self._model_info.name or version > self._model_info.version:
+        if flush_job != b'' or name != self._model_info.name or version > self._model_info.version:
             self._model_info.name = name
             self._model_info.version = version
             self._has_load_model.clear()

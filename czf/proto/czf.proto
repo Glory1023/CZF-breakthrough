@@ -77,13 +77,13 @@ message WorkerState {
 message Job {
   // operation types for a job
   enum Operation {
-    UNKNOWN = 0;             // Unknown
-    ALPHAZERO_SEARCH = 1;       // MuZero Search
-    ALPHAZERO_EVALUATE_1P = 2;  // MuZero Evalute 1P
-    ALPHAZERO_EVALUATE_2P = 3;  // MuZero Evalute 2P
-    MUZERO_SEARCH = 4;       // MuZero Search
-    MUZERO_EVALUATE_1P = 5;  // MuZero Evalute 1P
-    MUZERO_EVALUATE_2P = 6;  // MuZero Evalute 2P
+    UNKNOWN = 0;
+    ALPHAZERO_SEARCH = 1;
+    ALPHAZERO_EVALUATE_1P = 2;
+    ALPHAZERO_EVALUATE_2P = 3;
+    MUZERO_SEARCH = 4;
+    MUZERO_EVALUATE_1P = 5;
+    MUZERO_EVALUATE_2P = 6;
   }
   // content of a job
   message Payload {
