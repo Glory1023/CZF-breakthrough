@@ -269,7 +269,7 @@ StatePtr SurakartaGame::new_initial_state() const {
   return std::make_unique<SurakartaState>(shared_from_this());
 }
 
-int SurakartaGame::num_transformations() const { return 4; }
+int SurakartaGame::num_transformations() const { return 2; }
 
 std::vector<float> SurakartaGame::transform_observation(
     const std::vector<float> &observation, int type) const {
@@ -322,11 +322,6 @@ int SurakartaGame::transform_index(const int &index, const int type) const {
     int i = index / kBoardSize;
     int j = index % kBoardSize;
     if (type == 1) {
-      i = (kBoardSize - 1) - i;
-      j = (kBoardSize - 1) - j;
-    } else if (type == 2) {
-      i = (kBoardSize - 1) - i;
-    } else if (type == 3) {
       j = (kBoardSize - 1) - j;
     }
     return i * kBoardSize + j;

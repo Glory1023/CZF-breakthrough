@@ -22,7 +22,3 @@ if(BUILD_BENCHMARK)
                                           ${TORCH_LIBRARIES})
   install(TARGETS benchmark LIBRARY DESTINATION czf/actor)
 endif()
-
-# test module
-add_test(NAME pybind-tests COMMAND ${Python3_EXECUTABLE} -m pytest
-                                   ${PROJECT_SOURCE_DIR}/tests)

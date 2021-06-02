@@ -31,6 +31,8 @@ class SurakartaSplitActionState final : public State {
   std::vector<float> observation_tensor() const override;
   std::string to_string() const override;
 
+  std::string serialize() const override;
+
   bool has_piece(const Player &) const;
 
  private:
@@ -71,6 +73,21 @@ class SurakartaSplitActionGame final : public Game {
   int num_distinct_actions() const override;
   StatePtr new_initial_state() const override;
   std::vector<int> observation_tensor_shape() const override;
+
+  int num_transformations() const override;
+  std::vector<float> transform_observation(
+      const std::vector<float> &observation, int) const override;
+  std::vector<float> transform_policy(const std::vector<float> &policy,
+                                      int) const override;
+  std::vector<float> restore_policy(const std::vector<float> &policy,
+                                    int) const override;
+
+  std::string action_to_string(const Action &action) const override;
+  std::vector<Action> string_to_action(const std::string &str) const override;
+  StatePtr deserialize_state(const std::string &) const override;
+
+ private:
+  int transform_index(const int &index, int) const;
 };
 
 // *IMPORTANT* Register this game to the factory

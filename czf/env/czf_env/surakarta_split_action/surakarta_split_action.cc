@@ -1,5 +1,6 @@
-#include "czf/env/czf_env/surakarta_SplitAction/surakarta_SplitAction.h"
+#include "czf/env/czf_env/surakarta_split_action/surakarta_split_action.h"
 
+#include <algorithm>
 #include <iomanip>
 #include <numeric>
 #include <sstream>
@@ -263,8 +264,24 @@ std::vector<float> SurakartaSplitActionState::rewards() const {
   return {0.0, 0.0};
 }
 
+std::string SurakartaSplitActionState::serialize() const {
+  std::stringstream ss;
+  if (history_.size() % 2 == 1) {
+    ss << -1 << " ";
+    for (const Action action : history_) {
+      ss << action << " ";
+    }
+  } else {
+    for (int i = 0; i < history_.size(); i += 2) {
+      Action action = history_[i] * kNumOfGrids + history_[i + 1];
+      ss << action << " ";
+    }
+  }
+  return ss.str();
+}
+
 std::string SurakartaSplitActionGame::name() const {
-  return "surakarta_SplitAction";
+  return "surakarta_split_action";
 }
 int SurakartaSplitActionGame::num_players() const { return 2; }
 int SurakartaSplitActionGame::num_distinct_actions() const {
@@ -276,6 +293,115 @@ std::vector<int> SurakartaSplitActionGame::observation_tensor_shape() const {
 
 StatePtr SurakartaSplitActionGame::new_initial_state() const {
   return std::make_unique<SurakartaSplitActionState>(shared_from_this());
+}
+
+int SurakartaSplitActionGame::num_transformations() const { return 2; }
+
+std::vector<float> SurakartaSplitActionGame::transform_observation(
+    const std::vector<float> &observation, int type) const {
+  std::vector<float> data(observation);
+  if (type != 0) {
+    int feature_num = (int)observation.size() / kNumOfGrids;
+    for (int i = 0; i < feature_num; i++) {
+      for (int index = 0; index < kNumOfGrids; index++) {
+        int new_index = transform_index(index, type);
+        data[i * kNumOfGrids + new_index] =
+            observation[i * kNumOfGrids + index];
+      }
+    }
+  }
+  return data;
+}
+
+std::vector<float> SurakartaSplitActionGame::transform_policy(
+    const std::vector<float> &policy, int type) const {
+  std::vector<float> data(policy);
+  if (type != 0) {
+    for (int index = 0; index < kPolicyDim; index++) {
+      int new_index = transform_index(index, type);
+      data[new_index] = policy[index];
+    }
+  }
+  return data;
+}
+
+std::vector<float> SurakartaSplitActionGame::restore_policy(
+    const std::vector<float> &policy, int type) const {
+  std::vector<float> data(policy);
+  if (type != 0) {
+    for (int index = 0; index < kPolicyDim; index++) {
+      int new_index = transform_index(index, type);
+      data[new_index] = policy[index];
+    }
+  }
+  return data;
+}
+
+int SurakartaSplitActionGame::transform_index(const int &index,
+                                              const int type) const {
+  if (type == 0) {
+    return index;
+  } else {
+    int i = index / kBoardSize;
+    int j = index % kBoardSize;
+    if (type == 1) {
+      j = (kBoardSize - 1) - j;
+    }
+    return i * kBoardSize + j;
+  }
+}
+
+std::string SurakartaSplitActionGame::action_to_string(
+    const Action &action) const {
+  using namespace std::string_literals;
+  std::stringstream ss;
+  ss << "ABCDEF"s.at(action % kBoardSize) << kBoardSize - (action / kBoardSize);
+  return ss.str();
+}
+
+std::vector<Action> SurakartaSplitActionGame::string_to_action(
+    const std::string &str) const {
+  std::string wopunc = str;
+  wopunc.erase(std::remove_if(wopunc.begin(), wopunc.end(), ispunct),
+               wopunc.end());
+  std::stringstream ss(wopunc);
+  std::string action;
+  std::vector<Action> id;
+  while (ss >> action) {
+    if (action.at(0) >= 'a' && action.at(0) <= 'z') {
+      int tmp = (kBoardSize - std::stoi(action.substr(1))) * kBoardSize +
+                (action.at(0) - 'a');
+      id.push_back(tmp);
+    } else {
+      int tmp = (kBoardSize - std::stoi(action.substr(1))) * kBoardSize +
+                (action.at(0) - 'A');
+      id.push_back(tmp);
+    }
+  }
+  return id;
+}
+
+StatePtr SurakartaSplitActionGame::deserialize_state(
+    const std::string &str) const {
+  std::stringstream ss(str);
+  bool mode = false;
+  int action;
+  StatePtr state = new_initial_state();
+  while (ss >> action) {
+    if (action == -1) {
+      mode = true;
+      continue;
+    }
+    if (mode) {
+      state->apply_action(action);
+    } else {
+      int src = action / 36;
+      int des = action % 36;
+      state->apply_action(src);
+      state->apply_action(des);
+    }
+  }
+  return state->clone();
 }
 
 }  // namespace czf::env::czf_env::surakarta
