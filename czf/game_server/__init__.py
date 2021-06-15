@@ -79,6 +79,9 @@ def run_main():
                         default=uuid4().hex,
                         help='unique id of the game server')
     parser.add_argument('--eval', action='store_true', help='evaluation mode')
+    parser.add_argument('-s',
+                        '--storage-dir',
+                        help='path to store model, trajectory, and log')
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())

@@ -98,7 +98,14 @@ game_server:
   sequence: 0
 
 evaluator:
-  # evaluation mode
-  mode: 'best'
+  # the first checkpoint to be evaluated
+  first_checkpoint: 0
+  # the last checkpoint to be evaluated
+  last_checkpoint: 1000
   # evaluate performance every N checkpoints
   frequency: 10
+  # the elo rating for the first checkpoint
+  elo_base: 0.
+  # the win rate threshold to replace the base model
+  # (set `0.` to replace the base model always)
+  replace_rate: 0.55
