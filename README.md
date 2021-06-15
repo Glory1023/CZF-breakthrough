@@ -53,6 +53,20 @@ python -m czf.actor -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml -bs 64
 python -m czf.game_server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml -np 1 -n 128
 ```
 
+### Evaluator
+
+- Currently only support MuZero two-player games
+- If you run `Evaluator` with `-np 1 -n 100`, the evaluation will run 1x100 games as first player and 1x100 games as second player for each matchup
+
+```bash=
+python -m czf.model_provider -l 5577 -s $storage_dir
+python -m czf.broker -l 5566
+python -m czf.actor -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml -bs 64 --eval 1P
+python -m czf.actor -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml -bs 64 --eval 2P
+python -m czf.game_server -b 127.0.0.1:5566 -u 127.0.0.1:5577 -f game.yaml -np 1 -n 100 --eval -s $storage_dir
+```
+
+
 ### CLI Agent
 
 - Currently only support MuZero
