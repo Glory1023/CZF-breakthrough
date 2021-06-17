@@ -1,4 +1,5 @@
 #include <catch2/catch.hpp>
+#include <iostream>
 
 #include "czf/env/czf_env/tic_tac_toe/tic_tac_toe.h"
 using czf::env::czf_env::tic_tac_toe::TicTacToeGame;
@@ -24,4 +25,15 @@ TEST_CASE("tic_tac_toe: serialize & deserialize_state", "[TicTacToeGame]") {
     REQUIRE(state->serialize() == state2->serialize());
   }
   REQUIRE(state->is_terminal());
+}
+
+TEST_CASE("tic_tac_toe: observation_tensor", "[TicTacToeGame]") {
+  auto game = std::make_shared<TicTacToeGame>();
+  auto state = game->new_initial_state();
+
+  auto shape = game->observation_tensor_shape();
+  auto size =
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+  auto tensor = state->observation_tensor();
+  REQUIRE(size == tensor.size());
 }

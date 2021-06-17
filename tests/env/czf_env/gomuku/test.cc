@@ -25,3 +25,14 @@ TEST_CASE("gomoku: serialize & deserialize_state", "[GomokuGame]") {
   }
   REQUIRE(state->is_terminal());
 }
+
+TEST_CASE("gomoku: observation_tensor", "[GomokuGame]") {
+  auto game = std::make_shared<GomokuGame>();
+  auto state = game->new_initial_state();
+
+  auto shape = game->observation_tensor_shape();
+  auto size =
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+  auto tensor = state->observation_tensor();
+  REQUIRE(size == tensor.size());
+}

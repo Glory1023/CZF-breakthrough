@@ -27,3 +27,15 @@ TEST_CASE("surakarta_split_action: serialize & deserialize_state",
   }
   REQUIRE(state->is_terminal());
 }
+
+TEST_CASE("surakarta_split_action: observation_tensor",
+          "[SurakartaSplitActionGame]") {
+  auto game = std::make_shared<SurakartaSplitActionGame>();
+  auto state = game->new_initial_state();
+
+  auto shape = game->observation_tensor_shape();
+  auto size =
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+  auto tensor = state->observation_tensor();
+  REQUIRE(size == tensor.size());
+}
