@@ -3,7 +3,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from czf.learner.muzero_learner.dataloader import PreprocessQueue
+from czf.learner.muzero_learner.preprocessor import PreprocessQueue
 from czf.learner.muzero_learner.trainer import TrainerRunner
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_router, LocalModelManager

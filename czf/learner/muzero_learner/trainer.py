@@ -16,7 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 # import zstandard as zstd
 
-from czf.learner.muzero_learner.dataloader import ReplayBuffer, RolloutBatch
+from czf.learner.muzero_learner.replay_buffer import ReplayBuffer, RolloutBatch
 from czf.learner.muzero_learner.data_parallel import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
 
