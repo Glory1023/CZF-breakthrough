@@ -137,7 +137,7 @@ class Preprocessor:
             nstep_value = discounted_return[player][-1]
             if (nstep > 0) and (i >= nstep):
                 nstep_value += (
-                    values[-nstep] -
+                    values[-nstep - 1] -
                     discounted_return[player][-nstep - 1]) * gamma**nstep
             reward = state.transition.rewards[state.transition.current_player]
             # priority
