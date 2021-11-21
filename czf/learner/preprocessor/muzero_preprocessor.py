@@ -1,21 +1,19 @@
-'''CZF Preprocessor'''
-from multiprocessing import Queue
+'''CZF MuZero Preprocessor'''
 import numpy as np
-import torch
 import torch.multiprocessing as mp
 
-from czf.learner.muzero_learner.replay_buffer import Transition, Statistics
+from czf.learner.preprocessor.preprocessor import Preprocessor
+from czf.learner.replay_buffer.replay_buffer import Statistics
+from czf.learner.replay_buffer.muzero_replay_buffer import MuZeroTransition
 from czf.pb import czf_pb2
 
 
-class Preprocessor:
-    '''Preprocess raw packet to trajectories'''
+class MuZeroPreprocessor(Preprocessor):
+    '''MuZero Preprocess raw packet to trajectories'''
     def __init__(
         self,
         result_queue,
         num_player,
-        num_action,
-        observation_config,
         transform,
         r_heads,
         v_heads,
@@ -25,9 +23,6 @@ class Preprocessor:
         use_prioritize,
     ):
         self._result_queue = result_queue
-        self._spatial_shape = observation_config['spatial_shape']
-        self._frame_stack = observation_config['frame_stack']
-        self._num_action = num_action
         self._num_player = num_player
         self._transform = None
         if transform == 'Atari':
@@ -67,7 +62,7 @@ class Preprocessor:
             x = np.array(x, dtype=dtype)
             return x.tobytes()
 
-        #print('add', len(trajectory.states), 'positions')
+        # print('add', len(trajectory.states), 'positions')
         # TODO: toggle save trajectory (may exceed 2G!)
         # self._pb_trajectory_batch.trajectories.add().CopyFrom(trajectory)
         # from the terminal state to the initial state
@@ -102,7 +97,7 @@ class Preprocessor:
                 terminal_value = to_bytes(terminal_value)
                 priorities.append(0.)
                 buffer.append(
-                    Transition(
+                    MuZeroTransition(
                         observation=observation,
                         action=None,
                         policy=None,
@@ -115,7 +110,7 @@ class Preprocessor:
             if not state.HasField('transition'):  # is_frame_stack
                 priorities.append(0.)
                 buffer.append(
-                    Transition(
+                    MuZeroTransition(
                         observation=observation,
                         action=None,
                         policy=None,
@@ -167,7 +162,7 @@ class Preprocessor:
             reward = to_bytes(reward)
             # (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
             buffer.append(
-                Transition(
+                MuZeroTransition(
                     observation=observation,
                     action=action,
                     policy=policy,
@@ -195,71 +190,3 @@ class Preprocessor:
         # add trajectory to buffer (from start to terminal)
         self._result_queue.put(
             (stats, tuple(reversed(priorities)), tuple(reversed(buffer))))
-
-
-def run_preprocessor(raw_queue, *args):
-    '''run :class:`Preprocessor`'''
-    preprocessor = Preprocessor(*args)
-    while True:
-        raw = raw_queue.get()
-        packet = czf_pb2.Packet.FromString(raw)
-        batch = packet.trajectory_batch.trajectories
-        for trajectory in batch:
-            preprocessor.add_trajectory(trajectory)
-        packet.ClearField('trajectory_batch')
-
-
-class PreprocessQueue:
-    '''Preprocess job queue'''
-    def __init__(
-        self,
-        num_player,
-        num_action,
-        observation_config,
-        transform,
-        r_heads,
-        v_heads,
-        kstep,
-        nstep,
-        discount_factor,
-        num_proc,
-        use_prioritize,
-    ):
-        torch.set_num_threads(1)
-        torch.set_num_interop_threads(1)
-        # multiprocessing
-        self._raw_queue = Queue()
-        self._result_queue = Queue()
-        self._process = [
-            mp.Process(target=run_preprocessor,
-                       args=(
-                           self._raw_queue,
-                           self._result_queue,
-                           num_player,
-                           num_action,
-                           observation_config,
-                           transform,
-                           r_heads,
-                           v_heads,
-                           kstep,
-                           nstep,
-                           discount_factor,
-                           use_prioritize,
-                       )) for _ in range(num_proc)
-        ]
-        for process in self._process:
-            process.start()
-
-    def put(self, raw: bytes):
-        '''Enqueue raw protobuf packet'''
-        self._raw_queue.put(raw)
-
-    def get(self):
-        '''Dequeue preprocessed trajectory'''
-        return self._result_queue.get()
-
-    def get_all(self):
-        '''Dequeue all preprocessed trajectory'''
-        x = self._result_queue.get()
-        qsize = self._result_queue.qsize()
-        return [x] + [self._result_queue.get() for _ in range(qsize)]

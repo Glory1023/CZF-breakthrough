@@ -6,7 +6,7 @@ import tempfile
 import zstandard as zstd
 
 from czf.utils import get_zmq_dealer, RemoteModelManager
-from czf.utils.model_saver import jit
+# from czf.utils.model_saver import jit
 from czf.pb import czf_pb2
 
 
@@ -123,16 +123,10 @@ class Actor:
         '''WorkerManager load model'''
         assert len(model.blobs) == 1
         print('load model', model.info.name, 'iteration', model.info.version)
-
-        if self.algorithm == 'AlphaZero':
-            with tempfile.NamedTemporaryFile() as tmp_file:
-                tmp_file.write(model.blobs[0])
-                self._worker_manager.load_from_file(tmp_file.name)
-        elif self.algorithm == 'MuZero':
-            blob = model.blobs[0]
-            model_blob = self._dctx.decompress(blob)
-            # _, model_blob = jit(blob)
-            self._worker_manager.load_from_bytes(model_blob)
+        blob = model.blobs[0]
+        model_blob = self._dctx.decompress(blob)
+        # _, model_blob = jit(blob)
+        self._worker_manager.load_from_bytes(model_blob)
 
     async def __initialize(self):
         '''initialize model and start to send job'''

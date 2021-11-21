@@ -8,6 +8,7 @@ import shutil
 import torch
 import yaml
 import zmq.asyncio
+from czf.learner.learner import Learner
 
 
 async def main():
@@ -28,16 +29,6 @@ async def main():
     parser.add_argument('-s',
                         '--storage-dir',
                         help='path to store model, trajectory, and log')
-    # TODO: remove args.restore & args.checkpoint in AlphaZero
-    parser.add_argument('-r',
-                        '--restore',
-                        action='store_true',
-                        help='whether to restore from previous training (for AlphaZero)')
-    parser.add_argument('-pt',
-                        '--checkpoint',
-                        default='latest.pt',
-                        type=str,
-                        help='which checkpoint to restore from (for AlphaZero)')
     parser.add_argument('--restore-checkpoint-path',
                         nargs='?',
                         const='',
@@ -68,7 +59,7 @@ async def main():
     # default storage dir: `storage_{algorithm}_{game}_{date}`
     if not args.storage_dir:
         game = config['game']['name']
-        path = f"storage_{algorithm}_{game}_{datetime.today().strftime('%Y%m%d_%H%M')}"
+        path = f"storage_{algorithm}_{game}_{datetime.today().strftime('%Y%m%d_%H%M%S')}"
         args.storage_dir = str(Path(path).resolve())
     storage_path = Path(args.storage_dir)
     # default restore checkpoint: `{storage}/checkpoint/{model_name}/latest.pt.zst`
@@ -81,11 +72,7 @@ async def main():
     if not storage_path.exists():
         storage_path.mkdir(parents=True, exist_ok=True)
         shutil.copy(Path(args.config), storage_path / 'config.yaml')
-
-    if algorithm == 'AlphaZero':
-        from czf.learner.alphazero_learner.learner import Learner
-    elif algorithm == 'MuZero':
-        from czf.learner.muzero_learner.learner import Learner
+        
     learner = Learner(args, config)
     await learner.loop()
 

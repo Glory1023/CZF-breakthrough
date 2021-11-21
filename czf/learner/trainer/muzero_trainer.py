@@ -1,195 +1,28 @@
-'''CZF Trainer'''
+'''CZF MuZero Trainer'''
 from collections import Counter
-from datetime import datetime
 from io import BytesIO
-import multiprocessing as mp
-from multiprocessing.managers import BaseManager
 import os
 import subprocess
 import sys
-from queue import Empty
-import time
 import numpy as np
 import torch
-from torch.utils.data import WeightedRandomSampler
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 # import zstandard as zstd
 
-from czf.learner.muzero_learner.replay_buffer import ReplayBuffer, RolloutBatch
-from czf.learner.muzero_learner.data_parallel import DataParallelWrapper
+from czf.learner.trainer.trainer import Trainer
+from czf.learner.data_parallel import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
 
 
-def run_sampler(index_queue, sample_queue, replay_buffer, prefetch_factor):
-    '''run sampler'''
-    while True:
-        index = [index_queue.get()]
-        try:
-            for _ in range(prefetch_factor):
-                index.append(index_queue.get(block=False))
-        except Empty:
-            pass
-        finally:
-            for i in index:
-                sample_queue.put(replay_buffer[i])
-
-
-class MyDataLoader:
-    '''DataLoader'''
-    def __init__(
-        self,
-        index_queue,
-        sample_queue,
-        batch_size,
-        collate_fn,
-    ):
-        self._index_queue = index_queue
-        self._sample_queue = sample_queue
-        self._batch_size = batch_size
-        self._collate_fn = collate_fn
-        self._num_sample = 0
-
-    def put(self, sampler):
-        '''Put all samples from `sampler` into `index_queue`'''
-        for index in sampler:
-            self._num_sample += 1
-            self._index_queue.put(index)
-
-    def __iter__(self):
-        while self._num_sample > self._batch_size:
-            data = self._collate_fn(
-                [self._sample_queue.get() for _ in range(self._batch_size)])
-            self._num_sample -= self._batch_size
-            yield data
-        data = self._collate_fn(
-            [self._sample_queue.get() for _ in range(self._num_sample)])
-        self._num_sample = 0
-        yield data
-
-
-def run_trainer(args, config, path, trajectory_queue, notify_model_queue):
-    '''run :class:`Trainer`'''
-    storage_path, checkpoint_path, model_path, log_path, trajectory_path = path
-    # replay buffer
-    BaseManager.register('ReplayBuffer',
-                         ReplayBuffer,
-                         exposed=[
-                             '__len__',
-                             '__getitem__',
-                             'get_mean_weight',
-                             'get_weights',
-                             'update_weights',
-                             'copy_weights',
-                             'write_back_weights',
-                             'get_num_to_add',
-                             'get_states_to_train',
-                             'add_trajectory',
-                             'get_statistics',
-                             'reset_statistics',
-                             'save_trajectory',
-                         ])
-    manager = BaseManager()
-    manager.start()
-    replay_buffer = manager.ReplayBuffer(
-        num_player=config['game']['num_player'],
-        observation_config=config['game']['observation'],
-        kstep=config['learner']['rollout_steps'],
-        capacity=config['learner']['replay_buffer_size'],
-        states_to_train=config['learner'].get('states_to_train', None),
-        sequences_to_train=config['learner'].get('sequences_to_train', None),
-        sample_ratio=config['learner'].get('sample_ratio', None),
-        sample_states=config['learner'].get('sample_states', None),
-    )
-    # restore the replay buffer
-    if args.restore_buffer_dir:
-        pass  # TODO: restore the replay buffer
-    # sampler
-    index_queue = mp.Queue()
-    sample_queue = mp.Queue()
-    prefetch_factor = 4
-    samplers = [
-        mp.Process(target=run_sampler,
-                   args=(
-                       index_queue,
-                       sample_queue,
-                       replay_buffer,
-                       prefetch_factor,
-                   )) for _ in range(args.num_proc)
-    ]
-    for sampler in samplers:
-        sampler.start()
-    # trainer
-    checkpoint_freq = checkpoint_freq = config['learner']['checkpoint_freq']
-    trainer = Trainer(config, checkpoint_path, model_path, log_path,
-                      args.model_name, args.restore_checkpoint_path,
-                      config['learner']['prioritized'])
-    trainer.save_model()
-    print('Storage path:', storage_path)
-    # pretrain the trajectory
-    if args.pretrain_trajectory_dir:
-        pass  # TODO: pretrain the trajectory
-    # dataloader
-    dataloader = MyDataLoader(
-        index_queue,
-        sample_queue,
-        batch_size=config['learner']['batch_size'],
-        collate_fn=RolloutBatch,
-    )
-    pbar = tqdm(total=replay_buffer.get_num_to_add(), desc='Collect Trajs')
-    # training loop
-    while True:
-        trajectories = trajectory_queue.get_all()
-        progress = 0
-        for trajectory in trajectories:
-            progress += replay_buffer.add_trajectory(trajectory)
-        pbar.update(min(progress, pbar.total - pbar.n))
-        states_to_train = replay_buffer.get_states_to_train()
-        if states_to_train > 0:
-            pbar.close()
-            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
-                  'Start optimization')
-            print('>> States to train:', states_to_train)
-            start = time.time()
-            trainer.log_statistics(replay_buffer)
-            replay_buffer.save_trajectory(trajectory_path, trainer.iteration)
-            sampler = WeightedRandomSampler(replay_buffer.get_weights(),
-                                            states_to_train)
-            dataloader.put(sampler)
-            trainer.train(dataloader, replay_buffer)
-            save_ckpt = (trainer.iteration % checkpoint_freq == 0)
-            trainer.save_model(save_ckpt)
-            notify_model_queue.put((trainer.model_name, trainer.iteration))
-            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
-                  f'Finish optimization with time {time.time() - start:.3f}')
-            pbar = tqdm(total=replay_buffer.get_num_to_add(),
-                        desc='Collect Trajs')
-
-
-class TrainerRunner:
-    '''Manage :class:`Trainer` to run in another process.'''
-    def __init__(self, args, config, path, trajectory_queue):
-        self._notify_model_queue = mp.Queue()
-        self._trainer = mp.Process(target=run_trainer,
-                                   args=(args, config, path, trajectory_queue,
-                                         self._notify_model_queue))
-        self._trainer.start()
-
-    def get_notify(self):
-        '''get notify for a new model'''
-        return self._notify_model_queue.get()
-
-
-class Trainer:
-    '''Trainer'''
+class MuZeroTrainer(Trainer):
+    '''MuZero Trainer'''
     def __init__(self,
                  config,
                  checkpoint_path,
                  model_path,
                  log_path,
                  model_name,
-                 restore,
-                 use_prioritize=True):
+                 restore):
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -235,7 +68,7 @@ class Trainer:
         # config
         self._observation_shape = observation_shape
         self._state_shape = state_shape
-        self._use_prioritize = use_prioritize
+        self._use_prioritize = config['learner']['prioritized']
         self._rollout_steps = config['learner']['rollout_steps']
         self._batch_size = config['learner']['batch_size']
         self._r_loss = model_config['r_loss']
@@ -275,41 +108,6 @@ class Trainer:
         # so, we can only trace the prediction model now.
         input_state = torch.rand(1, *state_shape).to(self._device)
         self._summary_writer.add_graph(self._model.module, (input_state, ))
-
-    def log_statistics(self, replay_buffer):
-        '''log statistics for recent trajectories'''
-        statistics = replay_buffer.get_statistics()
-        replay_buffer.reset_statistics()
-        writer, step = self._summary_writer, self.iteration
-        writer.add_scalar('game/num_games', statistics.num_games, step)
-        writer.add_scalar('game/num_states', statistics.num_states, step)
-        game_steps = statistics.game_steps
-        if game_steps:
-            writer.add_scalars(
-                'game/steps', {
-                    'mean': np.mean(game_steps),
-                    'min': np.min(game_steps),
-                    'max': np.max(game_steps),
-                    'std': np.std(game_steps),
-                }, step)
-        if self._num_player == 1:
-            score = statistics.player_returns[0]
-            if score:
-                writer.add_scalars(
-                    'game/score', {
-                        'mean': np.mean(score),
-                        'min': np.min(score),
-                        'max': np.max(score),
-                        'std': np.std(score),
-                    }, step)
-        else:
-            for p, player_returns in enumerate(statistics.player_returns):
-                player_returns = Counter(player_returns)
-                returns_rates = {
-                    str(key): value / statistics.num_games
-                    for key, value in player_returns.items()
-                }
-                writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
 
     def train(self, dataloader, replay_buffer):
         '''distributed training wrapper'''
@@ -540,6 +338,41 @@ class Trainer:
         # write back priorities
         replay_buffer.write_back_weights()
 
+    def log_statistics(self, replay_buffer):
+        '''log statistics for recent trajectories'''
+        statistics = replay_buffer.get_statistics()
+        replay_buffer.reset_statistics()
+        writer, step = self._summary_writer, self.iteration
+        writer.add_scalar('game/num_games', statistics.num_games, step)
+        writer.add_scalar('game/num_states', statistics.num_states, step)
+        game_steps = statistics.game_steps
+        if game_steps:
+            writer.add_scalars(
+                'game/steps', {
+                    'mean': np.mean(game_steps),
+                    'min': np.min(game_steps),
+                    'max': np.max(game_steps),
+                    'std': np.std(game_steps),
+                }, step)
+        if self._num_player == 1:
+            score = statistics.player_returns[0]
+            if score:
+                writer.add_scalars(
+                    'game/score', {
+                        'mean': np.mean(score),
+                        'min': np.min(score),
+                        'max': np.max(score),
+                        'std': np.std(score),
+                    }, step)
+        else:
+            for p, player_returns in enumerate(statistics.player_returns):
+                player_returns = Counter(player_returns)
+                returns_rates = {
+                    str(key): value / statistics.num_games
+                    for key, value in player_returns.items()
+                }
+                writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
+
     def save_model(self, checkpoint=False):
         '''save model to file'''
         buffer = BytesIO()
@@ -566,6 +399,8 @@ class Trainer:
             str(ckpt_path),
             '--model-dir',
             str(self._model_dir),
+            '--algorithm',
+            'MuZero',
         ]
         if not checkpoint:
             args.append('--rm')

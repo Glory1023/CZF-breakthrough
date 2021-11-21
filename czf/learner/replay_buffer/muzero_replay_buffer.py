@@ -1,14 +1,13 @@
-'''CZF Replay Buffer'''
+'''CZF MuZero Replay Buffer'''
 from collections import deque, namedtuple
-from dataclasses import dataclass
 from itertools import zip_longest
 import numpy as np
-from torch.utils.data import Dataset
 import zstandard as zstd
-from czf.pb import czf_pb2
+
+from czf.learner.replay_buffer.replay_buffer import ReplayBuffer
 
 
-Transition = namedtuple('Transition', [
+MuZeroTransition = namedtuple('MuZeroTransition', [
     'observation',
     'action',
     'policy',
@@ -17,26 +16,10 @@ Transition = namedtuple('Transition', [
     'is_terminal',
     'valid',
 ])
-Transition.__doc__ = '''Transition is used to store in :class:`TransitionBuffer`'''
 
 
-@dataclass
-class Statistics:
-    '''Statistics for a :class:`ReplayBuffer`
-
-    :param num_games: total number of games
-    :param num_states: total number of states
-    :param game_steps: a list of total number of game steps
-    :param player_returns: returns for each player
-    '''
-    num_games: int
-    num_states: int
-    game_steps: list
-    player_returns: list
-
-
-class RolloutBatch:
-    '''RolloutBatch is used to collate data samples from :class:`ReplayBuffer`.
+class MuZeroRolloutBatch:
+    '''MuZeroRolloutBatch is used to collate data samples from :class:`ReplayBuffer`.
 
     Each data sample is a list of `torch.Tensor` and may (intentionally)
     contains serveral `None` at the end. As a result, we not only have to
@@ -59,8 +42,8 @@ class RolloutBatch:
                 for iterable in zip_longest(*iterables, fillvalue=sentinel)]
 
 
-class TransitionBuffer:
-    '''TransitionBuffer is mainly used to stack frames.
+class MuZeroTransitionBuffer:
+    '''MuZeroTransitionBuffer is mainly used to stack frames.
     When `frame_stack` equals to 0, it essentially works as a deque with compression.
 
     Usage:
@@ -83,15 +66,15 @@ class TransitionBuffer:
     def __getitem__(self, index):
         return self._buffer[index + self._frame_stack]
 
-    def get_mean_weight(self):
-        '''Get average weights of prioritized replay'''
-        return self._weights_mean
-
     def get_weights(self):
         '''Get weights (not summing up to one) of samples'''
         weights = list(self._weights)[self._frame_stack:]
         self._weights_mean = np.mean([w for w in weights if w > 0.])
         return weights
+
+    def get_mean_weight(self):
+        '''Get average weights of prioritized replay'''
+        return self._weights_mean
 
     def update_weights(self, index, priorities):
         '''Update weights'''
@@ -134,14 +117,14 @@ class TransitionBuffer:
             for i in reversed(range(self._frame_stack))
         ])
 
-    def extend(self, priorities, trajectory):
+    def extend(self, priorities, trajectories):
         '''Extend the right side of the buffer by
         appending elements from the iterable argument.'''
         self._weights.extend(priorities)
-        self._buffer.extend(trajectory)
+        self._buffer.extend(trajectories)
 
 
-class ReplayBuffer(Dataset):
+class MuZeroReplayBuffer(ReplayBuffer):
     '''ReplayBuffer is used to store and sample transitions.
 
     * | `__getitem__` support fetching a data sample for a given index.
@@ -171,28 +154,15 @@ class ReplayBuffer(Dataset):
                 None,            # `reward`: terminal state has no reward
             ]
     '''
-    def __init__(self, num_player, observation_config, kstep, capacity,
-                 states_to_train, sequences_to_train, sample_ratio,
-                 sample_states):
+    def __init__(self, num_player, states_to_train, sequences_to_train, 
+                 sample_ratio, sample_states, observation_config, capacity, kstep):
+        super().__init__(num_player, states_to_train, sequences_to_train, 
+                        sample_ratio, sample_states)
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
-        self._num_player = num_player
         self._kstep = kstep
-        assert states_to_train != sequences_to_train, 'the two options are disjoint.'
-        self._states_to_train = states_to_train
-        self._sequences_to_train = sequences_to_train
-        assert sample_ratio != sample_states, 'the two options are disjoint.'
-        self._sample_ratio = sample_ratio
-        self._sample_states = sample_states
-        self._buffer = TransitionBuffer(capacity, self._frame_stack,
+        self._buffer = MuZeroTransitionBuffer(capacity, self._frame_stack,
                                         self._spatial_shape)
-        self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
-        # self._cctx_observation = zstd.ZstdCompressor()
-        self._cctx_trajectory = zstd.ZstdCompressor()
-        self._num_states = 0
-        self._num_games = 0
-        self._ready = False
-        self.reset_statistics()
 
     def __len__(self):
         return len(self._buffer)
@@ -225,13 +195,16 @@ class ReplayBuffer(Dataset):
             *transitions,
         ]
 
-    def get_mean_weight(self):
-        '''Get average weights of prioritized replay'''
-        return self._buffer.get_mean_weight()
+    def _extend(self, priorities, trajectories):
+        self._buffer.extend(priorities, trajectories)
 
     def get_weights(self):
         '''Get weights (not summing up to one) of samples'''
         return self._buffer.get_weights()
+
+    def get_mean_weight(self):
+        '''Get average weights of prioritized replay'''
+        return self._buffer.get_mean_weight()
 
     def update_weights(self, index, priorities):
         '''Update weights'''
@@ -244,73 +217,3 @@ class ReplayBuffer(Dataset):
     def write_back_weights(self):
         '''Write back updated weights'''
         self._buffer.write_back_weights()
-
-    def get_num_to_add(self):
-        '''Get number of states or sequences needed for next training iteration'''
-        if self._states_to_train is not None:
-            return self._states_to_train - self._num_states
-        # if self._sequences_to_train is not None:
-        return self._sequences_to_train - self._num_games
-
-    def get_states_to_train(self):
-        '''Get number of states or sequences needed for current training iteration'''
-        if self._ready:
-            self._ready = False
-            if self._states_to_train is not None:
-                num_states = self._states_to_train
-                self._num_states -= self._states_to_train
-                self._num_games = 0
-            else:  #if self._sequences_to_train is not None:
-                num_states = self._num_states
-                self._num_states = 0
-                self._num_games -= self._sequences_to_train
-            if self._sample_ratio is not None:
-                return int(num_states * self._sample_ratio)
-            return self._sample_states
-        return 0
-
-    def add_trajectory(self, trajectory: tuple):
-        '''Add a trajectory and its statistics'''
-        stats, priorities, trajectory = trajectory
-        self._num_states += stats.num_states
-        self._num_games += stats.num_games
-        # update statistics
-        self._statistics.num_games += stats.num_games
-        self._statistics.num_states += stats.num_states
-        self._statistics.game_steps.extend(stats.game_steps)
-        for player, player_returns in enumerate(stats.player_returns):
-            self._statistics.player_returns[player].extend(player_returns)
-        # add trajectory to buffer
-        self._buffer.extend(priorities, trajectory)
-        # train the model when there are N newly generated states
-        if self._states_to_train is not None:
-            if self._num_states >= self._states_to_train:
-                self._ready = True
-            return stats.num_states
-        # train the model when there are N newly generated sequences
-        else:  #if self._sequences_to_train is not None:
-            if self._num_games >= self._sequences_to_train:
-                self._ready = True
-            return stats.num_games
-
-    def get_statistics(self):
-        '''Returns :class:`Statistics` of recent trajectories'''
-        return self._statistics
-
-    def reset_statistics(self):
-        '''Reset the :class:`Statistics` information of recent trajectories'''
-        self._statistics = Statistics(
-            num_games=0,
-            num_states=0,
-            game_steps=[],
-            player_returns=[[] for _ in range(self._num_player)],
-        )
-
-    def save_trajectory(self, path, iteration):
-        '''Save all trajectories to the `path` with compression,
-        and clear up all trajactories'''
-        trajectory = self._pb_trajectory_batch.SerializeToString()
-        compressed = self._cctx_trajectory.compress(trajectory)
-        trajectory_path = path / f'{iteration:05d}.pb.zst'
-        trajectory_path.write_bytes(compressed)
-        self._pb_trajectory_batch.Clear()

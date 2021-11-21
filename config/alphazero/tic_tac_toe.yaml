@@ -25,35 +25,52 @@ game:
   state_spatial_shape: [3, 3]
 
 model:
-  # backbone can set "ResNet" or "SE-ResNet", if didn't set, default is "ResNet"
+  # backbone can set "ResNet" or "SE-ResNet"
+  # if not set, default is "ResNet"
   backbone: ResNet
   # if backbone is "SE-ResNet", you can set the fc_hidden_dimension, default is 16
   # fc_hidden_dimension: 16
-  channels: 32
   blocks: 10
+  channels: 32
 
 learner:
-  learning_rate:
-    reset_lr: false # true / false : also mean without scheduler
-    initial: 0.1
+  # train the model when there are N newly generated states or sequences (disjoint options)
+  # Examples:
+  #     states_to_train: 5_000 # train per 5_000 states
+  #     sequences_to_train: 25 # train per 25 sequences
+  # 200 games * 40 avg_states_per_game
+  states_to_train: 1000
+  # sequences_to_train: 100
+
+  # sample the replay buffer with a number of the ratio of newly generated states
+  # or a fixed number of states (disjoint options)
+  # Examples:
+  #     sample_ratio: 1
+  #     sample_states: 10_000
+  sample_ratio: 1
+  # sample_states: 10_000
+
+  # how many states to store in the replay buffer
+  # usually equals to (25 * states_to_train) or (25 * sequence * sequences_to_train)
+  replay_buffer_size: 20_000
+  # whether to enable prioritized experience replay
+  prioritized: False
+  # Whether to augment data by rotation, reflection, etc.
+  use_transformation: False
+  # how many states to learn from per batch
+  batch_size: 200
+  # save a checkpoint every N steps
+  checkpoint_freq: 10
+  optimizer:
+    learning_rate: 0.02
+    momentum: 0.9
+    weight_decay: 1.e-4
+    nesterov: True
+  lr_scheduler:
     gamma: 0.1
     milestones:
       - 200
       - 400
-  momentum: 0.9
-  weight_decay: 1.e-4
-  # Train the model when there are N newly generated states.
-  frequency: 1000
-  # How many states to store in the replay buffer.
-  replay_buffer_size: 20000
-  # How many times to reuse each state in the replay buffer.
-  replay_buffer_reuse: 1
-  # How many states to learn from per batch.
-  batch_size: 200
-  # Save a checkpoint every N steps.
-  checkpoint_freq: 10
-  # Whether to augment data by rotation, reflection, etc.
-  use_transformation: False
 
 mcts:
   # Mcts simulation counts
@@ -68,10 +85,6 @@ mcts:
     epsilon: 0.25
   # How many transformations to sample in evaluation step.
   num_sampled_transformations: 0
-
-misc:
-  # Data (trajectories) compression level. Valid values are integers between 1 and 22.
-  compression_level: 3
 
 game_server:
   # drop the softmax temperature from 1 to 0 after the number of steps
