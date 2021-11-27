@@ -20,7 +20,7 @@ class LocalModelManager:
         '''get the `Model` from storage'''
         key = (info.name, info.version)
         if key not in self._cache:
-            model_path = self._storage / info.name / f'{info.version:05d}.pt.zst'
+            model_path = self._storage / info.name / f'{info.version:05d}.pt'
             model = czf_pb2.Model()
             model.info.CopyFrom(info)
             model.blobs.append(model_path.read_bytes())
@@ -30,8 +30,8 @@ class LocalModelManager:
     def get_latest_version(self, name: str) -> int:
         '''get the latest model version by `name`'''
         model_dir = self._storage / name
-        model_file = os.path.realpath(model_dir / 'latest.pt.zst')
-        return int(os.path.basename(model_file)[:-len('.pt.zst')])
+        model_file = os.path.realpath(model_dir / 'latest.pt')
+        return int(os.path.basename(model_file)[:-len('.pt')])
 
 
 class LocalModelManagerAsync(LocalModelManager):

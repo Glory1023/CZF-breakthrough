@@ -59,13 +59,13 @@ def jit_muzero(buffer, device='cuda'):
 def save(args, iteration, buffer):
     '''save jit model'''
     model_dir = Path(args.model_dir)
-    model_path = model_dir / f'{iteration:05d}.pt.zst'
-    cctx = zstd.ZstdCompressor()
-    buffer = cctx.compress(buffer)
+    model_path = model_dir / f'{iteration:05d}.pt'
+    # cctx = zstd.ZstdCompressor()
+    # buffer = cctx.compress(buffer)
     model_path.write_bytes(buffer)
     # update the latest model file
-    latest_model = model_dir / 'latest.pt.zst'
-    temp_model = model_dir / 'latest-temp.pt.zst'
+    latest_model = model_dir / 'latest.pt'
+    temp_model = model_dir / 'latest-temp.pt'
     os.symlink(model_path, temp_model)
     os.replace(temp_model, latest_model)
     if args.rm:

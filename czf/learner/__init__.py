@@ -62,9 +62,9 @@ async def main():
         path = f"storage_{algorithm}_{game}_{datetime.today().strftime('%Y%m%d_%H%M%S')}"
         args.storage_dir = str(Path(path).resolve())
     storage_path = Path(args.storage_dir)
-    # default restore checkpoint: `{storage}/checkpoint/{model_name}/latest.pt.zst`
+    # default restore checkpoint: `{storage}/checkpoint/{model_name}/latest.pt`
     if args.restore_checkpoint_path == '':
-        args.restore_checkpoint_path = storage_path / 'checkpoint' / args.model_name / 'latest.pt.zst'
+        args.restore_checkpoint_path = storage_path / 'checkpoint' / args.model_name / 'latest.pt'
     # default restore buffer: `{storage}/trajectory`
     if args.restore_buffer_dir == '':
         args.restore_buffer_dir = storage_path / 'trajectory'

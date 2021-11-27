@@ -395,7 +395,7 @@ class MuZeroTrainer(Trainer):
         buffer.seek(0)
         buffer = buffer.read()
         # buffer = self._ckpt_compressor.compress(buffer)
-        ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt.zst'
+        ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt'
         ckpt_path.write_bytes(buffer)
         # frozen model
         args = [
@@ -414,7 +414,7 @@ class MuZeroTrainer(Trainer):
         subprocess.run(args, check=True, env=os.environ.copy())
         if checkpoint:
             # update the latest checkpoint
-            latest_ckpt = self._ckpt_dir / 'latest.pt.zst'
-            temp_ckpt = self._ckpt_dir / 'latest-temp.pt.zst'
+            latest_ckpt = self._ckpt_dir / 'latest.pt'
+            temp_ckpt = self._ckpt_dir / 'latest-temp.pt'
             os.symlink(ckpt_path, temp_ckpt)
             os.replace(temp_ckpt, latest_ckpt)

@@ -123,8 +123,8 @@ class Actor:
         '''WorkerManager load model'''
         assert len(model.blobs) == 1
         print('load model', model.info.name, 'iteration', model.info.version)
-        blob = model.blobs[0]
-        model_blob = self._dctx.decompress(blob)
+        model_blob = model.blobs[0]
+        # model_blob = self._dctx.decompress(blob)
         # _, model_blob = jit(blob)
         self._worker_manager.load_from_bytes(model_blob)
 
