@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 # import zstandard as zstd
+import psutil
 
 from czf.learner.trainer.trainer import Trainer
 from czf.learner.data_parallel import DataParallelWrapper
@@ -372,6 +373,12 @@ class MuZeroTrainer(Trainer):
                     for key, value in player_returns.items()
                 }
                 writer.add_scalars(f'game/player{p}_rate', returns_rates, step)
+        # memory usage (check memory leak in pytorch)
+        process = psutil.Process()
+        process_memory = process.memory_info()
+        for name in process_memory._fields:
+            value = getattr(process_memory, name)
+            writer.add_scalar("Memory/{}".format(name.capitalize()), value, self.iteration)
 
     def save_model(self, checkpoint=False):
         '''save model to file'''
