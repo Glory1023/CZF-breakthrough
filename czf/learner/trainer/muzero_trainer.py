@@ -318,18 +318,18 @@ class MuZeroTrainer(Trainer):
         # logging: train
         get_logging_info = lambda x: dict(
             mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
+        writer.add_scalars('train/policy_target', {
+            f'action {i}': np.mean(p)
+            for i, p in enumerate(zip(*policy_target))
+        }, step)
+        writer.add_scalars('train/policy_rollout', {
+            f'action {i}': np.mean(p)
+            for i, p in enumerate(zip(*policy_rollout))
+        }, step)
         writer.add_scalars('train/value_target',
                            get_logging_info(value_target), step)
         writer.add_scalars('train/value_rollout',
                            get_logging_info(value_rollout), step)
-        writer.add_scalars('log/policy_target', {
-            f'action {i}': np.mean(p)
-            for i, p in enumerate(zip(*policy_target))
-        }, step)
-        writer.add_scalars('log/policy_rollout', {
-            f'action {i}': np.mean(p)
-            for i, p in enumerate(zip(*policy_rollout))
-        }, step)
         writer.add_scalars('train/reward_target',
                            get_logging_info(reward_sum_target), step)
         writer.add_scalars('train/reward_rollout',
