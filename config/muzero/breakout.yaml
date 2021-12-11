@@ -49,21 +49,24 @@ learner:
   #     states_to_train: 5_000 # train per 5_000 states
   #     sequences_to_train: 25 # train per 25 sequences
   sequences_to_train: 100
-  # how many states to store in the replay buffer
-  # usually equals to (25 * states_to_train) or (25 * sequence * sequences_to_train)
-  replay_buffer_size: 500_000
+
   # sample the replay buffer with a number of the ratio of newly generated states
   # or a fixed number of states (disjoint options)
   # Examples:
   #     sample_ratio: 1
   #     sample_states: 10_000
   sample_states: 10_000
+
+  # how many states to store in the replay buffer
+  # usually equals to (25 * states_to_train) or (25 * sequence * sequences_to_train)
+  replay_buffer_size: 500_000
   # whether to enable prioritized experience replay
   prioritized: True
   # how many states to learn from per batch
   batch_size: 1024
   # save a checkpoint every N steps
   checkpoint_freq: 10
+
   optimizer:
     learning_rate: 0.05
     momentum: 0.9
@@ -94,7 +97,12 @@ game_server:
   sequence: 200
 
 evaluator:
-  # evaluation mode
-  mode: 'best'
+  # the first checkpoint to be evaluated
+  first_checkpoint: 0
+  # the last checkpoint to be evaluated
+  last_checkpoint: 7000
   # evaluate performance every N checkpoints
-  frequency: 10
+  frequency: 100
+  # whether to listen to the latest model
+  # if set `True`, `last_checkpoint` is ignored
+  latest: True

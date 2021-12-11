@@ -61,6 +61,7 @@ learner:
   batch_size: 200
   # save a checkpoint every N steps
   checkpoint_freq: 10
+
   optimizer:
     learning_rate: 0.02
     momentum: 0.9
@@ -97,9 +98,12 @@ evaluator:
   # the first checkpoint to be evaluated
   first_checkpoint: 0
   # the last checkpoint to be evaluated
-  last_checkpoint: 1000
+  last_checkpoint: 100
   # evaluate performance every N checkpoints
   frequency: 10
+  # whether to listen to the latest model
+  # if set `True`, `last_checkpoint` is ignored
+  latest: True
   # the elo rating for the first checkpoint
   elo_base: 0.
   # the win rate threshold to replace the base model

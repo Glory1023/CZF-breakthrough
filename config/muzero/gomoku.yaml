@@ -49,21 +49,24 @@ learner:
   # 200 games * 40 avg_states_per_game
   states_to_train: 4_000
   # sequences_to_train: 100
-  # how many states to store in the replay buffer
-  # usually equals to (25 * states_to_train) or (25 * sequence * sequences_to_train)
-  replay_buffer_size: 100_000
+
   # sample the replay buffer with a number of the ratio of newly generated states
   # or a fixed number of states (disjoint options)
   # Examples:
   #     sample_ratio: 1
   #     sample_states: 10_000
   sample_ratio: 1
+
+  # how many states to store in the replay buffer
+  # usually equals to (25 * states_to_train) or (25 * sequence * sequences_to_train)
+  replay_buffer_size: 100_000  
   # whether to enable prioritized experience replay
   prioritized: False
   # how many states to learn from per batch
   batch_size: 1024
   # save a checkpoint every N steps
   checkpoint_freq: 10
+
   optimizer:
     learning_rate: 0.02
     momentum: 0.9
@@ -104,6 +107,9 @@ evaluator:
   last_checkpoint: 1000
   # evaluate performance every N checkpoints
   frequency: 10
+  # whether to listen to the latest model
+  # if set `True`, `last_checkpoint` is ignored
+  latest: True
   # the elo rating for the first checkpoint
   elo_base: 0.
   # the win rate threshold to replace the base model

@@ -114,6 +114,7 @@ class EvalEnvManager:
         while True:
             raw = self._pipe.recv()
             job = czf_pb2.Job.FromString(raw)
+            # print(job)
             if not job.HasField('payload'):
                 # if flush model has done, start jobs for each env
                 operation = job.procedure[0]
@@ -145,6 +146,7 @@ class EvalEnvManager:
 
     def __send_search_job(self, env_index):
         '''helper to send a `Job` to actor'''
+        # print(f'__send_search_job: process {self._proc_index} env {env_index}')
         env = self._envs[env_index]
         current_player = self._envs[env_index].state.current_player
         player_role = self._player_roles[env_index][current_player]
@@ -179,6 +181,7 @@ class EvalEnvManager:
     def __on_job_completed(self, job: czf_pb2.Job):
         '''callback on job completion'''
         env_index = job.payload.env_index % self._num_env
+        # print(f'__on_job_completed: process {self._proc_index} env {env_index}')
         env = self._envs[env_index]
         # choose action according to the policy
         evaluated_state = job.payload.state
@@ -190,6 +193,7 @@ class EvalEnvManager:
                                                legal_actions_policy)
         # apply action
         env.state.apply_action(chosen_action)
+        # print(chosen_action)
         self._num_steps[env_index] += 1
         if self._after_apply_callback:
             self._after_apply_callback(evaluated_state, env.state)
@@ -230,6 +234,20 @@ class EvalGameServer:
         self._first_ckpt = eval_config.get('first_checkpoint', 0)
         self._last_ckpt = eval_config.get('last_checkpoint', self._first_ckpt)
         self._freq = eval_config.get('frequency', 1)
+        self._latest = eval_config.get('latest', False)
+        assert self._last_ckpt >= self._first_ckpt
+        assert self._freq > 0
+
+        # a queue to store model version to evaluate
+        self._model_version_queue = Queue()
+        if self._latest:
+            self._last_ckpt = self._first_ckpt
+            self._model_version_queue.put(self._last_ckpt)
+        else:
+            for version in range(self._first_ckpt, self._last_ckpt + 1, self._freq):
+                self._model_version_queue.put(version)
+
+        # for two-player game
         self._best_elo = eval_config.get('elo_base', 0.)
         self._replace_rate = eval_config.get('replace_rate', 0.)
         # operation
@@ -294,13 +312,18 @@ class EvalGameServer:
         for manager in self._manager:
             manager.start()
 
+        print('connect to learner @', args.upstream)
+        self._upstream = get_zmq_dealer(
+            identity=self._node.identity,
+            remote_address=args.upstream,
+        )
+        asyncio.create_task(self.__send_model_subscribe())
         # connect to broker
         print('connect to broker  @', args.broker)
         self._broker = get_zmq_dealer(
             identity=self._node.identity,
             remote_address=args.broker,
         )
-        asyncio.create_task(self.__send_load_model())
 
     def terminate(self):
         '''terminate all EvalEnvManager'''
@@ -311,8 +334,9 @@ class EvalGameServer:
         '''main loop'''
         await asyncio.gather(
             self._recv_job_loop(),
+            self._recv_model_info_loop(),
             self._send_job_loop(),
-            self._write_result_loop(),
+            self._eval_loop(),
         )
 
     async def _recv_job_loop(self):
@@ -343,6 +367,20 @@ class EvalGameServer:
                     index = job.payload.env_index // self._num_env_per_proc
                     self._pipe[index][0].send(job.SerializeToString())
 
+    async def _recv_model_info_loop(self):
+        '''a loop to receive `ModelInfo`'''
+        while True:
+            raw = await self._upstream.recv()
+            packet = czf_pb2.Packet.FromString(raw)
+            packet_type = packet.WhichOneof('payload')
+            if packet_type == 'model_info':
+                new_version = packet.model_info.version
+                if self._latest and new_version > self._last_ckpt:
+                    for version in range(self._last_ckpt + 1, new_version + 1):
+                        if (version - self._first_ckpt) % self._freq == 0:
+                            self._model_version_queue.put(version)
+                    self._last_ckpt = new_version
+
     async def _send_job_loop(self):
         '''a loop to send `Job`'''
         executor = ThreadPoolExecutor(max_workers=1)
@@ -352,18 +390,25 @@ class EvalGameServer:
             raw = await loop.run_in_executor(executor, queue.get)
             await self._broker.send(raw)
 
-    async def _write_result_loop(self):
-        '''a loop to write evaluation result'''
+    async def _eval_loop(self):
         executor = ThreadPoolExecutor(max_workers=1)
+        result_executor = ThreadPoolExecutor(max_workers=1)
         loop = asyncio.get_event_loop()
-        queue = self._result_queue
-        eval_results = []
+        queue = self._model_version_queue
+        result_queue = self._result_queue
         while True:
-            result = await loop.run_in_executor(executor, queue.get)
-            eval_results.append(result)
-            if len(eval_results) == self._total_env:
-                asyncio.create_task(self.__write_result(eval_results))
-                eval_results = []
+            # get model version and send flush job
+            version = await loop.run_in_executor(executor, queue.get)
+            if self._num_players == 2 and version == self._first_ckpt:
+                continue
+            self._model_info['1P'].version = version
+            await self.__send_load_model()
+            # wait for the results of all envs
+            eval_results = []
+            while len(eval_results) < self._total_env:
+                result = await loop.run_in_executor(result_executor, result_queue.get)
+                eval_results.append(result)
+            asyncio.create_task(self.__write_result(eval_results))
 
     async def __write_result(self, eval_results: list):
         '''helper to process evaluation result'''
@@ -376,13 +421,13 @@ class EvalGameServer:
 
         step = self._model_info['1P'].version
         writer = self._summary_writer
-        # writer.add_scalars(
-        #     'eval/steps', {
-        #         'mean': np.mean(game_steps),
-        #         'min': np.min(game_steps),
-        #         'max': np.max(game_steps),
-        #         'std': np.std(game_steps),
-        #     }, step)
+        writer.add_scalars(
+            'eval/steps', {
+                'mean': np.mean(game_steps),
+                'min': np.min(game_steps),
+                'max': np.max(game_steps),
+                'std': np.std(game_steps),
+            }, step)
 
         if self._num_players == 1:
             print(
@@ -393,13 +438,14 @@ class EvalGameServer:
                     np.max(total_rewards),
                     np.min(total_rewards),
                 ))
-            # writer.add_scalars(
-            #     'eval/score', {
-            #         'mean': np.mean(total_rewards),
-            #         'min': np.min(total_rewards),
-            #         'max': np.max(total_rewards),
-            #         'std': np.std(total_rewards),
-            #     }, step)
+            writer.add_scalars(
+                'eval/score', {
+                    'mean': np.mean(total_rewards),
+                    'min': np.min(total_rewards),
+                    'max': np.max(total_rewards),
+                    'std': np.std(total_rewards),
+                }, step)
+            writer.flush()
         elif self._num_players == 2:
             win_rate = total_rewards.count(1) / total
             draw_rate = total_rewards.count(0) / total
@@ -435,15 +481,8 @@ class EvalGameServer:
                 self._model_info['2P'].version = self._model_info['1P'].version
                 self._best_elo = elo_1p
 
-        if self._model_info['1P'].version >= self._last_ckpt:
-            print('Done')
-            return
-        await self.__send_load_model()
-
     async def __send_load_model(self):
         '''helper to wait for new model and send jobs to flush'''
-        next_version = self._model_info['1P'].version + self._freq
-        self._model_info['1P'].version = next_version
         # send jobs to flush model
         for (_, op), (_, model_info) in zip(self._operation.items(), self._model_info.items()):
             job = czf_pb2.Job(
@@ -456,3 +495,8 @@ class EvalGameServer:
             packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(jobs=[job]))
             # print(packet)
             await self._broker.send(packet.SerializeToString())
+
+    async def __send_model_subscribe(self):
+        '''helper to send a `model_subscribe` to optimizer'''
+        packet = czf_pb2.Packet(model_subscribe=czf_pb2.Heartbeat())
+        await self._upstream.send(packet.SerializeToString())
