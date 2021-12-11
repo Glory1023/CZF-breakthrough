@@ -79,8 +79,6 @@ class EnvManager:
             )
             self._mstep = max(mcts_config['nstep'],
                           config['learner']['rollout_steps'])
-        if args.eval:
-            self._tree_option.dirichlet_epsilon = 0.
         # game_server config
         self._sequence = config['game_server']['sequence']
         # game env
@@ -259,33 +257,29 @@ class GameServer:
         # server mode
         algorithm = config['algorithm']
         assert algorithm in ('AlphaZero', 'MuZero')
-        if args.eval:
-            print(f'[{algorithm} Evaluation Mode]', self._node.identity)
-        else:
-            print(f'[{algorithm} Training Mode]', self._node.identity)
+        print(f'[{algorithm} Training Mode]', self._node.identity)
 
         # start EnvManager
         self._num_env = args.num_env
         self._job_queue = Queue()
         self._trajectory_queue = Queue()
         self._pipe = [mp.Pipe() for i in range(args.num_proc)]
-        if not args.eval:
-            self._manager = [
-                mp.Process(
-                    target=lambda *args: asyncio.run(run_env_manager(*args)),
-                    args=(
-                        args,
-                        config,
-                        callbacks,
-                        index,
-                        self._model_info,
-                        pipe,
-                        self._job_queue,
-                        self._trajectory_queue,
-                    )) for index, (_, pipe) in enumerate(self._pipe)
-            ]
-            for manager in self._manager:
-                manager.start()
+        self._manager = [
+            mp.Process(
+                target=lambda *args: asyncio.run(run_env_manager(*args)),
+                args=(
+                    args,
+                    config,
+                    callbacks,
+                    index,
+                    self._model_info,
+                    pipe,
+                    self._job_queue,
+                    self._trajectory_queue,
+                )) for index, (_, pipe) in enumerate(self._pipe)
+        ]
+        for manager in self._manager:
+            manager.start()
 
         # trajectory upstream
         print('connect to learner @', args.upstream)
