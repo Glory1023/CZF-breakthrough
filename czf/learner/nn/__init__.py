@@ -10,7 +10,7 @@ __all__ = [
     'ResNet',
     'SELayer',
     'SEBasicBlock',
-    'SEResNet', 
+    'SEResNet',
     'AlphaZero',
     'MuZero',
     'MuZeroAtari',

@@ -36,10 +36,11 @@ class Actor:
         self._operation = operation[self.algorithm][args.eval]
         if args.eval:
             assert args.eval in ('1P', '2P')
-            print(f'[{self.algorithm} Evaluation {args.eval} Mode]', self._node.identity)
+            print(f'[{self.algorithm} Evaluation {args.eval} Mode]',
+                  self._node.identity)
         else:
             print(f'[{self.algorithm} Training Mode]', self._node.identity)
-        
+
         # worker manager
         self._worker_manager = worker_manager
         if self.algorithm == 'AlphaZero':
@@ -57,7 +58,10 @@ class Actor:
             )
 
         # model
-        self._model_info = czf_pb2.ModelInfo(name='default', version=-1)
+        self._model_info = czf_pb2.ModelInfo(
+            name='default',
+            version=-1,
+        )
         self._has_new_model = asyncio.Event()
         self._has_load_model = asyncio.Event()
         self._dctx = zstd.ZstdDecompressor()
@@ -68,14 +72,19 @@ class Actor:
             cache_size=8,
         )
         # connect to the broker
-        self._broker = get_zmq_dealer(identity=self._node.identity,
-                                      remote_address=args.broker)
+        self._broker = get_zmq_dealer(
+            identity=self._node.identity,
+            remote_address=args.broker,
+        )
         asyncio.create_task(self.__initialize())
 
     async def loop(self):
         '''main loop'''
-        await asyncio.gather(self._recv_loop(), self._dequeue_loop(),
-                             self._load_model_loop())
+        await asyncio.gather(
+            self._recv_loop(),
+            self._dequeue_loop(),
+            self._load_model_loop(),
+        )
 
     async def _recv_loop(self):
         '''a loop to receive `Packet` (`JobBatch`) from broker'''
@@ -141,5 +150,7 @@ class Actor:
     async def __send_job_request(self, capacity=1280):
         '''helper to send a `JobRequest`'''
         packet = czf_pb2.Packet(job_request=czf_pb2.JobRequest(
-            operation=self._operation, capacity=capacity))
+            operation=self._operation,
+            capacity=capacity,
+        ))
         await self._broker.send(packet.SerializeToString())

@@ -6,7 +6,6 @@ import zstandard as zstd
 
 from czf.learner.replay_buffer.replay_buffer import ReplayBuffer
 
-
 MuZeroTransition = namedtuple('MuZeroTransition', [
     'observation',
     'action',
@@ -154,15 +153,29 @@ class MuZeroReplayBuffer(ReplayBuffer):
                 None,            # `reward`: terminal state has no reward
             ]
     '''
-    def __init__(self, num_player, states_to_train, sequences_to_train, 
-                 sample_ratio, sample_states, observation_config, capacity, kstep):
-        super().__init__(num_player, states_to_train, sequences_to_train, 
-                        sample_ratio, sample_states)
+    def __init__(
+        self,
+        num_player,
+        states_to_train,
+        sequences_to_train,
+        sample_ratio,
+        sample_states,
+        observation_config,
+        capacity,
+        kstep,
+    ):
+        super().__init__(
+            num_player,
+            states_to_train,
+            sequences_to_train,
+            sample_ratio,
+            sample_states,
+        )
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
         self._kstep = kstep
         self._buffer = MuZeroTransitionBuffer(capacity, self._frame_stack,
-                                        self._spatial_shape)
+                                              self._spatial_shape)
 
     def __len__(self):
         return len(self._buffer)

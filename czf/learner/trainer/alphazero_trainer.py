@@ -19,13 +19,8 @@ from czf.learner.nn import AlphaZero
 
 class AlphaZeroTrainer(Trainer):
     '''AlphaZero Trainer'''
-    def __init__(self,
-                 config,
-                 checkpoint_path,
-                 model_path,
-                 log_path,
-                 model_name,
-                 restore):
+    def __init__(self, config, checkpoint_path, model_path, log_path,
+                 model_name, restore):
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -43,7 +38,10 @@ class AlphaZeroTrainer(Trainer):
             backbone=model_config.get("backbone", "ResNet"),
         )
         self._model = AlphaZero(**self._model_kwargs)
-        self._model = torch.nn.DataParallel(self._model, device_ids=_get_all_device_indices())
+        self._model = torch.nn.DataParallel(
+            self._model,
+            device_ids=_get_all_device_indices(),
+        )
         self._model.to(self._device)
         # optimizer
         self._optimizer = torch.optim.SGD(
@@ -51,13 +49,13 @@ class AlphaZeroTrainer(Trainer):
             lr=config['learner']['optimizer']['learning_rate'],
             momentum=config['learner']['optimizer']['momentum'],
             weight_decay=config['learner']['optimizer']['weight_decay'],
-            nesterov=config['learner']['optimizer']['nesterov']
+            nesterov=config['learner']['optimizer']['nesterov'],
         )
         # learning rate scheduler
         self._scheduler = torch.optim.lr_scheduler.MultiStepLR(
             self._optimizer,
             milestones=config['learner']['lr_scheduler']['milestones'],
-            gamma=config['learner']['lr_scheduler']['gamma']
+            gamma=config['learner']['lr_scheduler']['gamma'],
         )
         # restore the latest checkpoint
         # latest_checkpoint = torch.load(self._ckpt_dir / args.checkpoint) if args.restore else None
@@ -66,12 +64,14 @@ class AlphaZeroTrainer(Trainer):
         #     self._model.load_state_dict(latest_checkpoint['model'])
         #     self._optimizer.load_state_dict(latest_checkpoint['optimizer'])
         #     self._scheduler.load_state_dict(latest_checkpoint['scheduler'])
-            # self.restore_replay_buffer()
+        # self.restore_replay_buffer()
 
         # tensorboard log
         self._num_player = config['game']['num_player']
-        self._summary_writer = SummaryWriter(log_dir=log_path,
-                                             purge_step=self.iteration)
+        self._summary_writer = SummaryWriter(
+            log_dir=log_path,
+            purge_step=self.iteration,
+        )
 
         # if args.pretrain_trajectory_dir:
         #     print('pretrain trajectory directory:', args.pretrain_trajectory_dir)
@@ -88,13 +88,17 @@ class AlphaZeroTrainer(Trainer):
             np.frombuffer(x, dtype=dtype), device=self._device)
         # for observation_tensor, target_policy, target_value in dataloader:
         for transition in dataloader:
-            observation_tensor = to_tensor(transition.observation).view(-1, *self._game.observation_tensor_shape)
-            target_policy = to_tensor(transition.policy).view(-1, self._game.num_distinct_actions)
-            target_value = to_tensor(transition.value).view(-1, self._game.num_players)
+            observation_tensor = to_tensor(transition.observation).view(
+                -1, *self._game.observation_tensor_shape)
+            target_policy = to_tensor(transition.policy).view(
+                -1, self._game.num_distinct_actions)
+            target_value = to_tensor(transition.value).view(
+                -1, self._game.num_players)
 
             self._optimizer.zero_grad()
             policy, value = self._model.forward(observation_tensor)
-            policy_loss = (-target_policy * (1e-8 + policy).log()).sum(dim=1).mean()
+            policy_loss = (-target_policy *
+                           (1e-8 + policy).log()).sum(dim=1).mean()
             value_loss = torch.nn.MSELoss()(target_value, value)
             loss = policy_loss + value_loss
             loss.backward()
@@ -147,7 +151,8 @@ class AlphaZeroTrainer(Trainer):
         process_memory = process.memory_info()
         for name in process_memory._fields:
             value = getattr(process_memory, name)
-            writer.add_scalar("Memory/{}".format(name.capitalize()), value, self.iteration)
+            writer.add_scalar("Memory/{}".format(name.capitalize()), value,
+                              self.iteration)
 
     def save_model(self, checkpoint=False):
         '''save model to file'''

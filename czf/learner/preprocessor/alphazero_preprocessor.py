@@ -55,5 +55,4 @@ class AlphaZeroPreprocessor(Preprocessor):
                 (reward, ) for reward in trajectory.statistics.rewards),
         )
         # add trajectory to buffer (from start to terminal)
-        self._result_queue.put(
-            (stats, tuple(priorities), tuple(buffer)))
+        self._result_queue.put((stats, tuple(priorities), tuple(buffer)))

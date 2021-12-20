@@ -9,7 +9,7 @@ class SELayer(nn.Module):
             nn.Linear(channel, fc_hidden_dimension, bias=False),
             nn.ReLU(inplace=True),
             nn.Linear(fc_hidden_dimension, channel, bias=False),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -22,18 +22,22 @@ class SELayer(nn.Module):
 class SEBasicBlock(nn.Module):
     def __init__(self, in_channels, out_channels, fc_hidden_dimension=16):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels,
-                               out_channels,
-                               kernel_size=3,
-                               stride=1,
-                               padding=1)
+        self.conv1 = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+        )
         self.bn1 = nn.BatchNorm2d(num_features=out_channels)
         self.relu1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(in_channels=out_channels,
-                               out_channels=out_channels,
-                               kernel_size=3,
-                               stride=1,
-                               padding=1)
+        self.conv2 = nn.Conv2d(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+        )
         self.bn2 = nn.BatchNorm2d(num_features=out_channels)
         self.se = SELayer(out_channels, fc_hidden_dimension)
         self.relu2 = nn.ReLU()
@@ -51,21 +55,29 @@ class SEBasicBlock(nn.Module):
 
 
 class SEResNet(nn.Module):
-    def __init__(self, in_channels, blocks, out_channels, fc_hidden_dimension=16):
+    def __init__(self,
+                 in_channels,
+                 blocks,
+                 out_channels,
+                 fc_hidden_dimension=16):
         super().__init__()
         self.conv1 = nn.Sequential(
-            nn.Conv2d(in_channels,
-                      out_channels,
-                      kernel_size=3,
-                      stride=1,
-                      padding=1),
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            ),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
         )
         self.convs = nn.ModuleList([
-            SEBasicBlock(in_channels=out_channels,
-                         out_channels=out_channels,
-                         fc_hidden_dimension=fc_hidden_dimension) for _ in range(blocks)
+            SEBasicBlock(
+                in_channels=out_channels,
+                out_channels=out_channels,
+                fc_hidden_dimension=fc_hidden_dimension,
+            ) for _ in range(blocks)
         ])
 
     def forward(self, x):

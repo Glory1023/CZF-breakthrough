@@ -41,8 +41,10 @@ class LocalModelManagerAsync(LocalModelManager):
         # {model_name (`str`): latest_version (`int`) }
         self._latest_version = {}
         self.has_new_model = asyncio.Event()
-        self.upstream = get_zmq_dealer(identity=identity,
-                                       remote_address=upstream)
+        self.upstream = get_zmq_dealer(
+            identity=identity,
+            remote_address=upstream,
+        )
         asyncio.create_task(self._recv_loop())
 
     async def _recv_loop(self):
@@ -74,8 +76,10 @@ class RemoteModelManager:
         # {model_name (`str`): latest_version (`int` or `asyncio.Future`) }
         self._latest_version = {}
         self.has_new_model = asyncio.Event()
-        self.upstream = get_zmq_dealer(identity=identity,
-                                       remote_address=upstream)
+        self.upstream = get_zmq_dealer(
+            identity=identity,
+            remote_address=upstream,
+        )
         asyncio.create_task(self._recv_loop())
 
     def get(self, info: czf_pb2.ModelInfo) -> asyncio.Future:

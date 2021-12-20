@@ -25,7 +25,8 @@ def create_worker_manager(args, config):
         manager.worker_option.seed = args.seed
         manager.worker_option.timeout_us = args.gpu_timeout
         manager.worker_option.batch_size = args.batch_size
-        manager.worker_option.num_sampled_transformations = mcts_config['num_sampled_transformations']
+        manager.worker_option.num_sampled_transformations = mcts_config[
+            'num_sampled_transformations']
     elif config['algorithm'] == 'MuZero':
         # import worker here since importing both two workers will encounter protobuf error
         from czf.actor import muzero_worker

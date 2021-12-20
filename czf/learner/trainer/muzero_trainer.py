@@ -17,13 +17,8 @@ from czf.learner.nn import MuZero, MuZeroAtari
 
 class MuZeroTrainer(Trainer):
     '''MuZero Trainer'''
-    def __init__(self,
-                 config,
-                 checkpoint_path,
-                 model_path,
-                 log_path,
-                 model_name,
-                 restore):
+    def __init__(self, config, checkpoint_path, model_path, log_path,
+                 model_name, restore):
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -103,8 +98,10 @@ class MuZeroTrainer(Trainer):
         )
         # tensorboard log
         self._num_player = config['game']['num_player']
-        self._summary_writer = SummaryWriter(log_dir=log_path,
-                                             purge_step=self.iteration)
+        self._summary_writer = SummaryWriter(
+            log_dir=log_path,
+            purge_step=self.iteration,
+        )
         # note: PyTorch supports the `forward` method currently
         # so, we can only trace the prediction model now.
         input_state = torch.rand(1, *state_shape).to(self._device)
@@ -378,7 +375,8 @@ class MuZeroTrainer(Trainer):
         process_memory = process.memory_info()
         for name in process_memory._fields:
             value = getattr(process_memory, name)
-            writer.add_scalar("Memory/{}".format(name.capitalize()), value, self.iteration)
+            writer.add_scalar("Memory/{}".format(name.capitalize()), value,
+                              self.iteration)
 
     def save_model(self, checkpoint=False):
         '''save model to file'''

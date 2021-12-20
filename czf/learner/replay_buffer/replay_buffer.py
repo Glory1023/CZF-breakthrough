@@ -22,8 +22,14 @@ class Statistics:
 
 class ReplayBuffer(Dataset):
     '''ReplayBuffer is used to store and sample transitions.'''
-    def __init__(self, num_player, states_to_train, sequences_to_train, 
-                 sample_ratio, sample_states):
+    def __init__(
+        self,
+        num_player,
+        states_to_train,
+        sequences_to_train,
+        sample_ratio,
+        sample_states,
+    ):
         self._num_player = num_player
         assert states_to_train != sequences_to_train, 'the two options are disjoint.'
         self._states_to_train = states_to_train

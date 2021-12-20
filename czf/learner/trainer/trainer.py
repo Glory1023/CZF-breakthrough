@@ -57,9 +57,18 @@ class MyDataLoader:
         yield data
 
 
-def run_trainer(args, config, path, trajectory_queue, notify_model_queue,
-                trainer_cls, dataloder_collate_fn,
-                replay_buffer_cls, replay_buffer_exposed_methods, replay_buffer_config):
+def run_trainer(
+    args,
+    config,
+    path,
+    trajectory_queue,
+    notify_model_queue,
+    trainer_cls,
+    dataloder_collate_fn,
+    replay_buffer_cls,
+    replay_buffer_exposed_methods,
+    replay_buffer_config,
+):
     '''run :class:`Trainer`'''
     storage_path, checkpoint_path, model_path, log_path, trajectory_path = path
     checkpoint_freq = config['learner']['checkpoint_freq']
@@ -82,20 +91,28 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue,
     sample_queue = mp.Queue()
     prefetch_factor = 4
     samplers = [
-        mp.Process(target=run_sampler,
-                   args=(
-                       index_queue,
-                       sample_queue,
-                       replay_buffer,
-                       prefetch_factor,
-                   )) for _ in range(args.num_proc)
+        mp.Process(
+            target=run_sampler,
+            args=(
+                index_queue,
+                sample_queue,
+                replay_buffer,
+                prefetch_factor,
+            ),
+        ) for _ in range(args.num_proc)
     ]
     for sampler in samplers:
         sampler.start()
 
     # trainer
-    trainer = trainer_cls(config, checkpoint_path, model_path, log_path,
-                      args.model_name, args.restore_checkpoint_path)
+    trainer = trainer_cls(
+        config,
+        checkpoint_path,
+        model_path,
+        log_path,
+        args.model_name,
+        args.restore_checkpoint_path,
+    )
     trainer.save_model()
     print('Storage path:', storage_path)
 
@@ -128,8 +145,10 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue,
             start = time.time()
             trainer.log_statistics(replay_buffer)
             replay_buffer.save_trajectory(trajectory_path, trainer.iteration)
-            sampler = WeightedRandomSampler(replay_buffer.get_weights(),
-                                            states_to_train)
+            sampler = WeightedRandomSampler(
+                replay_buffer.get_weights(),
+                states_to_train,
+            )
             dataloader.put(sampler)
             trainer.train(dataloader, replay_buffer)
             save_ckpt = (trainer.iteration % checkpoint_freq == 0)
@@ -137,24 +156,42 @@ def run_trainer(args, config, path, trajectory_queue, notify_model_queue,
             notify_model_queue.put((trainer.model_name, trainer.iteration))
             print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
                   f'Finish optimization with time {time.time() - start:.3f}')
-            pbar = tqdm(total=replay_buffer.get_num_to_add(),
-                        desc='Collect Trajs')
+            pbar = tqdm(
+                total=replay_buffer.get_num_to_add(),
+                desc='Collect Trajs',
+            )
 
 
 class TrainerRunner:
     '''Manage :class:`Trainer` to run in another process.'''
-    def __init__(self, args, config, path, trajectory_queue, trainer_cls, dataloder_collate_fn,
-                replay_buffer_cls, replay_buffer_exposed_methods, replay_buffer_config):
+    def __init__(
+        self,
+        args,
+        config,
+        path,
+        trajectory_queue,
+        trainer_cls,
+        dataloder_collate_fn,
+        replay_buffer_cls,
+        replay_buffer_exposed_methods,
+        replay_buffer_config,
+    ):
         self._notify_model_queue = mp.Queue()
-        self._process = mp.Process(target=run_trainer,
-                                   args=(args, config, path,
-                                         trajectory_queue,
-                                         self._notify_model_queue,
-                                         trainer_cls,
-                                         dataloder_collate_fn,
-                                         replay_buffer_cls,
-                                         replay_buffer_exposed_methods,
-                                         replay_buffer_config))
+        self._process = mp.Process(
+            target=run_trainer,
+            args=(
+                args,
+                config,
+                path,
+                trajectory_queue,
+                self._notify_model_queue,
+                trainer_cls,
+                dataloder_collate_fn,
+                replay_buffer_cls,
+                replay_buffer_exposed_methods,
+                replay_buffer_config,
+            ),
+        )
         self._process.start()
 
     def get_notify(self):
@@ -176,4 +213,4 @@ class Trainer(abc.ABC):
     @abc.abstractmethod
     def save_model(self, checkpoint=False):
         '''save model to file'''
-        raise NotImplementedError('Trainer must be able to save model')        
+        raise NotImplementedError('Trainer must be able to save model')

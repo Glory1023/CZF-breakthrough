@@ -20,7 +20,6 @@ from czf.pb import czf_pb2
 from czf.utils import get_zmq_dealer, Queue
 from czf.game_server.game_server import ModelInfo, EnvInfo
 
-
 EvalResult = namedtuple('EvalResult', [
     'game_steps',
     'total_rewards',
@@ -35,8 +34,8 @@ async def run_eval_env_manager(*args):
 
 class EvalEnvManager:
     '''Game Environment Manager'''
-    def __init__(self, args, config, callbacks, proc_index, pipe,
-                 job_queue, result_queue, operation, model_info):
+    def __init__(self, args, config, callbacks, proc_index, pipe, job_queue,
+                 result_queue, operation, model_info):
         self._algorithm = config['algorithm']
         self._num_players = config['game']['num_player']
         self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}',
@@ -65,14 +64,15 @@ class EvalEnvManager:
             self._tree_option = czf_pb2.WorkerState.TreeOption(
                 simulation_count=mcts_config['simulation_count'],
                 tree_min_value=mcts_config.get('tree_min_value', float('inf')),
-                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
+                tree_max_value=mcts_config.get('tree_max_value',
+                                               float('-inf')),
                 c_puct=mcts_config['c_puct'],
                 dirichlet_alpha=mcts_config['dirichlet']['alpha'],
                 dirichlet_epsilon=0.,
                 discount=mcts_config.get('discount', 1.),
             )
             self._mstep = max(mcts_config['nstep'],
-                          config['learner']['rollout_steps'])
+                              config['learner']['rollout_steps'])
         # game env
         self._num_env = args.num_env * self._num_players
         game_config = config['game']
@@ -154,11 +154,10 @@ class EvalEnvManager:
         model_info = self._model_info[player_role]
 
         if self._algorithm == 'AlphaZero':
-            state=czf_pb2.WorkerState(
-                serialized_state=env.state.serialize(),
-            )
+            state = czf_pb2.WorkerState(
+                serialized_state=env.state.serialize(), )
         elif self._algorithm == 'MuZero':
-            state=czf_pb2.WorkerState(
+            state = czf_pb2.WorkerState(
                 legal_actions=env.state.legal_actions,
                 observation_tensor=env.state.observation_tensor,
             )
@@ -168,9 +167,7 @@ class EvalEnvManager:
             procedure=[operation],
             step=0,
             payload=czf_pb2.Job.Payload(
-                env_index=self._proc_index * self._num_env + env_index,
-            )
-        )
+                env_index=self._proc_index * self._num_env + env_index, ))
         job.initiator.CopyFrom(self._node)
         job.payload.state.CopyFrom(state)
         job.payload.state.tree_option.CopyFrom(self._tree_option)
@@ -208,14 +205,13 @@ class EvalEnvManager:
                 total_rewards = self._total_rewards[env_index][0]
             elif first_player_role == '2P':
                 total_rewards = self._total_rewards[env_index][1]
-            result = EvalResult(
-                game_steps=game_steps,
-                total_rewards=total_rewards
-            )
+            result = EvalResult(game_steps=game_steps,
+                                total_rewards=total_rewards)
             self._result_queue.put(result)
             self.__reset(env_index)
         else:
             self.__send_search_job(env_index)
+
 
 class EvalGameServer:
     '''Evalutation Game Server'''
@@ -244,7 +240,8 @@ class EvalGameServer:
             self._last_ckpt = self._first_ckpt
             self._model_version_queue.put(self._last_ckpt)
         else:
-            for version in range(self._first_ckpt, self._last_ckpt + 1, self._freq):
+            for version in range(self._first_ckpt, self._last_ckpt + 1,
+                                 self._freq):
                 self._model_version_queue.put(version)
 
         # for two-player game
@@ -406,7 +403,8 @@ class EvalGameServer:
             # wait for the results of all envs
             eval_results = []
             while len(eval_results) < self._total_env:
-                result = await loop.run_in_executor(result_executor, result_queue.get)
+                result = await loop.run_in_executor(result_executor,
+                                                    result_queue.get)
                 eval_results.append(result)
             asyncio.create_task(self.__write_result(eval_results))
 
@@ -430,14 +428,12 @@ class EvalGameServer:
             }, step)
 
         if self._num_players == 1:
-            print(
-                '{} Reward Mean: {:.2f}, Max: {:.2f}, Min: {:.2f}'
-                .format(
-                    self._model_info['1P'].version,
-                    np.mean(total_rewards),
-                    np.max(total_rewards),
-                    np.min(total_rewards),
-                ))
+            print('{} Reward Mean: {:.2f}, Max: {:.2f}, Min: {:.2f}'.format(
+                self._model_info['1P'].version,
+                np.mean(total_rewards),
+                np.max(total_rewards),
+                np.min(total_rewards),
+            ))
             writer.add_scalars(
                 'eval/score', {
                     'mean': np.mean(total_rewards),
@@ -467,8 +463,10 @@ class EvalGameServer:
                 ))
             # write the evaluation result to tensorboard
             writer.add_scalar('eval/elo', elo_1p, step)
-            writer.add_scalar('eval/current_version', self._model_info['1P'].version, step)
-            writer.add_scalar('eval/best_version', self._model_info['2P'].version, step)
+            writer.add_scalar('eval/current_version',
+                              self._model_info['1P'].version, step)
+            writer.add_scalar('eval/best_version',
+                              self._model_info['2P'].version, step)
             writer.add_scalars('eval/result', {
                 'win': win_rate,
                 'draw': draw_rate,
@@ -484,7 +482,8 @@ class EvalGameServer:
     async def __send_load_model(self):
         '''helper to wait for new model and send jobs to flush'''
         # send jobs to flush model
-        for (_, op), (_, model_info) in zip(self._operation.items(), self._model_info.items()):
+        for (_, op), (_, model_info) in zip(self._operation.items(),
+                                            self._model_info.items()):
             job = czf_pb2.Job(
                 model=czf_pb2.ModelInfo(name=model_info.name,
                                         version=model_info.version),

@@ -71,14 +71,15 @@ class EnvManager:
             self._tree_option = czf_pb2.WorkerState.TreeOption(
                 simulation_count=mcts_config['simulation_count'],
                 tree_min_value=mcts_config.get('tree_min_value', float('inf')),
-                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
+                tree_max_value=mcts_config.get('tree_max_value',
+                                               float('-inf')),
                 c_puct=mcts_config['c_puct'],
                 dirichlet_alpha=mcts_config['dirichlet']['alpha'],
                 dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
                 discount=mcts_config.get('discount', 1.),
             )
             self._mstep = max(mcts_config['nstep'],
-                          config['learner']['rollout_steps'])
+                              config['learner']['rollout_steps'])
         # game_server config
         self._sequence = config['game_server']['sequence']
         # game env
@@ -147,11 +148,10 @@ class EnvManager:
         env = self._envs[env_index]
         # workers = [czf_pb2.Node(identity='g', hostname=str(time.time()))] * 2
         if self._algorithm == 'AlphaZero':
-            state=czf_pb2.WorkerState(
-                serialized_state=env.state.serialize(),
-            )
+            state = czf_pb2.WorkerState(
+                serialized_state=env.state.serialize(), )
         elif self._algorithm == 'MuZero':
-            state=czf_pb2.WorkerState(
+            state = czf_pb2.WorkerState(
                 legal_actions=env.state.legal_actions,
                 observation_tensor=env.state.observation_tensor,
             )
@@ -161,9 +161,7 @@ class EnvManager:
             procedure=[self._operation],
             step=0,
             payload=czf_pb2.Job.Payload(
-                env_index=self._proc_index * self._num_env + env_index,
-            )
-        )
+                env_index=self._proc_index * self._num_env + env_index, ))
         job.initiator.CopyFrom(self._node)
         # job.payload.state.workers.CopyFrom(env.workers)
         job.payload.state.CopyFrom(state)

@@ -43,20 +43,19 @@ class Learner:
                 'save_trajectory',
                 'get_weights',
             ]
-            replay_buffer_config = {
-                'num_player': config['game']['num_player'],
-                'states_to_train': config['learner'].get('states_to_train', None),
-                'sequences_to_train': config['learner'].get('sequences_to_train', None),
-                'sample_ratio': config['learner'].get('sample_ratio', None),
-                'sample_states': config['learner'].get('sample_states', None),
-                'observation_config': config['game']['observation'],
-                'capacity': config['learner']['replay_buffer_size'],
-            }
+            replay_buffer_config = dict(
+                num_player=config['game']['num_player'],
+                states_to_train=config['learner'].get('states_to_train', None),
+                sequences_to_train=config['learner'].get(
+                    'sequences_to_train', None),
+                sample_ratio=config['learner'].get('sample_ratio', None),
+                sample_states=config['learner'].get('sample_states', None),
+                observation_config=config['game']['observation'],
+                capacity=config['learner']['replay_buffer_size'],
+            )
             # preprocess queue
             self._trajectory_queue = TrajectoryQueue(
-                preprocessor_cls=AlphaZeroPreprocessor,
-                num_proc=args.num_proc
-            )
+                preprocessor_cls=AlphaZeroPreprocessor, num_proc=args.num_proc)
         elif algorithm == 'MuZero':
             from czf.learner.preprocessor.muzero_preprocessor import MuZeroPreprocessor
             from czf.learner.trainer.muzero_trainer import MuZeroTrainer
@@ -79,16 +78,17 @@ class Learner:
                 'copy_weights',
                 'write_back_weights',
             ]
-            replay_buffer_config = {
-                'num_player': config['game']['num_player'],
-                'states_to_train': config['learner'].get('states_to_train', None),
-                'sequences_to_train': config['learner'].get('sequences_to_train', None),
-                'sample_ratio': config['learner'].get('sample_ratio', None),
-                'sample_states': config['learner'].get('sample_states', None),
-                'observation_config': config['game']['observation'],
-                'kstep': config['learner']['rollout_steps'],
-                'capacity': config['learner']['replay_buffer_size'],
-            }
+            replay_buffer_config = dict(
+                num_player=config['game']['num_player'],
+                states_to_train=config['learner'].get('states_to_train', None),
+                sequences_to_train=config['learner'].get(
+                    'sequences_to_train', None),
+                sample_ratio=config['learner'].get('sample_ratio', None),
+                sample_states=config['learner'].get('sample_states', None),
+                observation_config=config['game']['observation'],
+                kstep=config['learner']['rollout_steps'],
+                capacity=config['learner']['replay_buffer_size'],
+            )
             # preprocess queue
             self._trajectory_queue = TrajectoryQueue(
                 preprocessor_cls=MuZeroPreprocessor,
@@ -105,9 +105,15 @@ class Learner:
 
         # trainer
         self._trainer_runner = TrainerRunner(
-            args, config, all_path, self._trajectory_queue,
-            trainer_cls, dataloder_collate_fn,
-            replay_buffer_cls, replay_buffer_exposed_methods, replay_buffer_config
+            args,
+            config,
+            all_path,
+            self._trajectory_queue,
+            trainer_cls,
+            dataloder_collate_fn,
+            replay_buffer_cls,
+            replay_buffer_exposed_methods,
+            replay_buffer_config,
         )
         # model provider
         self._model_request = asyncio.Queue()
@@ -120,8 +126,11 @@ class Learner:
 
     async def loop(self):
         '''main loop'''
-        await asyncio.gather(self._recv_loop(), self._model_request_loop(),
-                             self._notify_model_loop())
+        await asyncio.gather(
+            self._recv_loop(),
+            self._model_request_loop(),
+            self._notify_model_loop(),
+        )
 
     async def _recv_loop(self):
         '''receive loop'''

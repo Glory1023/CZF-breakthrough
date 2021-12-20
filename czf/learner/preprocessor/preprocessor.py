@@ -1,7 +1,6 @@
 '''CZF Preprocessor'''
 import abc
 from multiprocessing import Queue
-import numpy as np
 import torch
 import torch.multiprocessing as mp
 
@@ -67,4 +66,5 @@ class Preprocessor(abc.ABC):
         Raises:
             NotImplementedError: Preprocessor must be able to add trajectory
         '''
-        raise NotImplementedError('Preprocessor must be able to add trajectory')
+        raise NotImplementedError(
+            'Preprocessor must be able to add trajectory')

@@ -91,7 +91,9 @@ class MuZeroPreprocessor(Preprocessor):
                 if self._transform is not None:
                     terminal_value = self._transform(terminal_value)
                     terminal_value = self.__get_target_dist(
-                        terminal_value, self._v_heads)
+                        terminal_value,
+                        self._v_heads,
+                    )
                 else:
                     terminal_value = [terminal_value]
                 terminal_value = to_bytes(terminal_value)
@@ -148,8 +150,10 @@ class MuZeroPreprocessor(Preprocessor):
             # transform
             if self._transform is not None:
                 nstep_value = self._transform(nstep_value)
-                nstep_value = self.__get_target_dist(nstep_value,
-                                                     self._v_heads)
+                nstep_value = self.__get_target_dist(
+                    nstep_value,
+                    self._v_heads,
+                )
                 reward = self._transform(reward)
                 reward = self.__get_target_dist(reward, self._r_heads)
             else:

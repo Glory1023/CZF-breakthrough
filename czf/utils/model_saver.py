@@ -21,10 +21,9 @@ def jit_alphazero(buffer, device='cuda'):
     buffer = BytesIO()
     input_obs = torch.rand(1, *observation_shape).to(device)
     with torch.jit.optimized_execution(True):
-        frozen_net = torch.jit.trace_module(
-            model, {
-                'forward': (input_obs, ),
-            })
+        frozen_net = torch.jit.trace_module(model, {
+            'forward': (input_obs, ),
+        })
         torch.jit.save(frozen_net, buffer)
     buffer.seek(0)
     return iteration, buffer.read()
@@ -90,10 +89,8 @@ def main(args):
 def run_main():
     '''Run main program'''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--checkpoint',
-                        help='path to load checkpoint')
-    parser.add_argument('--model-dir',
-                        help='directory to save model')
+    parser.add_argument('--checkpoint', help='path to load checkpoint')
+    parser.add_argument('--model-dir', help='directory to save model')
     parser.add_argument('--algorithm',
                         help='used algorithm (AlphaZero or MuZero)')
     parser.add_argument('--rm',

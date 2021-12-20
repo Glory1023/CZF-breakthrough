@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <random>
+
 #include "czf.pb.h"
 
 namespace czf::actor::alphazero_worker {

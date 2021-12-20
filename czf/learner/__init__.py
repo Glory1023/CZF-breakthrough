@@ -72,7 +72,7 @@ async def main():
     if not storage_path.exists():
         storage_path.mkdir(parents=True, exist_ok=True)
         shutil.copy(Path(args.config), storage_path / 'config.yaml')
-        
+
     learner = Learner(args, config)
     await learner.loop()
 

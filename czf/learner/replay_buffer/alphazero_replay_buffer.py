@@ -4,7 +4,6 @@ from itertools import zip_longest
 
 from czf.learner.replay_buffer.replay_buffer import ReplayBuffer
 
-
 AlphaZeroTransition = namedtuple('AlphaZeroTransition', [
     'observation',
     'policy',
@@ -27,10 +26,23 @@ class AlphaZeroBatch:
 
 
 class AlphaZeroReplayBuffer(ReplayBuffer):
-    def __init__(self, num_player, states_to_train, sequences_to_train, 
-                 sample_ratio, sample_states, observation_config, capacity):
-        super().__init__(num_player, states_to_train, sequences_to_train, 
-                        sample_ratio, sample_states)
+    def __init__(
+        self,
+        num_player,
+        states_to_train,
+        sequences_to_train,
+        sample_ratio,
+        sample_states,
+        observation_config,
+        capacity,
+    ):
+        super().__init__(
+            num_player,
+            states_to_train,
+            sequences_to_train,
+            sample_ratio,
+            sample_states,
+        )
         self._buffer = deque(maxlen=capacity)
 
     def __len__(self):
