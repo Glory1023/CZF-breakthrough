@@ -34,7 +34,7 @@ class MuZeroPreprocessor(Preprocessor):
         self._v_heads = v_heads
         self._kstep = kstep
         self._nstep = nstep
-        self._mstep = max(kstep, nstep)
+        self._mstep = kstep + nstep
         self._discount_factor = discount_factor
         self._use_prioritize = use_prioritize
 

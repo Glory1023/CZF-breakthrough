@@ -65,7 +65,7 @@ class MuZeroTrainer(Trainer):
         self._observation_shape = observation_shape
         self._state_shape = state_shape
         self._use_prioritize = config['learner']['prioritized']
-        self._rollout_steps = config['learner']['rollout_steps']
+        self._kstep = config['learner']['rollout_steps']
         self._batch_size = config['learner']['batch_size']
         self._r_loss = model_config['r_loss']
         self._v_loss = model_config['v_loss']
@@ -128,6 +128,7 @@ class MuZeroTrainer(Trainer):
         else:  # == 'cross_entropy'
             r_criterion = lambda target, prob: (
                 (-target * (1e-8 + prob).log()).sum(dim=1))
+
         scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach(
         ) * (1 - scale))
         to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
@@ -139,10 +140,11 @@ class MuZeroTrainer(Trainer):
             (-1, ),
             (-1, self._r_heads),
         )
+
         self._model.train()
-        num_trained_states = 0
         replay_buffer.copy_weights()
         print(f'>> Priority Mean: {replay_buffer.get_mean_weight():.5f}')
+
         if self._model_cls == 'MuZeroAtari':
             value_transform = lambda x: MuZeroAtari.to_scalar(
                 self._model.v_supp, x)
@@ -151,11 +153,13 @@ class MuZeroTrainer(Trainer):
         else:
             value_transform = lambda x: x
             reward_transform = lambda x: x
+
         # logging
         value_target, value_rollout = [], []
         policy_target, policy_rollout = [], []
         reward_sum_target, reward_sum_rollout = [], []
         priority_sampled = []
+
         for rollout in dataloader:
             # tensor
             weight = to_tensor(rollout.weight)
@@ -166,60 +170,61 @@ class MuZeroTrainer(Trainer):
                 to_tensor(t).view(shape[i % 5])
                 for i, t in enumerate(rollout.transition)
             ]
+
+            # logging info
             num_states = len(observation)
-            num_trained_states += num_states
-            # priority
-            nstep_v = torch.zeros((num_states, 1), device=self._device)
-            nstep_v_sum = torch.zeros((num_states, 1), device=self._device)
             ksteps = torch.zeros((num_states, 1), device=self._device)
             rollout_index = torch.arange(num_states, device=self._device)
-            target_v_info = value_transform(transition[0])
-            scalar_v = value_transform(transition[0])
+            target_v = torch.zeros((num_states, 1), device=self._device)
+            rollout_v = torch.zeros((num_states, 1), device=self._device)
             target_r_sum = torch.zeros((num_states, 1), device=self._device)
-            nstep_r_sum = torch.zeros((num_states, 1), device=self._device)
+            rollout_r_sum = torch.zeros((num_states, 1), device=self._device)
+
             # forward
             state = self._model.parallel_forward_representation(observation)
             total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
+
+            # rollout k steps
             for t, i in enumerate(range(0, len(transition), 5)):
+                is_last_step = (t == self._kstep)
                 target_value, mask, *next_transition = transition[i:i + 5]
                 if next_transition:
                     target_policy, action, target_reward = next_transition
                 mask = mask.nonzero(as_tuple=True)
                 total_batch += len(state)
                 policy, value = self._model.parallel_forward(state)
-                # predict nstep
-                nstep_v[rollout_index] += value_transform(
-                    value.detach()) * (self._gamma**t)
-                nstep_v_sum[rollout_index] += nstep_v[
-                    rollout_index] if self._num_player == 1 else value_transform(
-                        value.detach()) * (self._gamma**t) * ((-1)**t)
                 ksteps[rollout_index] += 1.
-                target_v_info[rollout_index] += value_transform(
+
+                # logging info
+                target_v[rollout_index] += value_transform(
                     target_value
                 ) if self._num_player == 1 else value_transform(
                     target_value) * ((-1)**t)
+                rollout_v[rollout_index] += value_transform(value.detach(
+                )) if self._num_player == 1 else value_transform(
+                    value.detach()) * ((-1)**t)
+
+                # priority
                 if t == 0 and self._use_prioritize:
                     priority = torch.abs(
                         value_transform(value.detach()) -
                         value_transform(target_value)).squeeze(
                             dim=-1).tolist()
                     replay_buffer.update_weights(rollout.index, priority)
+
                 if next_transition:
                     policy = policy[mask]
                     state = state[mask]
                     state, reward = self._model.parallel_forward_dynamics(
                         state, action)
                     state = scale_gradient(state, 0.5)
-                    # predict nstep
                     rollout_index = rollout_index[mask]
-                    nstep_v[rollout_index] += reward_transform(
-                        reward.detach()) * (self._gamma**t) - value_transform(
-                            value[mask].detach()) * (self._gamma**t)
-                    nstep_r_sum[rollout_index] += reward_transform(
-                        reward.detach())
-                    target_r_sum[rollout_index] += reward_transform(
-                        target_reward)
-                    # logging
+                    # logging info
+                    if not is_last_step:
+                        target_r_sum[rollout_index] += reward_transform(
+                            target_reward)
+                        rollout_r_sum[rollout_index] += reward_transform(
+                            reward.detach())
                     policy_target.extend(target_policy.tolist())
                     policy_rollout.extend(policy.detach().tolist())
                     if t == 0 and self._num_player == 1:
@@ -230,14 +235,16 @@ class MuZeroTrainer(Trainer):
                             round(p, 3)
                             for p in torch.mean(policy, dim=0).tolist()
                         ])
+
                 # loss
                 v_loss_i = weight * v_criterion(target_value, value)
                 if next_transition:
                     masked_weight = weight[mask]
                     p_loss_i = masked_weight * p_criterion(
                         target_policy, policy)
-                    r_loss_i = masked_weight * r_criterion(
-                        target_reward, reward)
+                    if not is_last_step:
+                        r_loss_i = masked_weight * r_criterion(
+                            target_reward, reward)
                     weight = masked_weight
                 # scale gradient
                 if i > 0:
@@ -246,28 +253,33 @@ class MuZeroTrainer(Trainer):
                     scale = scale[mask]
                     if i > 0:
                         p_loss_i = scale_gradient(p_loss_i, scale)
-                    r_loss_i = scale_gradient(r_loss_i, scale)
+                    if not is_last_step:
+                        r_loss_i = scale_gradient(r_loss_i, scale)
                 # total loss
                 v_loss_i = v_loss_i.sum()
                 loss += v_loss_i
                 if next_transition:
                     p_loss_i = p_loss_i.sum()
-                    r_loss_i = r_loss_i.sum()
-                    loss += p_loss_i + r_loss_i
+                    loss += p_loss_i
+                    if not is_last_step:
+                        r_loss_i = r_loss_i.sum()
+                        loss += r_loss_i
                 v_loss += v_loss_i.item()
                 if next_transition:
                     p_loss += p_loss_i.item()
-                    r_loss += r_loss_i.item()
+                    if not is_last_step:
+                        r_loss += r_loss_i.item()
+
             loss /= total_batch
             p_loss /= total_batch
             v_loss /= total_batch
             r_loss /= total_batch
-            nstep_v_sum /= ksteps
-            target_v_info /= ksteps
+            target_v /= ksteps
+            rollout_v /= ksteps
             # logging
-            value_target.extend(target_v_info.tolist())
-            value_rollout.extend(nstep_v_sum.tolist())
-            reward_sum_rollout.extend(nstep_r_sum.tolist())
+            value_target.extend(target_v.tolist())
+            value_rollout.extend(rollout_v.tolist())
+            reward_sum_rollout.extend(rollout_r_sum.tolist())
             reward_sum_target.extend(target_r_sum.tolist())
             priority_sampled.extend((replay_buffer.get_mean_weight() /
                                      to_tensor(rollout.weight)).tolist())
@@ -283,14 +295,14 @@ class MuZeroTrainer(Trainer):
                 '... target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f},'
                 ' target_r_sum: {:.3f} \u00b1 {:.3f}, rollout_r_sum: {:.3f} \u00b1 {:.3f}'
                 .format(
-                    torch.mean(target_v_info.detach()),
-                    torch.std(target_v_info.detach()),
-                    torch.mean(nstep_v_sum.detach()),
-                    torch.std(nstep_v_sum.detach()),
+                    torch.mean(target_v.detach()),
+                    torch.std(target_v.detach()),
+                    torch.mean(rollout_v.detach()),
+                    torch.std(rollout_v.detach()),
                     torch.mean(target_r_sum),
                     torch.std(target_r_sum),
-                    torch.mean(nstep_r_sum),
-                    torch.std(nstep_r_sum),
+                    torch.mean(rollout_r_sum),
+                    torch.std(rollout_r_sum),
                 ))
             # optimize
             self._optimizer.zero_grad()
@@ -301,7 +313,7 @@ class MuZeroTrainer(Trainer):
             del weight, observation, scale, transition
             del rollout, target_value, mask, next_transition
             del state, action, policy, value, reward
-            del scalar_v, nstep_v, nstep_v_sum, ksteps, rollout_index, target_v_info
+            del ksteps, rollout_index, target_v, rollout_v, target_r_sum, rollout_r_sum
         # the end of current training
         # logging: loss
         # TODO: average loss of each minibatch?

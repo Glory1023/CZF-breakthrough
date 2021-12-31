@@ -78,8 +78,9 @@ class EnvManager:
                 dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
                 discount=mcts_config.get('discount', 1.),
             )
-            self._mstep = max(mcts_config['nstep'],
-                              config['learner']['rollout_steps'])
+            kstep = config['learner']['rollout_steps']
+            nstep = mcts_config['nstep']
+            self._mstep = kstep + nstep
         # game_server config
         self._sequence = config['game_server']['sequence']
         # game env

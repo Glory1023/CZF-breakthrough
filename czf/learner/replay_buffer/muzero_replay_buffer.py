@@ -198,6 +198,7 @@ class MuZeroReplayBuffer(ReplayBuffer):
             ])
             if transition.is_terminal:
                 break
+        kstep -= 1
         scale = np.array(1. / kstep, dtype=np.float32).tobytes()
         # i, w, o, s, [(v, m, p, a, r)]
         return [
