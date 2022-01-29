@@ -41,8 +41,7 @@ class CliAgent:
             self._tree_option = czf_pb2.WorkerState.TreeOption(
                 simulation_count=mcts_config['simulation_count'],
                 tree_min_value=mcts_config.get('tree_min_value', float('inf')),
-                tree_max_value=mcts_config.get('tree_max_value',
-                                               float('-inf')),
+                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
                 c_puct=mcts_config['c_puct'],
                 dirichlet_alpha=mcts_config['dirichlet']['alpha'],
                 dirichlet_epsilon=0.,
@@ -103,22 +102,17 @@ class CliAgent:
                     print('Model flushing is not finished yet')
                     continue
                 if len(command.split()) > 1:
-                    self._tree_option.simulation_count = int(
-                        command.split()[-1])
+                    self._tree_option.simulation_count = int(command.split()[-1])
                 actions = await self.__genmove()
                 self.__play(actions)
-                actions_string = [
-                    self._game.action_to_string(action) for action in actions
-                ]
+                actions_string = [self._game.action_to_string(action) for action in actions]
                 print('action: ' + ', '.join(actions_string))
                 self._history.append(actions_string)
             elif 'play' in command:
                 substr = command[command.find('play') + len('play'):]
                 actions = self._game.string_to_action(substr)
                 self.__play(actions)
-                actions_string = [
-                    self._game.action_to_string(action) for action in actions
-                ]
+                actions_string = [self._game.action_to_string(action) for action in actions]
                 print('action: ' + ', '.join(actions_string))
                 self._history.append(actions_string)
             elif 'exit' in command or 'quit' in command:
@@ -141,8 +135,7 @@ class CliAgent:
         # send job
         # print('serialize:', self._state.serialize())
         if self._algorithm == 'AlphaZero':
-            state = czf_pb2.WorkerState(
-                serialized_state=self._state.serialize())
+            state = czf_pb2.WorkerState(serialized_state=self._state.serialize())
         elif self._algorithm == 'MuZero':
             state = czf_pb2.WorkerState(
                 legal_actions=self._state.legal_actions,

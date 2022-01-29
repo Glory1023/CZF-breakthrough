@@ -30,8 +30,6 @@ void Tree::add_dirichlet_noise(std::mt19937& rng) {
 
 void Tree::reset() { root_node.reset(); }
 
-void Tree::set_option(const TreeOption& tree_option) {
-  this->tree_option = tree_option;
-}
+void Tree::set_option(const TreeOption& tree_option) { this->tree_option = tree_option; }
 
 }  // namespace czf::actor::alphazero_worker

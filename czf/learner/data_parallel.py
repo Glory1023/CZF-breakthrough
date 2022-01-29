@@ -6,8 +6,8 @@ from itertools import chain
 from torch.nn.parallel.scatter_gather import scatter_kwargs, gather
 from torch.nn.parallel.replicate import replicate
 from torch.nn.parallel.parallel_apply import parallel_apply
-from torch._utils import (_get_all_device_indices, _get_available_device_type,
-                          _get_device_index, _get_devices_properties)
+from torch._utils import (_get_all_device_indices, _get_available_device_type, _get_device_index,
+                          _get_devices_properties)
 # parallel_apply
 import threading
 import torch
@@ -30,9 +30,7 @@ def _check_balance(device_ids):
         min_pos, min_val = min(enumerate(values), key=operator.itemgetter(1))
         max_pos, max_val = max(enumerate(values), key=operator.itemgetter(1))
         if min_val / max_val < 0.75:
-            warnings.warn(
-                imbalance_warn.format(device_ids[min_pos],
-                                      device_ids[max_pos]))
+            warnings.warn(imbalance_warn.format(device_ids[min_pos], device_ids[max_pos]))
             return True
         return False
 
@@ -59,8 +57,7 @@ class DataParallelWrapper(torch.nn.Module):
 
         self.dim = dim
         self.module = module
-        self.device_ids = list(
-            map(lambda x: _get_device_index(x, True), device_ids))
+        self.device_ids = list(map(lambda x: _get_device_index(x, True), device_ids))
         self.output_device = _get_device_index(output_device, True)
         self.src_device_obj = torch.device(device_type, self.device_ids[0])
 
@@ -79,10 +76,9 @@ class DataParallelWrapper(torch.nn.Module):
 
         for t in chain(self.module.parameters(), self.module.buffers()):
             if t.device != self.src_device_obj:
-                raise RuntimeError(
-                    "module must have its parameters and buffers "
-                    "on device {} (device_ids[0]) but found one of "
-                    "them on device: {}".format(self.src_device_obj, t.device))
+                raise RuntimeError("module must have its parameters and buffers "
+                                   "on device {} (device_ids[0]) but found one of "
+                                   "them on device: {}".format(self.src_device_obj, t.device))
 
         inputs, kwargs = self.scatter(inputs, kwargs, self.device_ids)
         if len(self.device_ids) == 1:
@@ -97,10 +93,9 @@ class DataParallelWrapper(torch.nn.Module):
 
         for t in chain(self.module.parameters(), self.module.buffers()):
             if t.device != self.src_device_obj:
-                raise RuntimeError(
-                    "module must have its parameters and buffers "
-                    "on device {} (device_ids[0]) but found one of "
-                    "them on device: {}".format(self.src_device_obj, t.device))
+                raise RuntimeError("module must have its parameters and buffers "
+                                   "on device {} (device_ids[0]) but found one of "
+                                   "them on device: {}".format(self.src_device_obj, t.device))
 
         inputs, kwargs = self.scatter(inputs, kwargs, self.device_ids)
         if len(self.device_ids) == 1:
@@ -115,10 +110,9 @@ class DataParallelWrapper(torch.nn.Module):
 
         for t in chain(self.module.parameters(), self.module.buffers()):
             if t.device != self.src_device_obj:
-                raise RuntimeError(
-                    "module must have its parameters and buffers "
-                    "on device {} (device_ids[0]) but found one of "
-                    "them on device: {}".format(self.src_device_obj, t.device))
+                raise RuntimeError("module must have its parameters and buffers "
+                                   "on device {} (device_ids[0]) but found one of "
+                                   "them on device: {}".format(self.src_device_obj, t.device))
 
         inputs, kwargs = self.scatter(inputs, kwargs, self.device_ids)
         if len(self.device_ids) == 1:
@@ -134,14 +128,9 @@ class DataParallelWrapper(torch.nn.Module):
         return scatter_kwargs(inputs, kwargs, device_ids, dim=self.dim)
 
     def parallel_apply(self, replicas, inputs, kwargs):
-        return parallel_apply(replicas, inputs, kwargs,
-                              self.device_ids[:len(replicas)])
+        return parallel_apply(replicas, inputs, kwargs, self.device_ids[:len(replicas)])
 
-    def parallel_apply_representation(self,
-                                      modules,
-                                      inputs,
-                                      kwargs_tup=None,
-                                      devices=None):
+    def parallel_apply_representation(self, modules, inputs, kwargs_tup=None, devices=None):
         assert len(modules) == len(inputs)
         if kwargs_tup is not None:
             assert len(modules) == len(kwargs_tup)
@@ -154,16 +143,14 @@ class DataParallelWrapper(torch.nn.Module):
         devices = list(map(lambda x: _get_device_index(x, True), devices))
         lock = threading.Lock()
         results = {}
-        grad_enabled, autocast_enabled = torch.is_grad_enabled(
-        ), torch.is_autocast_enabled()
+        grad_enabled, autocast_enabled = torch.is_grad_enabled(), torch.is_autocast_enabled()
 
         def _worker(i, module, input, kwargs, device=None):
             torch.set_grad_enabled(grad_enabled)
             if device is None:
                 device = get_a_var(input).get_device()
             try:
-                with torch.cuda.device(device), autocast(
-                        enabled=autocast_enabled):
+                with torch.cuda.device(device), autocast(enabled=autocast_enabled):
                     # this also avoids accidental slicing of `input` if it is a Tensor
                     if not isinstance(input, (list, tuple)):
                         input = (input, )
@@ -177,10 +164,9 @@ class DataParallelWrapper(torch.nn.Module):
 
         if len(modules) > 1:
             threads = [
-                threading.Thread(target=_worker,
-                                 args=(i, module, input, kwargs, device))
-                for i, (module, input, kwargs, device) in enumerate(
-                    zip(modules, inputs, kwargs_tup, devices))
+                threading.Thread(target=_worker, args=(i, module, input, kwargs, device))
+                for i, (module, input, kwargs,
+                        device) in enumerate(zip(modules, inputs, kwargs_tup, devices))
             ]
 
             for thread in threads:
@@ -198,11 +184,7 @@ class DataParallelWrapper(torch.nn.Module):
             outputs.append(output)
         return outputs
 
-    def parallel_apply_dynamics(self,
-                                modules,
-                                inputs,
-                                kwargs_tup=None,
-                                devices=None):
+    def parallel_apply_dynamics(self, modules, inputs, kwargs_tup=None, devices=None):
         assert len(modules) == len(inputs)
         if kwargs_tup is not None:
             assert len(modules) == len(kwargs_tup)
@@ -215,16 +197,14 @@ class DataParallelWrapper(torch.nn.Module):
         devices = list(map(lambda x: _get_device_index(x, True), devices))
         lock = threading.Lock()
         results = {}
-        grad_enabled, autocast_enabled = torch.is_grad_enabled(
-        ), torch.is_autocast_enabled()
+        grad_enabled, autocast_enabled = torch.is_grad_enabled(), torch.is_autocast_enabled()
 
         def _worker(i, module, input, kwargs, device=None):
             torch.set_grad_enabled(grad_enabled)
             if device is None:
                 device = get_a_var(input).get_device()
             try:
-                with torch.cuda.device(device), autocast(
-                        enabled=autocast_enabled):
+                with torch.cuda.device(device), autocast(enabled=autocast_enabled):
                     # this also avoids accidental slicing of `input` if it is a Tensor
                     if not isinstance(input, (list, tuple)):
                         input = (input, )
@@ -238,10 +218,9 @@ class DataParallelWrapper(torch.nn.Module):
 
         if len(modules) > 1:
             threads = [
-                threading.Thread(target=_worker,
-                                 args=(i, module, input, kwargs, device))
-                for i, (module, input, kwargs, device) in enumerate(
-                    zip(modules, inputs, kwargs_tup, devices))
+                threading.Thread(target=_worker, args=(i, module, input, kwargs, device))
+                for i, (module, input, kwargs,
+                        device) in enumerate(zip(modules, inputs, kwargs_tup, devices))
             ]
 
             for thread in threads:

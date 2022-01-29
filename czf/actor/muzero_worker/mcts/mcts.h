@@ -47,9 +47,9 @@ struct ForwardResult {
 };
 
 struct MctsInfo {
-  size_t action_index, /**< action index in the parent policy (usually equals to
-                          the forward action)*/
-      visits = 0;      ///< visit counts
+  size_t action_index,      /**< action index in the parent policy (usually equals to
+                               the forward action)*/
+      visits = 0;           ///< visit counts
   float sqrt_visits = 0.F,  ///< square root of visit count
       reward,               ///< reward of the dynamics
       value = 0.F,          ///< Mcts Q-value

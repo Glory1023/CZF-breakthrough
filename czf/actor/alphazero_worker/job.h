@@ -26,8 +26,7 @@ class Job {
   czf::env::czf_env::StatePtr leaf_state;
   std::vector<float> leaf_observation;
   // previous player, current player, node ptr
-  std::vector<
-      std::tuple<czf::env::czf_env::Player, czf::env::czf_env::Player, Node*>>
+  std::vector<std::tuple<czf::env::czf_env::Player, czf::env::czf_env::Player, Node*>>
       selection_path;
   // evaluate
   std::vector<float> leaf_policy;

@@ -3,9 +3,7 @@
 #include "czf/env/czf_env/gomoku/gomoku.h"
 using czf::env::czf_env::gomoku::GomokuGame;
 
-TEST_CASE("gomoku: name", "[GomokuGame]") {
-  REQUIRE(GomokuGame{}.name() == "gomoku");
-}
+TEST_CASE("gomoku: name", "[GomokuGame]") { REQUIRE(GomokuGame{}.name() == "gomoku"); }
 
 TEST_CASE("gomoku: is_terminal", "[GomokuState]") {
   auto game = std::make_shared<GomokuGame>();
@@ -31,8 +29,7 @@ TEST_CASE("gomoku: observation_tensor", "[GomokuGame]") {
   auto state = game->new_initial_state();
 
   auto shape = game->observation_tensor_shape();
-  auto size =
-      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+  auto size = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
   auto tensor = state->observation_tensor();
   REQUIRE(size == tensor.size());
 }

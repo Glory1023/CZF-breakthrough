@@ -11,8 +11,7 @@ namespace czf::actor::alphazero_worker {
 
 WorkerOption WorkerManager::worker_option;
 
-void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
-                        size_t num_gpu) {
+void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker, size_t num_gpu) {
   if (running_) return;
   running_ = true;
 
@@ -41,8 +40,7 @@ void WorkerManager::terminate() {
   for (auto& thread : gpu_threads_) thread.join();
 }
 
-std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(
-    const std::string& raw) {
+std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(const std::string& raw) {
   czf::pb::Packet packet;
   packet.ParseFromString(raw);
   auto* jobs_pb = packet.mutable_job_batch()->mutable_jobs();
@@ -73,18 +71,16 @@ std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(
 
 py::bytes WorkerManager::wait_dequeue_result(size_t max_batch_size) {
   constexpr auto zero = std::chrono::duration<double>::zero();
-  const auto max_timeout =
-      std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
+  const auto max_timeout = std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
   // collect result jobs
   std::vector<std::unique_ptr<Job>> jobs;
   jobs.reserve(max_batch_size);
   result_queue_.wait_dequeue_bulk(std::back_inserter(jobs), max_batch_size);
   Clock_t::time_point deadline = Clock_t::now() + max_timeout;
-  for (Clock_t::duration timeout = max_timeout;
-       jobs.size() < max_batch_size && timeout > zero;
+  for (Clock_t::duration timeout = max_timeout; jobs.size() < max_batch_size && timeout > zero;
        timeout = deadline - Clock_t::now()) {
-    result_queue_.wait_dequeue_bulk_timed(
-        std::back_inserter(jobs), max_batch_size - jobs.size(), timeout);
+    result_queue_.wait_dequeue_bulk_timed(std::back_inserter(jobs), max_batch_size - jobs.size(),
+                                          timeout);
   }
   // collect tree results from jobs
   czf::pb::Packet packet;
@@ -105,9 +101,7 @@ void WorkerManager::load_from_bytes(const std::string& bytes) {
   model_manager.load_from_bytes(bytes);
 }
 
-void WorkerManager::load_from_file(const std::string& path) {
-  model_manager.load_from_file(path);
-}
+void WorkerManager::load_from_file(const std::string& path) { model_manager.load_from_file(path); }
 
 void WorkerManager::load_game(const std::string& name) {
   game = czf::env::czf_env::load_game(name);
@@ -153,8 +147,7 @@ void WorkerManager::cpu_worker(uint32_t seed) {
 
 void WorkerManager::gpu_worker(uint32_t seed) {
   std::mt19937 rng{seed};
-  const auto max_timeout =
-      std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
+  const auto max_timeout = std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
 
   const auto& observation_tensor_shape = game->observation_tensor_shape();
   std::vector<int64_t> input_shape(observation_tensor_shape.begin(),
@@ -175,10 +168,9 @@ void WorkerManager::gpu_worker(uint32_t seed) {
     std::vector<std::unique_ptr<Job>> jobs;
     jobs.reserve(WorkerManager::worker_option.batch_size);
 
-    while (jobs.size() < jobs.capacity() &&
-           timeout > Clock_t::duration::zero() && running_) {
-      const int count = gpu_queue_.wait_dequeue_bulk_timed(
-          std::back_inserter(jobs), jobs.capacity() - jobs.size(), timeout);
+    while (jobs.size() < jobs.capacity() && timeout > Clock_t::duration::zero() && running_) {
+      const int count = gpu_queue_.wait_dequeue_bulk_timed(std::back_inserter(jobs),
+                                                           jobs.capacity() - jobs.size(), timeout);
       // first dequeue or didn't get any job
       if (count == jobs.size()) deadline = Clock_t::now() + max_timeout;
       timeout = deadline - Clock_t::now();
@@ -186,13 +178,12 @@ void WorkerManager::gpu_worker(uint32_t seed) {
     if (jobs.empty()) continue;
 
     // calculate input shape & size
-    int batch_per_job =
-        WorkerManager::worker_option.num_sampled_transformations;
+    int batch_per_job = WorkerManager::worker_option.num_sampled_transformations;
     if (batch_per_job == 0) batch_per_job = 1;
     const int batch_size = jobs.size() * batch_per_job;
     input_shape[0] = batch_size;
-    const int input_size = std::accumulate(
-        input_shape.begin(), input_shape.end(), 1, std::multiplies<>());
+    const int input_size =
+        std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<>());
 
     std::vector<float> input_vector;
     input_vector.reserve(input_size);
@@ -207,27 +198,23 @@ void WorkerManager::gpu_worker(uint32_t seed) {
       } else {
         std::sample(transformations.begin(), transformations.end(),
                     std::back_inserter(sampled_transformations),
-                    WorkerManager::worker_option.num_sampled_transformations,
-                    rng);
+                    WorkerManager::worker_option.num_sampled_transformations, rng);
       }
       batch_transformations.push_back(sampled_transformations);
 
       for (int type : sampled_transformations) {
         std::vector<float> transformed_observation =
             game->transform_observation(jobs[i]->leaf_observation, type);
-        input_vector.insert(
-            input_vector.end(),
-            std::make_move_iterator(transformed_observation.begin()),
-            std::make_move_iterator(transformed_observation.end()));
+        input_vector.insert(input_vector.end(),
+                            std::make_move_iterator(transformed_observation.begin()),
+                            std::make_move_iterator(transformed_observation.end()));
       }
     }
     auto [device, model_ptr] = model_manager.get();
-    auto input_tensor =
-        torch::from_blob(input_vector.data(), input_shape).to(device);
+    auto input_tensor = torch::from_blob(input_vector.data(), input_shape).to(device);
 
     // inference
-    const auto results =
-        model_ptr->forward({input_tensor}).toTuple()->elements();
+    const auto results = model_ptr->forward({input_tensor}).toTuple()->elements();
     const auto batch_policy = results[0].toTensor().cpu().contiguous();
     const auto batch_value = results[1].toTensor().cpu().contiguous();
 
@@ -252,9 +239,8 @@ void WorkerManager::gpu_worker(uint32_t seed) {
         std::vector<float> restored_policy = game->restore_policy(policy, type);
 
         // sum all policies and values
-        std::transform(restored_policy.begin(), restored_policy.end(),
-                       average_policy.begin(), average_policy.begin(),
-                       std::plus<float>());
+        std::transform(restored_policy.begin(), restored_policy.end(), average_policy.begin(),
+                       average_policy.begin(), std::plus<float>());
         std::transform(value_ptr_begin, value_ptr_end, average_value.begin(),
                        average_value.begin(), std::plus<float>());
 

@@ -22,13 +22,8 @@ async def main():
                         required=True,
                         metavar='PORT',
                         help='learner listen port')
-    parser.add_argument('-m',
-                        '--model_name',
-                        default='default',
-                        help='default name of the model')
-    parser.add_argument('-s',
-                        '--storage-dir',
-                        help='path to store model, trajectory, and log')
+    parser.add_argument('-m', '--model_name', default='default', help='default name of the model')
+    parser.add_argument('-s', '--storage-dir', help='path to store model, trajectory, and log')
     parser.add_argument('--restore-checkpoint-path',
                         nargs='?',
                         const='',

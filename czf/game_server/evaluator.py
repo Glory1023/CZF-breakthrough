@@ -34,12 +34,11 @@ async def run_eval_env_manager(*args):
 
 class EvalEnvManager:
     '''Game Environment Manager'''
-    def __init__(self, args, config, callbacks, proc_index, pipe, job_queue,
-                 result_queue, operation, model_info):
+    def __init__(self, args, config, callbacks, proc_index, pipe, job_queue, result_queue,
+                 operation, model_info):
         self._algorithm = config['algorithm']
         self._num_players = config['game']['num_player']
-        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}',
-                                  hostname=platform.node())
+        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
         # multiprocess
         self._proc_index = proc_index
         self._pipe = pipe
@@ -64,15 +63,13 @@ class EvalEnvManager:
             self._tree_option = czf_pb2.WorkerState.TreeOption(
                 simulation_count=mcts_config['simulation_count'],
                 tree_min_value=mcts_config.get('tree_min_value', float('inf')),
-                tree_max_value=mcts_config.get('tree_max_value',
-                                               float('-inf')),
+                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
                 c_puct=mcts_config['c_puct'],
                 dirichlet_alpha=mcts_config['dirichlet']['alpha'],
                 dirichlet_epsilon=0.,
                 discount=mcts_config.get('discount', 1.),
             )
-            self._mstep = max(mcts_config['nstep'],
-                              config['learner']['rollout_steps'])
+            self._mstep = max(mcts_config['nstep'], config['learner']['rollout_steps'])
         # game env
         self._num_env = args.num_env * self._num_players
         game_config = config['game']
@@ -88,10 +85,9 @@ class EvalEnvManager:
                 obs_config['channel'], *obs_config['spatial_shape']
             ]
         else:
-            self._game = atari_env.load_game(env_name,
-                                             obs_config['frame_stack'])
-            self._video_dir = 'demo/videos/' + args.suffix + '_' + datetime.today(
-            ).strftime('%Y%m%d_%H%M')
+            self._game = atari_env.load_game(env_name, obs_config['frame_stack'])
+            self._video_dir = 'demo/videos/' + args.suffix + '_' + datetime.today().strftime(
+                '%Y%m%d_%H%M')
         self._frame_stack = obs_config['frame_stack']
         self._envs = [None] * self._num_env
         self._total_rewards = [None] * self._num_env
@@ -154,20 +150,17 @@ class EvalEnvManager:
         model_info = self._model_info[player_role]
 
         if self._algorithm == 'AlphaZero':
-            state = czf_pb2.WorkerState(
-                serialized_state=env.state.serialize(), )
+            state = czf_pb2.WorkerState(serialized_state=env.state.serialize(), )
         elif self._algorithm == 'MuZero':
             state = czf_pb2.WorkerState(
                 legal_actions=env.state.legal_actions,
                 observation_tensor=env.state.observation_tensor,
             )
         job = czf_pb2.Job(
-            model=czf_pb2.ModelInfo(name=model_info.name,
-                                    version=model_info.version),
+            model=czf_pb2.ModelInfo(name=model_info.name, version=model_info.version),
             procedure=[operation],
             step=0,
-            payload=czf_pb2.Job.Payload(
-                env_index=self._proc_index * self._num_env + env_index, ))
+            payload=czf_pb2.Job.Payload(env_index=self._proc_index * self._num_env + env_index, ))
         job.initiator.CopyFrom(self._node)
         job.payload.state.CopyFrom(state)
         job.payload.state.tree_option.CopyFrom(self._tree_option)
@@ -186,8 +179,7 @@ class EvalEnvManager:
         legal_actions = env.state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
         num_moves = self._num_steps[env_index]
-        chosen_action = self._action_policy_fn(num_moves, legal_actions,
-                                               legal_actions_policy)
+        chosen_action = self._action_policy_fn(num_moves, legal_actions, legal_actions_policy)
         # apply action
         env.state.apply_action(chosen_action)
         # print(chosen_action)
@@ -205,8 +197,7 @@ class EvalEnvManager:
                 total_rewards = self._total_rewards[env_index][0]
             elif first_player_role == '2P':
                 total_rewards = self._total_rewards[env_index][1]
-            result = EvalResult(game_steps=game_steps,
-                                total_rewards=total_rewards)
+            result = EvalResult(game_steps=game_steps, total_rewards=total_rewards)
             self._result_queue.put(result)
             self.__reset(env_index)
         else:
@@ -216,8 +207,7 @@ class EvalEnvManager:
 class EvalGameServer:
     '''Evalutation Game Server'''
     def __init__(self, args, config, callbacks):
-        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}',
-                                  hostname=platform.node())
+        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
         # server mode
         algorithm = config['algorithm']
         assert algorithm in ('AlphaZero', 'MuZero')
@@ -240,8 +230,7 @@ class EvalGameServer:
             self._last_ckpt = self._first_ckpt
             self._model_version_queue.put(self._last_ckpt)
         else:
-            for version in range(self._first_ckpt, self._last_ckpt + 1,
-                                 self._freq):
+            for version in range(self._first_ckpt, self._last_ckpt + 1, self._freq):
                 self._model_version_queue.put(version)
 
         # for two-player game
@@ -250,9 +239,7 @@ class EvalGameServer:
         # operation
         if algorithm == 'AlphaZero':
             if self._num_players == 1:
-                self._operation = {
-                    '1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P
-                }
+                self._operation = {'1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P}
             elif self._num_players == 2:
                 self._operation = {
                     '1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P,
@@ -260,9 +247,7 @@ class EvalGameServer:
                 }
         elif algorithm == 'MuZero':
             if self._num_players == 1:
-                self._operation = {
-                    '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P
-                }
+                self._operation = {'1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P}
             elif self._num_players == 2:
                 self._operation = {
                     '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
@@ -270,9 +255,7 @@ class EvalGameServer:
                 }
         # model
         if self._num_players == 1:
-            self._model_info = {
-                '1P': mp.Value(ModelInfo, 'default', self._first_ckpt)
-            }
+            self._model_info = {'1P': mp.Value(ModelInfo, 'default', self._first_ckpt)}
         elif self._num_players == 2:
             self._model_info = {
                 '1P': mp.Value(ModelInfo, 'default', self._first_ckpt),
@@ -283,8 +266,7 @@ class EvalGameServer:
         log_path = storage_path / 'log' / 'eval'
         if not log_path.exists():
             log_path.mkdir(exist_ok=True)
-        self._summary_writer = SummaryWriter(log_dir=log_path,
-                                             purge_step=self._first_ckpt)
+        self._summary_writer = SummaryWriter(log_dir=log_path, purge_step=self._first_ckpt)
         # start EvalEnvManager
         self._num_env_per_proc = args.num_env * self._num_players
         self._total_env = self._num_env_per_proc * args.num_proc
@@ -292,19 +274,18 @@ class EvalGameServer:
         self._result_queue = Queue()
         self._pipe = [mp.Pipe() for i in range(args.num_proc)]
         self._manager = [
-            mp.Process(
-                target=lambda *args: asyncio.run(run_eval_env_manager(*args)),
-                args=(
-                    args,
-                    config,
-                    callbacks,
-                    index,
-                    pipe,
-                    self._job_queue,
-                    self._result_queue,
-                    self._operation,
-                    self._model_info,
-                )) for index, (_, pipe) in enumerate(self._pipe)
+            mp.Process(target=lambda *args: asyncio.run(run_eval_env_manager(*args)),
+                       args=(
+                           args,
+                           config,
+                           callbacks,
+                           index,
+                           pipe,
+                           self._job_queue,
+                           self._result_queue,
+                           self._operation,
+                           self._model_info,
+                       )) for index, (_, pipe) in enumerate(self._pipe)
         ]
         for manager in self._manager:
             manager.start()
@@ -403,8 +384,7 @@ class EvalGameServer:
             # wait for the results of all envs
             eval_results = []
             while len(eval_results) < self._total_env:
-                result = await loop.run_in_executor(result_executor,
-                                                    result_queue.get)
+                result = await loop.run_in_executor(result_executor, result_queue.get)
                 eval_results.append(result)
             asyncio.create_task(self.__write_result(eval_results))
 
@@ -451,8 +431,7 @@ class EvalGameServer:
             elo_1p_diff = 400 * np.log10(score / (1 - score))
             elo_1p = elo_1p_diff + self._best_elo
             print(
-                '{}-{} Win: {:.2%} Draw: {:.2%} Lose: {:.2%} Current Elo: {:.1f} ({:+.1f})'
-                .format(
+                '{}-{} Win: {:.2%} Draw: {:.2%} Lose: {:.2%} Current Elo: {:.1f} ({:+.1f})'.format(
                     self._model_info['1P'].version,
                     self._model_info['2P'].version,
                     win_rate,
@@ -463,10 +442,8 @@ class EvalGameServer:
                 ))
             # write the evaluation result to tensorboard
             writer.add_scalar('eval/elo', elo_1p, step)
-            writer.add_scalar('eval/current_version',
-                              self._model_info['1P'].version, step)
-            writer.add_scalar('eval/best_version',
-                              self._model_info['2P'].version, step)
+            writer.add_scalar('eval/current_version', self._model_info['1P'].version, step)
+            writer.add_scalar('eval/best_version', self._model_info['2P'].version, step)
             writer.add_scalars('eval/result', {
                 'win': win_rate,
                 'draw': draw_rate,
@@ -482,11 +459,9 @@ class EvalGameServer:
     async def __send_load_model(self):
         '''helper to wait for new model and send jobs to flush'''
         # send jobs to flush model
-        for (_, op), (_, model_info) in zip(self._operation.items(),
-                                            self._model_info.items()):
+        for (_, op), (_, model_info) in zip(self._operation.items(), self._model_info.items()):
             job = czf_pb2.Job(
-                model=czf_pb2.ModelInfo(name=model_info.name,
-                                        version=model_info.version),
+                model=czf_pb2.ModelInfo(name=model_info.name, version=model_info.version),
                 procedure=[op],
                 step=0,
             )

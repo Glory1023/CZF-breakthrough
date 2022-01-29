@@ -59,8 +59,7 @@ class ResNet(nn.Module):
             nn.ReLU(),
         )
         self.convs = nn.ModuleList([
-            BasicBlock(in_channels=out_channels, out_channels=out_channels)
-            for _ in range(blocks)
+            BasicBlock(in_channels=out_channels, out_channels=out_channels) for _ in range(blocks)
         ])
 
     def forward(self, x):

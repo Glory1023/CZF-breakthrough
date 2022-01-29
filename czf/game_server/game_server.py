@@ -41,11 +41,10 @@ class EnvInfo:
 
 class EnvManager:
     '''Game Environment Manager'''
-    def __init__(self, args, config, callbacks, proc_index, model_info, pipe,
-                 job_queue, trajectory_queue):
+    def __init__(self, args, config, callbacks, proc_index, model_info, pipe, job_queue,
+                 trajectory_queue):
         self._algorithm = config['algorithm']
-        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}',
-                                  hostname=platform.node())
+        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
         # multiprocess
         self._proc_index = proc_index
         self._model_info = model_info
@@ -71,8 +70,7 @@ class EnvManager:
             self._tree_option = czf_pb2.WorkerState.TreeOption(
                 simulation_count=mcts_config['simulation_count'],
                 tree_min_value=mcts_config.get('tree_min_value', float('inf')),
-                tree_max_value=mcts_config.get('tree_max_value',
-                                               float('-inf')),
+                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
                 c_puct=mcts_config['c_puct'],
                 dirichlet_alpha=mcts_config['dirichlet']['alpha'],
                 dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
@@ -98,10 +96,9 @@ class EnvManager:
                 obs_config['channel'], *obs_config['spatial_shape']
             ]
         else:
-            self._game = atari_env.load_game(env_name,
-                                             obs_config['frame_stack'])
-            self._video_dir = 'demo/videos/' + args.suffix + '_' + datetime.today(
-            ).strftime('%Y%m%d_%H%M')
+            self._game = atari_env.load_game(env_name, obs_config['frame_stack'])
+            self._video_dir = 'demo/videos/' + args.suffix + '_' + datetime.today().strftime(
+                '%Y%m%d_%H%M')
         self._frame_stack = obs_config['frame_stack']
         self._envs = [None] * args.num_env
         self._total_rewards = [None] * self._num_env
@@ -149,20 +146,18 @@ class EnvManager:
         env = self._envs[env_index]
         # workers = [czf_pb2.Node(identity='g', hostname=str(time.time()))] * 2
         if self._algorithm == 'AlphaZero':
-            state = czf_pb2.WorkerState(
-                serialized_state=env.state.serialize(), )
+            state = czf_pb2.WorkerState(serialized_state=env.state.serialize(), )
         elif self._algorithm == 'MuZero':
             state = czf_pb2.WorkerState(
                 legal_actions=env.state.legal_actions,
                 observation_tensor=env.state.observation_tensor,
             )
-        job = czf_pb2.Job(
-            model=czf_pb2.ModelInfo(name=self._model_info.name,
-                                    version=self._model_info.version),
-            procedure=[self._operation],
-            step=0,
-            payload=czf_pb2.Job.Payload(
-                env_index=self._proc_index * self._num_env + env_index, ))
+        job = czf_pb2.Job(model=czf_pb2.ModelInfo(name=self._model_info.name,
+                                                  version=self._model_info.version),
+                          procedure=[self._operation],
+                          step=0,
+                          payload=czf_pb2.Job.Payload(env_index=self._proc_index * self._num_env +
+                                                      env_index, ))
         job.initiator.CopyFrom(self._node)
         # job.payload.state.workers.CopyFrom(env.workers)
         job.payload.state.CopyFrom(state)
@@ -183,8 +178,7 @@ class EnvManager:
         legal_actions = env.state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
         num_moves = self._num_steps[env_index]
-        chosen_action = self._action_policy_fn(num_moves, legal_actions,
-                                               legal_actions_policy)
+        chosen_action = self._action_policy_fn(num_moves, legal_actions, legal_actions_policy)
         # add to trajectory
         state = env.trajectory.states.add()
         state.observation_tensor[:] = env.state.feature_tensor
@@ -214,12 +208,11 @@ class EnvManager:
                 state.transition.current_player = env.state.current_player
                 state.transition.rewards[:] = env.state.rewards
             # add game statistics
-            env.trajectory.statistics.rewards[:] = self._total_rewards[
-                env_index]
+            env.trajectory.statistics.rewards[:] = self._total_rewards[env_index]
             env.trajectory.statistics.game_steps = self._num_steps[env_index]
             # send optimize job
-            print('send 1 traj with len', len(env.trajectory.states),
-                  'of score', int(self._total_rewards[env_index][0]))
+            print('send 1 traj with len', len(env.trajectory.states), 'of score',
+                  int(self._total_rewards[env_index][0]))
             packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
                 trajectories=[env.trajectory]))
             self._trajectory_queue.put(packet.SerializeToString())
@@ -248,8 +241,7 @@ class EnvManager:
 class GameServer:
     '''Game Server'''
     def __init__(self, args, config, callbacks):
-        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}',
-                                  hostname=platform.node())
+        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
         # model
         self._model_info = mp.Value(ModelInfo, 'default', -1)
         self._has_new_model = asyncio.Event()
@@ -264,18 +256,17 @@ class GameServer:
         self._trajectory_queue = Queue()
         self._pipe = [mp.Pipe() for i in range(args.num_proc)]
         self._manager = [
-            mp.Process(
-                target=lambda *args: asyncio.run(run_env_manager(*args)),
-                args=(
-                    args,
-                    config,
-                    callbacks,
-                    index,
-                    self._model_info,
-                    pipe,
-                    self._job_queue,
-                    self._trajectory_queue,
-                )) for index, (_, pipe) in enumerate(self._pipe)
+            mp.Process(target=lambda *args: asyncio.run(run_env_manager(*args)),
+                       args=(
+                           args,
+                           config,
+                           callbacks,
+                           index,
+                           self._model_info,
+                           pipe,
+                           self._job_queue,
+                           self._trajectory_queue,
+                       )) for index, (_, pipe) in enumerate(self._pipe)
         ]
         for manager in self._manager:
             manager.start()

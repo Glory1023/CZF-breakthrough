@@ -55,11 +55,7 @@ class SEBasicBlock(nn.Module):
 
 
 class SEResNet(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 blocks,
-                 out_channels,
-                 fc_hidden_dimension=16):
+    def __init__(self, in_channels, blocks, out_channels, fc_hidden_dimension=16):
         super().__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(

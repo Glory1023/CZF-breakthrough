@@ -52,8 +52,7 @@ void SurakartaSplitActionState::apply_action(const Action &action) {
 
     if (!has_piece(1 - player)) {
       winner_ = player;
-    } else if (repeat_[board_] >= kMaxRepeatBoard ||
-               without_capture_turn_ >= kMaxNoCaptureTurn ||
+    } else if (repeat_[board_] >= kMaxRepeatBoard || without_capture_turn_ >= kMaxNoCaptureTurn ||
                turn_ >= kMaxTurn) {
       if (black_piece_ > white_piece_) {
         winner_ = BLACK;
@@ -80,8 +79,7 @@ bool SurakartaSplitActionState::is_legal_action(const Action &action) const {
   if (action >= kPolicyDim || action < 0) return false;
   const Player player = current_player();
   if (turn_ % 2 == 0) {  // choose
-    if (board_[action] == player &&
-        (have_move(action) || have_capture(action))) {
+    if (board_[action] == player && (have_move(action) || have_capture(action))) {
       return true;
     }
   } else {  // move and capture
@@ -106,8 +104,7 @@ bool SurakartaSplitActionState::is_legal_action(const Action &action) const {
 }
 
 bool SurakartaSplitActionState::is_legal_capture_this_circle(
-    const Action &action, const Action &src,
-    const std::array<int, 56> &circle) const {
+    const Action &action, const Action &src, const std::array<int, 56> &circle) const {
   for (int index = 0; index < 28; index++) {
     if (circle[index] == src) {
       bool cancapture = false;
@@ -154,8 +151,8 @@ bool SurakartaSplitActionState::have_capture(const Action &action) const {
   return false;
 }
 
-bool SurakartaSplitActionState::have_capture_this_circle(
-    const Action &action, const std::array<int, 56> &circle) const {
+bool SurakartaSplitActionState::have_capture_this_circle(const Action &action,
+                                                         const std::array<int, 56> &circle) const {
   for (int index = 0; index < 28; index++) {
     if (circle[index] == action) {
       bool cancapture = false;
@@ -185,8 +182,7 @@ std::string SurakartaSplitActionState::to_string() const {
   for (int i = 0; i < kBoardSize; ++i) {
     ss << std::setw(2) << std::setfill(' ') << kBoardSize - i;
     for (int j = 0; j < kBoardSize; ++j) {
-      if (turn_ % 2 &&
-          history_[history_.size() - 1] == board_[i * kBoardSize + j]) {
+      if (turn_ % 2 && history_[history_.size() - 1] == board_[i * kBoardSize + j]) {
         ss << ' ' << choose[board_[i * kBoardSize + j]];
       } else {
         ss << ' ' << chess[board_[i * kBoardSize + j]];
@@ -203,9 +199,7 @@ bool SurakartaSplitActionState::is_terminal() const {
   return (winner_ != -1) || (legal_actions().empty());
 }
 
-Player SurakartaSplitActionState::current_player() const {
-  return (Player)((turn_ % 4) / 2);
-}
+Player SurakartaSplitActionState::current_player() const { return (Player)((turn_ % 4) / 2); }
 
 std::vector<float> SurakartaSplitActionState::observation_tensor() const {
   std::vector<float> tensor;
@@ -221,19 +215,17 @@ std::vector<float> SurakartaSplitActionState::observation_tensor() const {
     tensor.push_back(static_cast<float>((board_[i] == player) && kIsInter[i]));
   }
   for (int i = 0; i < kNumOfGrids; ++i) {
-    tensor.push_back(
-        static_cast<float>((board_[i] == 1 - player) && kIsInter[i]));
+    tensor.push_back(static_cast<float>((board_[i] == 1 - player) && kIsInter[i]));
   }
   for (int i = 0; i < kNumOfGrids; ++i) {
     tensor.push_back(static_cast<float>((board_[i] == player) && kIsOuter[i]));
   }
   for (int i = 0; i < kNumOfGrids; ++i) {
-    tensor.push_back(
-        static_cast<float>((board_[i] == 1 - player) && kIsOuter[i]));
+    tensor.push_back(static_cast<float>((board_[i] == 1 - player) && kIsOuter[i]));
   }
   for (int i = 0; i < kNumOfGrids; ++i) {
-    tensor.push_back(static_cast<float>(
-        (turn_ % 2) && (board_[i] == history_[history_.size() - 1])));
+    tensor.push_back(
+        static_cast<float>((turn_ % 2) && (board_[i] == history_[history_.size() - 1])));
   }
   for (int i = 0; i < kNumOfGrids; ++i) {
     tensor.push_back(static_cast<float>((turn_ % 2)));
@@ -242,8 +234,7 @@ std::vector<float> SurakartaSplitActionState::observation_tensor() const {
 }
 
 bool SurakartaSplitActionState::has_piece(const Player &player) const {
-  return (player == BLACK && black_piece_ != 0) ||
-         (player == WHITE && white_piece_ != 0);
+  return (player == BLACK && black_piece_ != 0) || (player == WHITE && white_piece_ != 0);
 }
 
 std::vector<float> SurakartaSplitActionState::rewards() const {
@@ -280,13 +271,9 @@ std::string SurakartaSplitActionState::serialize() const {
   return ss.str();
 }
 
-std::string SurakartaSplitActionGame::name() const {
-  return "surakarta_split_action";
-}
+std::string SurakartaSplitActionGame::name() const { return "surakarta_split_action"; }
 int SurakartaSplitActionGame::num_players() const { return 2; }
-int SurakartaSplitActionGame::num_distinct_actions() const {
-  return kPolicyDim;
-}
+int SurakartaSplitActionGame::num_distinct_actions() const { return kPolicyDim; }
 std::vector<int> SurakartaSplitActionGame::observation_tensor_shape() const {
   return {8, kBoardSize, kBoardSize};
 }
@@ -305,16 +292,15 @@ std::vector<float> SurakartaSplitActionGame::transform_observation(
     for (int i = 0; i < feature_num; i++) {
       for (int index = 0; index < kNumOfGrids; index++) {
         int new_index = transform_index(index, type);
-        data[i * kNumOfGrids + new_index] =
-            observation[i * kNumOfGrids + index];
+        data[i * kNumOfGrids + new_index] = observation[i * kNumOfGrids + index];
       }
     }
   }
   return data;
 }
 
-std::vector<float> SurakartaSplitActionGame::transform_policy(
-    const std::vector<float> &policy, int type) const {
+std::vector<float> SurakartaSplitActionGame::transform_policy(const std::vector<float> &policy,
+                                                              int type) const {
   std::vector<float> data(policy);
   if (type != 0) {
     for (int index = 0; index < kPolicyDim; index++) {
@@ -325,8 +311,8 @@ std::vector<float> SurakartaSplitActionGame::transform_policy(
   return data;
 }
 
-std::vector<float> SurakartaSplitActionGame::restore_policy(
-    const std::vector<float> &policy, int type) const {
+std::vector<float> SurakartaSplitActionGame::restore_policy(const std::vector<float> &policy,
+                                                            int type) const {
   std::vector<float> data(policy);
   if (type != 0) {
     for (int index = 0; index < kPolicyDim; index++) {
@@ -337,8 +323,7 @@ std::vector<float> SurakartaSplitActionGame::restore_policy(
   return data;
 }
 
-int SurakartaSplitActionGame::transform_index(const int &index,
-                                              const int type) const {
+int SurakartaSplitActionGame::transform_index(const int &index, const int type) const {
   if (type == 0) {
     return index;
   } else {
@@ -351,38 +336,32 @@ int SurakartaSplitActionGame::transform_index(const int &index,
   }
 }
 
-std::string SurakartaSplitActionGame::action_to_string(
-    const Action &action) const {
+std::string SurakartaSplitActionGame::action_to_string(const Action &action) const {
   using namespace std::string_literals;
   std::stringstream ss;
   ss << "ABCDEF"s.at(action % kBoardSize) << kBoardSize - (action / kBoardSize);
   return ss.str();
 }
 
-std::vector<Action> SurakartaSplitActionGame::string_to_action(
-    const std::string &str) const {
+std::vector<Action> SurakartaSplitActionGame::string_to_action(const std::string &str) const {
   std::string wopunc = str;
-  wopunc.erase(std::remove_if(wopunc.begin(), wopunc.end(), ispunct),
-               wopunc.end());
+  wopunc.erase(std::remove_if(wopunc.begin(), wopunc.end(), ispunct), wopunc.end());
   std::stringstream ss(wopunc);
   std::string action;
   std::vector<Action> id;
   while (ss >> action) {
     if (action.at(0) >= 'a' && action.at(0) <= 'z') {
-      int tmp = (kBoardSize - std::stoi(action.substr(1))) * kBoardSize +
-                (action.at(0) - 'a');
+      int tmp = (kBoardSize - std::stoi(action.substr(1))) * kBoardSize + (action.at(0) - 'a');
       id.push_back(tmp);
     } else {
-      int tmp = (kBoardSize - std::stoi(action.substr(1))) * kBoardSize +
-                (action.at(0) - 'A');
+      int tmp = (kBoardSize - std::stoi(action.substr(1))) * kBoardSize + (action.at(0) - 'A');
       id.push_back(tmp);
     }
   }
   return id;
 }
 
-StatePtr SurakartaSplitActionGame::deserialize_state(
-    const std::string &str) const {
+StatePtr SurakartaSplitActionGame::deserialize_state(const std::string &str) const {
   std::stringstream ss(str);
   bool mode = false;
   int action;

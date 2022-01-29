@@ -32,8 +32,7 @@ TEST_CASE("tic_tac_toe: observation_tensor", "[TicTacToeGame]") {
   auto state = game->new_initial_state();
 
   auto shape = game->observation_tensor_shape();
-  auto size =
-      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+  auto size = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
   auto tensor = state->observation_tensor();
   REQUIRE(size == tensor.size());
 }

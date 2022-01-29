@@ -38,9 +38,7 @@ def create_worker_manager(args, config):
         channel = obs_config['channel']
         spatial_shape = obs_config['spatial_shape']
         if frame_stack > 0:
-            manager.game_info.observation_shape = [
-                frame_stack * (channel + 1), *spatial_shape
-            ]
+            manager.game_info.observation_shape = [frame_stack * (channel + 1), *spatial_shape]
         else:
             manager.game_info.observation_shape = [channel, *spatial_shape]
         manager.game_info.state_shape = [
@@ -83,10 +81,7 @@ def run_main():
                         required=True,
                         metavar='host:port',
                         help='model provider address. e.g., 127.0.0.1:5577')
-    parser.add_argument('--eval',
-                        nargs='?',
-                        const='1P',
-                        help='evaluation mode (default: 1P)')
+    parser.add_argument('--eval', nargs='?', const='1P', help='evaluation mode (default: 1P)')
     parser.add_argument('--suffix',
                         metavar='unique_id',
                         default=uuid4().hex,
@@ -100,33 +95,29 @@ def run_main():
                         type=int,
                         default=random.randint(0, 2**64),
                         help='random number seed of the actor')
-    parser.add_argument(
-        '--gpu-timeout',
-        type=int,
-        default=1000,
-        help='GPU wait max timeout (default: %(default)s microseconds)')
+    parser.add_argument('--gpu-timeout',
+                        type=int,
+                        default=1000,
+                        help='GPU wait max timeout (default: %(default)s microseconds)')
     parser.add_argument('--num_manager',
                         type=int,
                         default=1,
                         help='Number of manager (default: %(default)s)')
-    parser.add_argument(
-        '-cpu',
-        '--num_cpu_worker',
-        type=int,
-        default=num_cpu,
-        help='Number of cpu worker per manager (default: %(default)s)')
-    parser.add_argument(
-        '-gpu',
-        '--num_gpu_worker',
-        type=int,
-        default=num_gpu,
-        help='Number of gpu worker per manager (default: %(default)s)')
-    parser.add_argument(
-        '-gpu-root',
-        '--num_gpu_root_worker',
-        type=int,
-        default=num_gpu,
-        help='Number of gpu root worker per manager (default: %(default)s)')
+    parser.add_argument('-cpu',
+                        '--num_cpu_worker',
+                        type=int,
+                        default=num_cpu,
+                        help='Number of cpu worker per manager (default: %(default)s)')
+    parser.add_argument('-gpu',
+                        '--num_gpu_worker',
+                        type=int,
+                        default=num_gpu,
+                        help='Number of gpu worker per manager (default: %(default)s)')
+    parser.add_argument('-gpu-root',
+                        '--num_gpu_root_worker',
+                        type=int,
+                        default=num_gpu,
+                        help='Number of gpu root worker per manager (default: %(default)s)')
     parser.add_argument('--num_gpu',
                         type=int,
                         default=num_gpu,

@@ -43,12 +43,9 @@ class TicTacToeGame final : public Game {
   std::vector<int> observation_tensor_shape() const override;
 
   int num_transformations() const override;
-  std::vector<float> transform_observation(const std::vector<float>&,
-                                           int) const override;
-  std::vector<float> transform_policy(const std::vector<float>&,
-                                      int) const override;
-  std::vector<float> restore_policy(const std::vector<float>&,
-                                    int) const override;
+  std::vector<float> transform_observation(const std::vector<float>&, int) const override;
+  std::vector<float> transform_policy(const std::vector<float>&, int) const override;
+  std::vector<float> restore_policy(const std::vector<float>&, int) const override;
 
   StatePtr deserialize_state(const std::string& str = "") const override;
 

@@ -5,24 +5,20 @@
 
 namespace czf::env::czf_env {
 
-std::vector<float> State::feature_tensor() const {
-  return observation_tensor();
-}
+std::vector<float> State::feature_tensor() const { return observation_tensor(); }
 
 int Game::num_transformations() const { return 0; }
 
-std::vector<float> Game::transform_observation(
-    const std::vector<float>& observation, int type = 0) const {
+std::vector<float> Game::transform_observation(const std::vector<float>& observation,
+                                               int type = 0) const {
   return std::vector<float>(observation);
 }
 
-std::vector<float> Game::transform_policy(const std::vector<float>& policy,
-                                          int type = 0) const {
+std::vector<float> Game::transform_policy(const std::vector<float>& policy, int type = 0) const {
   return std::vector<float>(policy);
 }
 
-std::vector<float> Game::restore_policy(const std::vector<float>& policy,
-                                        int type = 0) const {
+std::vector<float> Game::restore_policy(const std::vector<float>& policy, int type = 0) const {
   return std::vector<float>(policy);
 }
 
@@ -43,15 +39,9 @@ std::vector<std::string> GameFactory::games() const {
   return names;
 }
 
-GamePtr GameFactory::create(const std::string& name) {
-  return factory_[name]();
-}
+GamePtr GameFactory::create(const std::string& name) { return factory_[name](); }
 
-GamePtr load_game(const std::string& name) {
-  return GameFactory::instance().create(name);
-}
-std::vector<std::string> available_games() {
-  return GameFactory::instance().games();
-}
+GamePtr load_game(const std::string& name) { return GameFactory::instance().create(name); }
+std::vector<std::string> available_games() { return GameFactory::instance().games(); }
 
 }  // namespace czf::env::czf_env

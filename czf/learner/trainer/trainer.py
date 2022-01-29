@@ -47,12 +47,10 @@ class MyDataLoader:
 
     def __iter__(self):
         while self._num_sample > self._batch_size:
-            data = self._collate_fn(
-                [self._sample_queue.get() for _ in range(self._batch_size)])
+            data = self._collate_fn([self._sample_queue.get() for _ in range(self._batch_size)])
             self._num_sample -= self._batch_size
             yield data
-        data = self._collate_fn(
-            [self._sample_queue.get() for _ in range(self._num_sample)])
+        data = self._collate_fn([self._sample_queue.get() for _ in range(self._num_sample)])
         self._num_sample = 0
         yield data
 
@@ -75,9 +73,7 @@ def run_trainer(
     batch_size = config['learner']['batch_size']
 
     # replay buffer
-    BaseManager.register('ReplayBuffer',
-                         replay_buffer_cls,
-                         exposed=replay_buffer_exposed_methods)
+    BaseManager.register('ReplayBuffer', replay_buffer_cls, exposed=replay_buffer_exposed_methods)
     manager = BaseManager()
     manager.start()
     replay_buffer = manager.ReplayBuffer(**replay_buffer_config)
@@ -139,8 +135,7 @@ def run_trainer(
         states_to_train = replay_buffer.get_states_to_train()
         if states_to_train > 0:
             pbar.close()
-            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
-                  'Start optimization')
+            print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> ' 'Start optimization')
             print('>> States to train:', states_to_train)
             start = time.time()
             trainer.log_statistics(replay_buffer)

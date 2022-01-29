@@ -44,11 +44,7 @@ def run_main():
                         metavar='unique_id',
                         default=uuid4().hex,
                         help='unique id of the game server')
-    parser.add_argument('-v',
-                        '--model-version',
-                        type=int,
-                        default=-1,
-                        help='model version')
+    parser.add_argument('-v', '--model-version', type=int, default=-1, help='model version')
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
@@ -59,8 +55,7 @@ def run_main():
     callbacks['action_policy'] = argmax_action_policy_fn
     np.set_printoptions(precision=3)
     board_shape = config['game']['observation']['spatial_shape'][-2:]
-    callbacks['metric']['after_apply'] = partial(eval_after_apply_metric,
-                                                 board_shape)
+    callbacks['metric']['after_apply'] = partial(eval_after_apply_metric, board_shape)
     try:
         asyncio.run(main(args, config, callbacks))
     except KeyboardInterrupt:

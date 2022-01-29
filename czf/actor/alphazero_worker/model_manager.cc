@@ -24,8 +24,8 @@ void ModelManager::load_from_bytes(const std::string &bytes) {
   size_t num_devices = forward_devices_.size();
   for (size_t i = 0; i < num_devices; ++i) {
     std::istringstream model_stream(bytes);
-    models_[i][next_toggle] = std::make_shared<Model>(
-        torch::jit::load(model_stream, forward_devices_[i]));
+    models_[i][next_toggle] =
+        std::make_shared<Model>(torch::jit::load(model_stream, forward_devices_[i]));
   }
   toggle_ ^= 1;
 }
@@ -34,8 +34,8 @@ void ModelManager::load_from_file(const std::string &filename) {
   const auto next_toggle = toggle_ ^ 1;  // NOLINT
   size_t num_devices = forward_devices_.size();
   for (size_t i = 0; i < num_devices; ++i) {
-    models_[i][next_toggle] = std::make_shared<Model>(
-        torch::jit::load(filename, forward_devices_[i]));
+    models_[i][next_toggle] =
+        std::make_shared<Model>(torch::jit::load(filename, forward_devices_[i]));
   }
   toggle_ ^= 1;
 }

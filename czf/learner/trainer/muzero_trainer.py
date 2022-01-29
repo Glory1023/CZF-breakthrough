@@ -17,8 +17,7 @@ from czf.learner.nn import MuZero, MuZeroAtari
 
 class MuZeroTrainer(Trainer):
     '''MuZero Trainer'''
-    def __init__(self, config, checkpoint_path, model_path, log_path,
-                 model_name, restore):
+    def __init__(self, config, checkpoint_path, model_path, log_path, model_name, restore):
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -44,10 +43,8 @@ class MuZeroTrainer(Trainer):
         has_transform = 'transform' in config['learner']
         r_heads = model_config.get('r_heads', 1)
         v_heads = model_config['v_heads']
-        self._r_heads = r_heads[1] - r_heads[
-            0] + 1 if has_transform else r_heads
-        self._v_heads = v_heads[1] - v_heads[
-            0] + 1 if has_transform else v_heads
+        self._r_heads = r_heads[1] - r_heads[0] + 1 if has_transform else r_heads
+        self._v_heads = v_heads[1] - v_heads[0] + 1 if has_transform else v_heads
         self._has_transform = None
         self._model_kwargs = dict(
             observation_shape=observation_shape,
@@ -114,25 +111,20 @@ class MuZeroTrainer(Trainer):
 
     def _train(self, dataloader, replay_buffer):
         '''optimize the model and increment model version'''
-        p_criterion = lambda target, prob: ((-target *
-                                             (1e-8 + prob).log()).sum(dim=1))
+        p_criterion = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
         if self._v_loss == 'mse':
-            v_criterion = lambda target, pred: (target - pred).square(
-            ).squeeze()
+            v_criterion = lambda target, pred: (target - pred).square().squeeze()
         else:  # == 'cross_entropy'
-            v_criterion = lambda target, prob: (
-                (-target * (1e-8 + prob).log()).sum(dim=1))
+            v_criterion = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
         if self._r_loss == 'mse':
-            r_criterion = lambda target, pred: torch.nn.MSELoss(
-                reduction='none')(target, pred).squeeze()
+            r_criterion = lambda target, pred: torch.nn.MSELoss(reduction='none')(target, pred
+                                                                                  ).squeeze()
         else:  # == 'cross_entropy'
-            r_criterion = lambda target, prob: (
-                (-target * (1e-8 + prob).log()).sum(dim=1))
+            r_criterion = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
 
-        scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach(
-        ) * (1 - scale))
-        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
-            np.frombuffer(x, dtype=dtype), device=self._device)
+        scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach() * (1 - scale))
+        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(np.frombuffer(x, dtype=dtype),
+                                                                device=self._device)
         shape = (
             (-1, self._v_heads),
             (-1, ),
@@ -146,10 +138,8 @@ class MuZeroTrainer(Trainer):
         print(f'>> Priority Mean: {replay_buffer.get_mean_weight():.5f}')
 
         if self._model_cls == 'MuZeroAtari':
-            value_transform = lambda x: MuZeroAtari.to_scalar(
-                self._model.v_supp, x)
-            reward_transform = lambda x: MuZeroAtari.to_scalar(
-                self._model.r_supp, x)
+            value_transform = lambda x: MuZeroAtari.to_scalar(self._model.v_supp, x)
+            reward_transform = lambda x: MuZeroAtari.to_scalar(self._model.r_supp, x)
         else:
             value_transform = lambda x: x
             reward_transform = lambda x: x
@@ -163,12 +153,10 @@ class MuZeroTrainer(Trainer):
         for rollout in dataloader:
             # tensor
             weight = to_tensor(rollout.weight)
-            observation = to_tensor(rollout.observation).view(
-                -1, *self._observation_shape)
+            observation = to_tensor(rollout.observation).view(-1, *self._observation_shape)
             scale = to_tensor(rollout.scale)
             transition = [
-                to_tensor(t).view(shape[i % 5])
-                for i, t in enumerate(rollout.transition)
+                to_tensor(t).view(shape[i % 5]) for i, t in enumerate(rollout.transition)
             ]
 
             # logging info
@@ -197,54 +185,43 @@ class MuZeroTrainer(Trainer):
 
                 # logging info
                 target_v[rollout_index] += value_transform(
-                    target_value
-                ) if self._num_player == 1 else value_transform(
-                    target_value) * ((-1)**t)
+                    target_value) if self._num_player == 1 else value_transform(target_value) * (
+                        (-1)**t)
                 rollout_v[rollout_index] += value_transform(value.detach(
-                )) if self._num_player == 1 else value_transform(
-                    value.detach()) * ((-1)**t)
+                )) if self._num_player == 1 else value_transform(value.detach()) * ((-1)**t)
 
                 # priority
                 if t == 0 and self._use_prioritize:
                     priority = torch.abs(
                         value_transform(value.detach()) -
-                        value_transform(target_value)).squeeze(
-                            dim=-1).tolist()
+                        value_transform(target_value)).squeeze(dim=-1).tolist()
                     replay_buffer.update_weights(rollout.index, priority)
 
                 if next_transition:
                     policy = policy[mask]
                     state = state[mask]
-                    state, reward = self._model.parallel_forward_dynamics(
-                        state, action)
+                    state, reward = self._model.parallel_forward_dynamics(state, action)
                     state = scale_gradient(state, 0.5)
                     rollout_index = rollout_index[mask]
                     # logging info
                     if not is_last_step:
-                        target_r_sum[rollout_index] += reward_transform(
-                            target_reward)
-                        rollout_r_sum[rollout_index] += reward_transform(
-                            reward.detach())
+                        target_r_sum[rollout_index] += reward_transform(target_reward)
+                        rollout_r_sum[rollout_index] += reward_transform(reward.detach())
                     policy_target.extend(target_policy.tolist())
                     policy_rollout.extend(policy.detach().tolist())
                     if t == 0 and self._num_player == 1:
-                        print('>>> avg target_p:', [
-                            round(p, 3)
-                            for p in torch.mean(target_policy, dim=0).tolist()
-                        ], 'avg pred_p:', [
-                            round(p, 3)
-                            for p in torch.mean(policy, dim=0).tolist()
-                        ])
+                        print('>>> avg target_p:',
+                              [round(p, 3)
+                               for p in torch.mean(target_policy, dim=0).tolist()], 'avg pred_p:',
+                              [round(p, 3) for p in torch.mean(policy, dim=0).tolist()])
 
                 # loss
                 v_loss_i = weight * v_criterion(target_value, value)
                 if next_transition:
                     masked_weight = weight[mask]
-                    p_loss_i = masked_weight * p_criterion(
-                        target_policy, policy)
+                    p_loss_i = masked_weight * p_criterion(target_policy, policy)
                     if not is_last_step:
-                        r_loss_i = masked_weight * r_criterion(
-                            target_reward, reward)
+                        r_loss_i = masked_weight * r_criterion(target_reward, reward)
                     weight = masked_weight
                 # scale gradient
                 if i > 0:
@@ -281,20 +258,16 @@ class MuZeroTrainer(Trainer):
             value_rollout.extend(rollout_v.tolist())
             reward_sum_rollout.extend(rollout_r_sum.tolist())
             reward_sum_target.extend(target_r_sum.tolist())
-            priority_sampled.extend((replay_buffer.get_mean_weight() /
-                                     to_tensor(rollout.weight)).tolist())
+            priority_sampled.extend(
+                (replay_buffer.get_mean_weight() / to_tensor(rollout.weight)).tolist())
             print(
                 '... p_loss: {:.3f}, v_loss: {:.3f}, r_loss: {:.3f}, priority: {:.3f} \u00b1 {:.3f}'
-                .format(
-                    p_loss, v_loss, r_loss,
-                    torch.mean(replay_buffer.get_mean_weight() /
-                               to_tensor(rollout.weight)),
-                    torch.std(replay_buffer.get_mean_weight() /
-                              to_tensor(rollout.weight))))
+                .format(p_loss, v_loss, r_loss,
+                        torch.mean(replay_buffer.get_mean_weight() / to_tensor(rollout.weight)),
+                        torch.std(replay_buffer.get_mean_weight() / to_tensor(rollout.weight))))
             print(
                 '... target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f},'
-                ' target_r_sum: {:.3f} \u00b1 {:.3f}, rollout_r_sum: {:.3f} \u00b1 {:.3f}'
-                .format(
+                ' target_r_sum: {:.3f} \u00b1 {:.3f}, rollout_r_sum: {:.3f} \u00b1 {:.3f}'.format(
                     torch.mean(target_v.detach()),
                     torch.std(target_v.detach()),
                     torch.mean(rollout_v.detach()),
@@ -327,24 +300,17 @@ class MuZeroTrainer(Trainer):
         # logging: train
         get_logging_info = lambda x: dict(
             mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
-        writer.add_scalars('train/policy_target', {
-            f'action {i}': np.mean(p)
-            for i, p in enumerate(zip(*policy_target))
-        }, step)
-        writer.add_scalars('train/policy_rollout', {
-            f'action {i}': np.mean(p)
-            for i, p in enumerate(zip(*policy_rollout))
-        }, step)
-        writer.add_scalars('train/value_target',
-                           get_logging_info(value_target), step)
-        writer.add_scalars('train/value_rollout',
-                           get_logging_info(value_rollout), step)
-        writer.add_scalars('train/reward_target',
-                           get_logging_info(reward_sum_target), step)
-        writer.add_scalars('train/reward_rollout',
-                           get_logging_info(reward_sum_rollout), step)
-        writer.add_scalars('train/priority',
-                           get_logging_info(priority_sampled), step)
+        writer.add_scalars('train/policy_target',
+                           {f'action {i}': np.mean(p)
+                            for i, p in enumerate(zip(*policy_target))}, step)
+        writer.add_scalars('train/policy_rollout',
+                           {f'action {i}': np.mean(p)
+                            for i, p in enumerate(zip(*policy_rollout))}, step)
+        writer.add_scalars('train/value_target', get_logging_info(value_target), step)
+        writer.add_scalars('train/value_rollout', get_logging_info(value_rollout), step)
+        writer.add_scalars('train/reward_target', get_logging_info(reward_sum_target), step)
+        writer.add_scalars('train/reward_rollout', get_logging_info(reward_sum_rollout), step)
+        writer.add_scalars('train/priority', get_logging_info(priority_sampled), step)
         # write back priorities
         replay_buffer.write_back_weights()
 
@@ -387,8 +353,7 @@ class MuZeroTrainer(Trainer):
         process_memory = process.memory_info()
         for name in process_memory._fields:
             value = getattr(process_memory, name)
-            writer.add_scalar("Memory/{}".format(name.capitalize()), value,
-                              self.iteration)
+            writer.add_scalar("Memory/{}".format(name.capitalize()), value, self.iteration)
 
     def save_model(self, checkpoint=False):
         '''save model to file'''

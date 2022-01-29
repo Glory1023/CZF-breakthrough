@@ -30,11 +30,9 @@ class ModelProvider:
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
             if packet_type == 'model_request':
-                asyncio.create_task(
-                    self.__on_model_request(identity, packet.model_request))
+                asyncio.create_task(self.__on_model_request(identity, packet.model_request))
 
-    async def __on_model_request(self, identity: bytes,
-                                 info: czf_pb2.ModelInfo):
+    async def __on_model_request(self, identity: bytes, info: czf_pb2.ModelInfo):
         '''send `Model`'''
         if info.version == -1:
             version = self._model_manager.get_latest_version(info.name)

@@ -12,8 +12,8 @@ namespace czf::actor::muzero_worker::worker {
 WorkerOption WorkerManager::worker_option;
 GameInfo WorkerManager::game_info;
 
-void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker,
-                        size_t num_gpu_root_worker, size_t num_gpu) {
+void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker, size_t num_gpu_root_worker,
+                        size_t num_gpu) {
   if (!running_) {
     running_ = true;
     const auto seed = WorkerManager::worker_option.seed;
@@ -49,8 +49,7 @@ void WorkerManager::terminate() {
   }
 }
 
-std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(
-    const std::string &raw) {
+std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(const std::string &raw) {
   czf::pb::Packet packet;
   packet.ParseFromString(raw);
   auto *jobs_pb = packet.mutable_job_batch()->mutable_jobs();
@@ -79,18 +78,16 @@ std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(
 
 py::bytes WorkerManager::wait_dequeue_result(size_t max_batch_size) {
   constexpr auto zero = std::chrono::duration<double>::zero();
-  const auto max_timeout =
-      std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
+  const auto max_timeout = std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
   // collect result jobs
   std::vector<std::unique_ptr<Job>> jobs;
   jobs.reserve(max_batch_size);
   result_queue_.wait_dequeue_bulk(std::back_inserter(jobs), max_batch_size);
   Clock_t::time_point deadline = Clock_t::now() + max_timeout;
-  for (Clock_t::duration timeout = max_timeout;
-       jobs.size() < max_batch_size && timeout > zero;
+  for (Clock_t::duration timeout = max_timeout; jobs.size() < max_batch_size && timeout > zero;
        timeout = deadline - Clock_t::now()) {
-    result_queue_.wait_dequeue_bulk_timed(
-        std::back_inserter(jobs), max_batch_size - jobs.size(), timeout);
+    result_queue_.wait_dequeue_bulk_timed(std::back_inserter(jobs), max_batch_size - jobs.size(),
+                                          timeout);
   }
   // collect tree results from jobs
   czf::pb::Packet packet;
@@ -111,9 +108,7 @@ void WorkerManager::load_from_bytes(const std::string &bytes) {
   model_manager.load_from_bytes(bytes);
 }
 
-void WorkerManager::load_from_file(const std::string &path) {
-  model_manager.load_from_file(path);
-}
+void WorkerManager::load_from_file(const std::string &path) { model_manager.load_from_file(path); }
 
 void WorkerManager::preprocess_pb_job(std::unique_ptr<Job> &job) {
   czf::pb::Job job_pb;
@@ -143,8 +138,7 @@ void WorkerManager::postprocess_pb_job(std::unique_ptr<Job> &job) {
   const auto &result = job->tree.get_tree_result();
   czf::pb::Job job_pb;
   job_pb.ParseFromString(job->job_str);
-  auto *evaluation =
-      job_pb.mutable_payload()->mutable_state()->mutable_evaluation();
+  auto *evaluation = job_pb.mutable_payload()->mutable_state()->mutable_evaluation();
   evaluation->set_value(result.value);
   for (size_t i = 0; i < game_info.num_actions; ++i) {
     evaluation->add_policy(0.F);
@@ -178,8 +172,7 @@ void WorkerManager::cpu_worker(Seed_t seed, Seed_t stream) {
           job->step = Job::Step::kForward;
           break;
         case Job::Step::kUpdate:
-          job->step = job->tree.after_forward(rng) ? Job::Step::kDone
-                                                   : Job::Step::kSelect;
+          job->step = job->tree.after_forward(rng) ? Job::Step::kDone : Job::Step::kSelect;
           break;
         case Job::Step::kForwardRoot:
           gpu_root_queue_.enqueue(std::move(job));
@@ -208,8 +201,7 @@ void WorkerManager::gpu_worker(bool is_root) {
   // jobs
   auto &queue = is_root ? gpu_root_queue_ : gpu_queue_;
   constexpr auto zero = std::chrono::duration<double>::zero();
-  const auto max_timeout =
-      std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
+  const auto max_timeout = std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
   const auto max_batch_size = WorkerManager::worker_option.batch_size;
   std::vector<std::unique_ptr<Job>> jobs;
   jobs.reserve(max_batch_size);
@@ -217,12 +209,11 @@ void WorkerManager::gpu_worker(bool is_root) {
   forward_results.reserve(max_batch_size);
   // inputs (NCHW)
   std::vector<int64_t> state_shape =
-      is_root ? WorkerManager::game_info.observation_shape
-              : WorkerManager::game_info.state_shape;
+      is_root ? WorkerManager::game_info.observation_shape : WorkerManager::game_info.state_shape;
   state_shape.insert(state_shape.begin(), static_cast<int64_t>(max_batch_size));
   std::vector<float> state_vector;
-  state_vector.reserve(std::accumulate(state_shape.begin(), state_shape.end(),
-                                       1U, std::multiplies<>()));
+  state_vector.reserve(
+      std::accumulate(state_shape.begin(), state_shape.end(), 1U, std::multiplies<>()));
   std::vector<float> action_vector;
   action_vector.reserve(max_batch_size);
   while (running_) {
@@ -231,8 +222,8 @@ void WorkerManager::gpu_worker(bool is_root) {
     for (Clock_t::duration timeout = max_timeout;
          jobs.size() < max_batch_size && timeout > zero && running_;
          timeout = deadline - Clock_t::now()) {
-      auto count = queue.wait_dequeue_bulk_timed(
-          std::back_inserter(jobs), max_batch_size - jobs.size(), timeout);
+      auto count = queue.wait_dequeue_bulk_timed(std::back_inserter(jobs),
+                                                 max_batch_size - jobs.size(), timeout);
       if (count == jobs.size()) {  // set the deadline in the first dequeue
         deadline = Clock_t::now() + max_timeout;
       }
@@ -249,29 +240,23 @@ void WorkerManager::gpu_worker(bool is_root) {
     action_vector.clear();
     for (auto &job : jobs) {
       const auto &info = job->tree.get_forward_input();
-      state_vector.insert(state_vector.end(), info.state.begin(),
-                          info.state.end());
+      state_vector.insert(state_vector.end(), info.state.begin(), info.state.end());
       action_vector.push_back(info.action);
     }
     auto [device, model_ptr] = model_manager.get();
-    auto state_tensor =
-        torch::from_blob(state_vector.data(), state_shape).to(device);
-    auto action_tensor = torch::from_blob(action_vector.data(),
-                                          {static_cast<int64_t>(batch_size), 1})
-                             .to(device);
+    auto state_tensor = torch::from_blob(state_vector.data(), state_shape).to(device);
+    auto action_tensor =
+        torch::from_blob(action_vector.data(), {static_cast<int64_t>(batch_size), 1}).to(device);
     torch::Tensor next_state_tensor;
     if (is_root) {
       // representation function
       next_state_tensor =
-          model_ptr->get_method("forward_representation")({state_tensor})
-              .toTensor();
+          model_ptr->get_method("forward_representation")({state_tensor}).toTensor();
     } else {
       // dynamics function
-      auto results =
-          model_ptr
-              ->get_method("forward_dynamics")({state_tensor, action_tensor})
-              .toTuple()
-              ->elements();
+      auto results = model_ptr->get_method("forward_dynamics")({state_tensor, action_tensor})
+                         .toTuple()
+                         ->elements();
       next_state_tensor = results[0].toTensor();
       const auto batch_reward = results[1].toTensor().cpu().contiguous();
       auto *const reward_ptr = batch_reward.data_ptr<float>();
@@ -290,8 +275,7 @@ void WorkerManager::gpu_worker(bool is_root) {
       state_ptr = state_ptr_end;
     }
     // prediction function
-    const auto results =
-        model_ptr->forward({next_state_tensor}).toTuple()->elements();
+    const auto results = model_ptr->forward({next_state_tensor}).toTuple()->elements();
     const auto batch_policy = results[0].toTensor().cpu().contiguous();
     const auto batch_value = results[1].toTensor().cpu().contiguous();
     const auto policy_size = batch_policy[0].numel();

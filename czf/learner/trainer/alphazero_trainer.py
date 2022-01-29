@@ -19,8 +19,7 @@ from czf.learner.nn import AlphaZero
 
 class AlphaZeroTrainer(Trainer):
     '''AlphaZero Trainer'''
-    def __init__(self, config, checkpoint_path, model_path, log_path,
-                 model_name, restore):
+    def __init__(self, config, checkpoint_path, model_path, log_path, model_name, restore):
         self._device = 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
@@ -84,21 +83,18 @@ class AlphaZeroTrainer(Trainer):
 
     def _train(self, dataloader, replay_buffer):
         self._model.train()
-        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
-            np.frombuffer(x, dtype=dtype), device=self._device)
+        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(np.frombuffer(x, dtype=dtype),
+                                                                device=self._device)
         # for observation_tensor, target_policy, target_value in dataloader:
         for transition in dataloader:
             observation_tensor = to_tensor(transition.observation).view(
                 -1, *self._game.observation_tensor_shape)
-            target_policy = to_tensor(transition.policy).view(
-                -1, self._game.num_distinct_actions)
-            target_value = to_tensor(transition.value).view(
-                -1, self._game.num_players)
+            target_policy = to_tensor(transition.policy).view(-1, self._game.num_distinct_actions)
+            target_value = to_tensor(transition.value).view(-1, self._game.num_players)
 
             self._optimizer.zero_grad()
             policy, value = self._model.forward(observation_tensor)
-            policy_loss = (-target_policy *
-                           (1e-8 + policy).log()).sum(dim=1).mean()
+            policy_loss = (-target_policy * (1e-8 + policy).log()).sum(dim=1).mean()
             value_loss = torch.nn.MSELoss()(target_value, value)
             loss = policy_loss + value_loss
             loss.backward()
@@ -151,8 +147,7 @@ class AlphaZeroTrainer(Trainer):
         process_memory = process.memory_info()
         for name in process_memory._fields:
             value = getattr(process_memory, name)
-            writer.add_scalar("Memory/{}".format(name.capitalize()), value,
-                              self.iteration)
+            writer.add_scalar("Memory/{}".format(name.capitalize()), value, self.iteration)
 
     def save_model(self, checkpoint=False):
         '''save model to file'''

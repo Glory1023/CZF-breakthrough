@@ -36,8 +36,7 @@ class Actor:
         self._operation = operation[self.algorithm][args.eval]
         if args.eval:
             assert args.eval in ('1P', '2P')
-            print(f'[{self.algorithm} Evaluation {args.eval} Mode]',
-                  self._node.identity)
+            print(f'[{self.algorithm} Evaluation {args.eval} Mode]', self._node.identity)
         else:
             print(f'[{self.algorithm} Training Mode]', self._node.identity)
 
@@ -99,8 +98,8 @@ class Actor:
         executor = ThreadPoolExecutor(max_workers=1)
         loop = asyncio.get_event_loop()
         while True:
-            raw = await loop.run_in_executor(
-                executor, self._worker_manager.wait_dequeue_result, 15)  #TODO
+            raw = await loop.run_in_executor(executor, self._worker_manager.wait_dequeue_result,
+                                             15)  #TODO
             if not raw:
                 break
             await self._broker.send(raw)

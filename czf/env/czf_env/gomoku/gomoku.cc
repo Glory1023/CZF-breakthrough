@@ -6,14 +6,11 @@
 
 namespace czf::env::czf_env::gomoku {
 
-GomokuState::GomokuState(GamePtr game_ptr)
-    : State(std::move(game_ptr)), turn_(0), winner_(-1) {
+GomokuState::GomokuState(GamePtr game_ptr) : State(std::move(game_ptr)), turn_(0), winner_(-1) {
   board_.fill(2);
 }
 
-StatePtr GomokuState::clone() const {
-  return std::make_unique<GomokuState>(*this);
-}
+StatePtr GomokuState::clone() const { return std::make_unique<GomokuState>(*this); }
 
 void GomokuState::apply_action(const Action& action) {
   Player player = current_player();
@@ -39,8 +36,7 @@ std::string GomokuState::to_string() const {
 
   for (int i = 0; i < BOARD_SIZE; ++i) {
     ss << std::setw(2) << std::setfill(' ') << BOARD_SIZE - i;
-    for (int j = 0; j < BOARD_SIZE; ++j)
-      ss << ' ' << chess[board_[i * BOARD_SIZE + j]];
+    for (int j = 0; j < BOARD_SIZE; ++j) ss << ' ' << chess[board_[i * BOARD_SIZE + j]];
     ss << std::endl;
   }
   ss << "  ";
@@ -48,17 +44,14 @@ std::string GomokuState::to_string() const {
   return ss.str();
 }
 
-bool GomokuState::is_terminal() const {
-  return turn_ == NUM_GRIDS || winner_ != -1;
-}
+bool GomokuState::is_terminal() const { return turn_ == NUM_GRIDS || winner_ != -1; }
 
 Player GomokuState::current_player() const { return turn_ % 2; }
 
 std::vector<float> GomokuState::observation_tensor() const {
   std::vector<float> tensor;
   auto shape = game()->observation_tensor_shape();
-  auto size =
-      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+  auto size = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
   tensor.reserve(size);
 
   for (int i = 0; i < NUM_GRIDS; ++i) {
@@ -86,14 +79,12 @@ bool GomokuState::has_line(const Player& player, const Action& action) const {
 
   for (int d = 0; d < 4; ++d) {
     int count = 0;
-    for (int ci = ai, cj = aj;
-         ci >= 0 && ci < BOARD_SIZE && cj >= 0 && cj < BOARD_SIZE &&
-         board_[ci * BOARD_SIZE + cj] == player;
+    for (int ci = ai, cj = aj; ci >= 0 && ci < BOARD_SIZE && cj >= 0 && cj < BOARD_SIZE &&
+                               board_[ci * BOARD_SIZE + cj] == player;
          ci -= vi[d], cj -= vj[d])
       ++count;
-    for (int ci = ai, cj = aj;
-         ci >= 0 && ci < BOARD_SIZE && cj >= 0 && cj < BOARD_SIZE &&
-         board_[ci * BOARD_SIZE + cj] == player;
+    for (int ci = ai, cj = aj; ci >= 0 && ci < BOARD_SIZE && cj >= 0 && cj < BOARD_SIZE &&
+                               board_[ci * BOARD_SIZE + cj] == player;
          ci += vi[d], cj += vj[d])
       ++count;
     // +1 since board_[action] will be counted twice

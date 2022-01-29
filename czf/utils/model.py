@@ -97,11 +97,10 @@ class RemoteModelManager:
         '''get the latest model version by `name`'''
         if name not in self._latest_version:
             self._latest_version[name] = asyncio.Future()
-            await self.__send_model_request(
-                czf_pb2.ModelInfo(
-                    name=name,
-                    version=-1,
-                ))
+            await self.__send_model_request(czf_pb2.ModelInfo(
+                name=name,
+                version=-1,
+            ))
             return await self._latest_version[name]
         return self._latest_version[name]
 

@@ -22,11 +22,7 @@ def run_main():
                         required=True,
                         metavar='PORT',
                         help='provider listen port')
-    parser.add_argument('-c',
-                        '--cache-size',
-                        type=int,
-                        default=8,
-                        help='total cached models')
+    parser.add_argument('-c', '--cache-size', type=int, default=8, help='total cached models')
     parser.add_argument('--suffix',
                         metavar='unique_id',
                         default=uuid4().hex,

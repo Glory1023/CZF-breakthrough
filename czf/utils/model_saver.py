@@ -91,11 +91,8 @@ def run_main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkpoint', help='path to load checkpoint')
     parser.add_argument('--model-dir', help='directory to save model')
-    parser.add_argument('--algorithm',
-                        help='used algorithm (AlphaZero or MuZero)')
-    parser.add_argument('--rm',
-                        action='store_true',
-                        help='remove the checkpoint')
+    parser.add_argument('--algorithm', help='used algorithm (AlphaZero or MuZero)')
+    parser.add_argument('--rm', action='store_true', help='remove the checkpoint')
     args = parser.parse_args()
     main(args)
 

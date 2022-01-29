@@ -35,8 +35,7 @@ class AtariState:
     def _stack_action_observation(self, action, obs):
         '''Stack action and observation (4 x H x W)'''
         # HWC => CHW
-        action_plane = np.full((1, *obs.shape[1:]),
-                               (action + 1) / self._num_action,
+        action_plane = np.full((1, *obs.shape[1:]), (action + 1) / self._num_action,
                                dtype=np.float32)
         # 4 (action, RGB) x H x W
         return np.vstack((action_plane, obs))
@@ -107,8 +106,7 @@ class AtariGame:
 
     def new_initial_state(self, video_dir=None):
         '''Returns a newly allocated initial state'''
-        return AtariState(self._name, self._frame_stack, self._noop_max,
-                          video_dir)
+        return AtariState(self._name, self._frame_stack, self._noop_max, video_dir)
 
     @property
     def name(self):

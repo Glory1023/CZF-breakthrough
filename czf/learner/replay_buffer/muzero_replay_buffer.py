@@ -26,8 +26,7 @@ class MuZeroRolloutBatch:
     `sentinel` of the list.
     '''
     def __init__(self, data):
-        index, weight, observation, scale, *transition = self.__zip_discard(
-            *data)
+        index, weight, observation, scale, *transition = self.__zip_discard(*data)
         self.index = tuple(index)
         self.weight = b''.join(weight)
         self.observation = b''.join(observation)
@@ -98,10 +97,7 @@ class MuZeroTransitionBuffer:
     def get_rollout(self, index, kstep):
         '''Get rollout at index with kstep'''
         buffer_len = len(self)
-        return [
-            self.__getitem__(index + i) for i in range(kstep)
-            if index + i < buffer_len
-        ]
+        return [self.__getitem__(index + i) for i in range(kstep) if index + i < buffer_len]
 
     def get_observation(self, index):
         '''Get observation (stacked features) at index'''
@@ -111,10 +107,8 @@ class MuZeroTransitionBuffer:
             return weight, self.__getitem__(index).observation
         # concat feature tensors into an observation
         # (a_1, o_1), (a_2, o_2), ..., (a_n, o_n)
-        return weight, b''.join([
-            self.__getitem__(index - i).observation
-            for i in reversed(range(self._frame_stack))
-        ])
+        return weight, b''.join(
+            [self.__getitem__(index - i).observation for i in reversed(range(self._frame_stack))])
 
     def extend(self, priorities, trajectories):
         '''Extend the right side of the buffer by
@@ -174,8 +168,7 @@ class MuZeroReplayBuffer(ReplayBuffer):
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
         self._kstep = kstep
-        self._buffer = MuZeroTransitionBuffer(capacity, self._frame_stack,
-                                              self._spatial_shape)
+        self._buffer = MuZeroTransitionBuffer(capacity, self._frame_stack, self._spatial_shape)
 
     def __len__(self):
         return len(self._buffer)

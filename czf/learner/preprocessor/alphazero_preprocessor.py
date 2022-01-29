@@ -51,8 +51,7 @@ class AlphaZeroPreprocessor(Preprocessor):
             num_games=1,
             num_states=num_states,
             game_steps=(trajectory.statistics.game_steps, ),
-            player_returns=tuple(
-                (reward, ) for reward in trajectory.statistics.rewards),
+            player_returns=tuple((reward, ) for reward in trajectory.statistics.rewards),
         )
         # add trajectory to buffer (from start to terminal)
         self._result_queue.put((stats, tuple(priorities), tuple(buffer)))

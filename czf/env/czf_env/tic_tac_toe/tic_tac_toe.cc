@@ -10,9 +10,7 @@ TicTacToeState::TicTacToeState(GamePtr game_ptr)
   board_.fill(2);
 }
 
-StatePtr TicTacToeState::clone() const {
-  return std::make_unique<TicTacToeState>(*this);
-}
+StatePtr TicTacToeState::clone() const { return std::make_unique<TicTacToeState>(*this); }
 
 void TicTacToeState::apply_action(const Action& action) {
   Player player = current_player();
@@ -56,8 +54,7 @@ Player TicTacToeState::current_player() const { return turn_ % 2; }
 std::vector<float> TicTacToeState::observation_tensor() const {
   std::vector<float> tensor;
   auto shape = game()->observation_tensor_shape();
-  auto size =
-      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+  auto size = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
   tensor.reserve(size);
 
   for (int i = 0; i < 9; ++i) {
@@ -111,9 +108,7 @@ std::vector<float> TicTacToeState::rewards() const {
 std::string TicTacToeGame::name() const { return "tic_tac_toe"; }
 int TicTacToeGame::num_players() const { return 2; }
 int TicTacToeGame::num_distinct_actions() const { return 9; }
-std::vector<int> TicTacToeGame::observation_tensor_shape() const {
-  return {4, 3, 3};
-}
+std::vector<int> TicTacToeGame::observation_tensor_shape() const { return {4, 3, 3}; }
 
 StatePtr TicTacToeGame::new_initial_state() const {
   return std::make_unique<TicTacToeState>(shared_from_this());
@@ -121,8 +116,8 @@ StatePtr TicTacToeGame::new_initial_state() const {
 
 int TicTacToeGame::num_transformations() const { return 8; }
 
-std::vector<float> TicTacToeGame::transform_observation(
-    const std::vector<float>& observation, int type) const {
+std::vector<float> TicTacToeGame::transform_observation(const std::vector<float>& observation,
+                                                        int type) const {
   std::vector<float> transformed_observation(observation);
   transform(&transformed_observation[0], type);
   transform(&transformed_observation[9], type);
@@ -130,15 +125,15 @@ std::vector<float> TicTacToeGame::transform_observation(
   return transformed_observation;
 }
 
-std::vector<float> TicTacToeGame::transform_policy(
-    const std::vector<float>& policy, int type) const {
+std::vector<float> TicTacToeGame::transform_policy(const std::vector<float>& policy,
+                                                   int type) const {
   std::vector<float> transformed_policy(policy);
   transform(&transformed_policy[0], type);
   return transformed_policy;
 }
 
-std::vector<float> TicTacToeGame::restore_policy(
-    const std::vector<float>& policy, int type) const {
+std::vector<float> TicTacToeGame::restore_policy(const std::vector<float>& policy,
+                                                 int type) const {
   std::vector<float> restored_policy(policy);
   int restored_type;
   switch (type) {

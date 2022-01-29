@@ -14,9 +14,8 @@ void Job::preprocess() {
   job_pb.ParseFromString(job_str);
   const auto& state = job_pb.payload().state();
   const auto& option = state.tree_option();
-  TreeOption tree_option{static_cast<size_t>(option.simulation_count()),
-                         option.c_puct(), option.dirichlet_alpha(),
-                         option.dirichlet_epsilon()};
+  TreeOption tree_option{static_cast<size_t>(option.simulation_count()), option.c_puct(),
+                         option.dirichlet_alpha(), option.dirichlet_epsilon()};
   tree.set_option(tree_option);
   // root_state = engine->game->deserialize_state(state.serialized_state());
   job_pb.mutable_payload()->mutable_state()->clear_observation_tensor();
@@ -86,17 +85,14 @@ void Job::postprocess(size_t num_actions) {
   const auto& root_node = tree.root_node;
   std::vector<float> mcts_policy(num_actions, 0.0F);
   for (const auto& [p, action, child] : root_node.children) {
-    mcts_policy[action] =
-        static_cast<float>(child.num_visits) / (root_node.num_visits - 1);
+    mcts_policy[action] = static_cast<float>(child.num_visits) / (root_node.num_visits - 1);
   }
 
   czf::pb::Job job_pb;
   job_pb.ParseFromString(job_str);
-  auto* evaluation =
-      job_pb.mutable_payload()->mutable_state()->mutable_evaluation();
+  auto* evaluation = job_pb.mutable_payload()->mutable_state()->mutable_evaluation();
 
-  evaluation->set_value(root_node.current_player_value_sum /
-                        root_node.num_visits);
+  evaluation->set_value(root_node.current_player_value_sum / root_node.num_visits);
   for (const auto& p : mcts_policy) evaluation->add_policy(p);
   job_pb.SerializeToString(&job_str);
 

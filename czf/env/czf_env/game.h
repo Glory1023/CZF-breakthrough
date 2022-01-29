@@ -47,12 +47,9 @@ class Game : public std::enable_shared_from_this<Game> {
   virtual std::vector<int> observation_tensor_shape() const = 0;
 
   virtual int num_transformations() const;
-  virtual std::vector<float> transform_observation(const std::vector<float>&,
-                                                   int) const;
-  virtual std::vector<float> transform_policy(const std::vector<float>&,
-                                              int) const;
-  virtual std::vector<float> restore_policy(const std::vector<float>&,
-                                            int) const;
+  virtual std::vector<float> transform_observation(const std::vector<float>&, int) const;
+  virtual std::vector<float> transform_policy(const std::vector<float>&, int) const;
+  virtual std::vector<float> restore_policy(const std::vector<float>&, int) const;
 
   virtual std::string action_to_string(const Action& action) const {
     return std::to_string(action);

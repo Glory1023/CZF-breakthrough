@@ -13,14 +13,11 @@ from czf.game_server.game_server import GameServer
 from czf.game_server.evaluator import EvalGameServer
 
 
-def make_default_action_policy_fn(softmax_step, num_moves, legal_actions,
-                                  legal_actions_policy):
+def make_default_action_policy_fn(softmax_step, num_moves, legal_actions, legal_actions_policy):
     '''Default action policy: switch betweens softmax and argmax action policy'''
     if num_moves < softmax_step:
-        return softmax_action_policy_fn(num_moves, legal_actions,
-                                        legal_actions_policy)
-    return argmax_action_policy_fn(num_moves, legal_actions,
-                                   legal_actions_policy)
+        return softmax_action_policy_fn(num_moves, legal_actions, legal_actions_policy)
+    return argmax_action_policy_fn(num_moves, legal_actions, legal_actions_policy)
 
 
 def softmax_action_policy_fn(_, legal_actions, legal_actions_policy):
@@ -79,9 +76,7 @@ def run_main():
                         default=uuid4().hex,
                         help='unique id of the game server')
     parser.add_argument('--eval', action='store_true', help='evaluation mode')
-    parser.add_argument('-s',
-                        '--storage-dir',
-                        help='path to store model, trajectory, and log')
+    parser.add_argument('-s', '--storage-dir', help='path to store model, trajectory, and log')
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
@@ -96,8 +91,7 @@ def run_main():
         else:
             callbacks['action_policy'] = argmax_action_policy_fn
     elif isinstance(softmax_step, int):
-        callbacks['action_policy'] = partial(make_default_action_policy_fn,
-                                             softmax_step)
+        callbacks['action_policy'] = partial(make_default_action_policy_fn, softmax_step)
     if args.eval:
         callbacks['action_policy'] = argmax_action_policy_fn
         # np.set_printoptions(precision=3)

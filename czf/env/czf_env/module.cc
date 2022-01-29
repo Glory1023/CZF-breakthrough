@@ -29,10 +29,8 @@ PYBIND11_MODULE(czf_env, m) {  // NOLINT
   py::class_<Game, std::shared_ptr<Game>>(m, "Game")
       .def_property_readonly("name", &Game::name)
       .def_property_readonly("num_players", &Game::num_players)
-      .def_property_readonly("num_distinct_actions",
-                             &Game::num_distinct_actions)
-      .def_property_readonly("observation_tensor_shape",
-                             &Game::observation_tensor_shape)
+      .def_property_readonly("num_distinct_actions", &Game::num_distinct_actions)
+      .def_property_readonly("observation_tensor_shape", &Game::observation_tensor_shape)
       .def("new_initial_state", &Game::new_initial_state)
       .def_property_readonly("num_transformations", &Game::num_transformations)
       .def("transform_observation", &Game::transform_observation)

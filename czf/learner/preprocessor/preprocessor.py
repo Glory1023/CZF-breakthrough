@@ -66,5 +66,4 @@ class Preprocessor(abc.ABC):
         Raises:
             NotImplementedError: Preprocessor must be able to add trajectory
         '''
-        raise NotImplementedError(
-            'Preprocessor must be able to add trajectory')
+        raise NotImplementedError('Preprocessor must be able to add trajectory')

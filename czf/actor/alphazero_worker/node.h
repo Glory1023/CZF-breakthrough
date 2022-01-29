@@ -12,8 +12,8 @@ namespace czf::actor::alphazero_worker {
 class Node {
  public:
   Node();
-  std::tuple<czf::env::czf_env::Action, Node*> select(
-      std::mt19937& rng, const TreeOption& tree_option) const;
+  std::tuple<czf::env::czf_env::Action, Node*> select(std::mt19937& rng,
+                                                      const TreeOption& tree_option) const;
   void expand(const std::vector<czf::env::czf_env::Action>& legal_actions);
   void reset();
 

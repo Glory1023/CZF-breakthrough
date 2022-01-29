@@ -18,8 +18,7 @@ class Learner:
         model_path = storage_path / 'model'
         log_path = storage_path / 'log'
         trajectory_path = storage_path / 'trajectory'
-        all_path = (storage_path, checkpoint_path, model_path, log_path,
-                    trajectory_path)
+        all_path = (storage_path, checkpoint_path, model_path, log_path, trajectory_path)
         for path in all_path:
             Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -46,16 +45,15 @@ class Learner:
             replay_buffer_config = dict(
                 num_player=config['game']['num_player'],
                 states_to_train=config['learner'].get('states_to_train', None),
-                sequences_to_train=config['learner'].get(
-                    'sequences_to_train', None),
+                sequences_to_train=config['learner'].get('sequences_to_train', None),
                 sample_ratio=config['learner'].get('sample_ratio', None),
                 sample_states=config['learner'].get('sample_states', None),
                 observation_config=config['game']['observation'],
                 capacity=config['learner']['replay_buffer_size'],
             )
             # preprocess queue
-            self._trajectory_queue = TrajectoryQueue(
-                preprocessor_cls=AlphaZeroPreprocessor, num_proc=args.num_proc)
+            self._trajectory_queue = TrajectoryQueue(preprocessor_cls=AlphaZeroPreprocessor,
+                                                     num_proc=args.num_proc)
         elif algorithm == 'MuZero':
             from czf.learner.preprocessor.muzero_preprocessor import MuZeroPreprocessor
             from czf.learner.trainer.muzero_trainer import MuZeroTrainer
@@ -81,8 +79,7 @@ class Learner:
             replay_buffer_config = dict(
                 num_player=config['game']['num_player'],
                 states_to_train=config['learner'].get('states_to_train', None),
-                sequences_to_train=config['learner'].get(
-                    'sequences_to_train', None),
+                sequences_to_train=config['learner'].get('sequences_to_train', None),
                 sample_ratio=config['learner'].get('sample_ratio', None),
                 sample_states=config['learner'].get('sample_states', None),
                 observation_config=config['game']['observation'],
@@ -155,8 +152,7 @@ class Learner:
         executor = ThreadPoolExecutor(max_workers=1)
         loop = asyncio.get_event_loop()
         while True:
-            name, version = await loop.run_in_executor(
-                executor, self._trainer_runner.get_notify)
+            name, version = await loop.run_in_executor(executor, self._trainer_runner.get_notify)
             print('notify model', name, 'iteration', version)
             raw = czf_pb2.Packet(model_info=czf_pb2.ModelInfo(
                 name=name,

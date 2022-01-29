@@ -14,12 +14,10 @@ void TreeInfo::update(float value) {
 }
 
 float TreeInfo::get_normalized_value(float value) const {
-  return (max_value > min_value) ? (value - min_value) / (max_value - min_value)
-                                 : value;
+  return (max_value > min_value) ? (value - min_value) / (max_value - min_value) : value;
 }
 
-float MctsInfo::update(float z, bool is_root_player, bool is_two_player,
-                       float discount) {
+float MctsInfo::update(float z, bool is_root_player, bool is_two_player, float discount) {
   const auto w = is_two_player && is_root_player ? -z : z;
   ++visits;
   sqrt_visits = std::sqrt(visits);
@@ -29,8 +27,7 @@ float MctsInfo::update(float z, bool is_root_player, bool is_two_player,
 
 bool NodeInfo::can_select_child() const { return !children.empty(); }
 
-void NodeInfo::expand(const std::vector<Action_t> &legal_actions,
-                      const bool is_two_player) {
+void NodeInfo::expand(const std::vector<Action_t> &legal_actions, const bool is_two_player) {
   const auto size = legal_actions.size();
   const auto child_player = is_two_player ? !is_root_player : is_root_player;
   children.resize(size);
@@ -41,8 +38,7 @@ void NodeInfo::expand(const std::vector<Action_t> &legal_actions,
 
 bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
-Node *Node::select_child(const TreeInfo &tree_info,
-                         const TreeOption &tree_option,
+Node *Node::select_child(const TreeInfo &tree_info, const TreeOption &tree_option,
                          bool is_two_player) const {
   // init value
   float init_value = 0.F;
@@ -52,11 +48,11 @@ Node *Node::select_child(const TreeInfo &tree_info,
   for (const auto &child : node_info_.children) {
     if (child.can_select_child()) {
       ++num_selected;
-      value_sum += is_two_player
-                       ? child.mcts_info_.value
-                       : tree_info.get_normalized_value(
-                             child.mcts_info_.reward +
-                             tree_option.discount * child.mcts_info_.value);
+      value_sum +=
+          is_two_player
+              ? child.mcts_info_.value
+              : tree_info.get_normalized_value(child.mcts_info_.reward +
+                                               tree_option.discount * child.mcts_info_.value);
     }
   }
   if (num_selected > 0) {
@@ -73,14 +69,11 @@ Node *Node::select_child(const TreeInfo &tree_info,
             ? (is_two_player
                    ? child.mcts_info_.value
                    : tree_info.get_normalized_value(child.mcts_info_.reward +
-                                                    tree_option.discount *
-                                                        child.mcts_info_.value))
+                                                    tree_option.discount * child.mcts_info_.value))
             : init_value;
     const float score =
-        child_value + tree_option.c_puct *
-                          mcts_info_.policy[child.mcts_info_.action_index] *
-                          mcts_info_.sqrt_visits /
-                          static_cast<float>(1 + child.mcts_info_.visits);
+        child_value + tree_option.c_puct * mcts_info_.policy[child.mcts_info_.action_index] *
+                          mcts_info_.sqrt_visits / static_cast<float>(1 + child.mcts_info_.visits);
     // argmax
     if (score > selected_score) {
       selected_score = score;
@@ -96,8 +89,7 @@ void Node::set_player_and_action(bool player, Action_t action) {
   mcts_info_.action_index = static_cast<size_t>(action);
 }
 
-void Node::expand_children(const std::vector<Action_t> &legal_actions,
-                           bool is_two_player) {
+void Node::expand_children(const std::vector<Action_t> &legal_actions, bool is_two_player) {
   node_info_.expand(legal_actions, is_two_player);
 }
 
@@ -127,16 +119,13 @@ void Node::add_dirichlet_noise(RNG_t &rng, const TreeOption &tree_option) {
   size_t i = 0;
   for (const auto &child : node_info_.children) {
     mcts_info_.policy[child.mcts_info_.action_index] =
-        (1 - eps) * mcts_info_.policy[child.mcts_info_.action_index] +
-        eps * (noise[i++] / sum);
+        (1 - eps) * mcts_info_.policy[child.mcts_info_.action_index] + eps * (noise[i++] / sum);
   }
 }
 
 const State_t &Node::get_forward_state() const { return forward_info_.state; }
 
-const Action_t &Node::get_forward_action() const {
-  return forward_info_.action;
-}
+const Action_t &Node::get_forward_action() const { return forward_info_.action; }
 
 void Node::set_forward_result(ForwardResult result) {
   // r, s = g(s', a)
@@ -152,8 +141,7 @@ float Node::get_forward_value() const { return mcts_info_.forward_value; }
 bool Node::is_root_player() const { return node_info_.is_root_player; }
 
 float Node::update(float z, bool is_two_player, float discount) {
-  return mcts_info_.update(z, node_info_.is_root_player, is_two_player,
-                           discount);
+  return mcts_info_.update(z, node_info_.is_root_player, is_two_player, discount);
 }
 
 size_t Node::get_visits() const { return mcts_info_.visits; }
@@ -214,9 +202,8 @@ void Tree::expand_root(const std::vector<Action_t> &legal_actions) {
 }
 
 ForwardInfo Tree::get_forward_input() const {
-  Node *parent = selection_path_.size() > 1
-                     ? selection_path_[selection_path_.size() - 2]
-                     : current_node_;
+  Node *parent =
+      selection_path_.size() > 1 ? selection_path_[selection_path_.size() - 2] : current_node_;
   return {parent->get_forward_state(), current_node_->get_forward_action()};
 }
 
@@ -226,8 +213,7 @@ void Tree::set_forward_result(ForwardResult result) {
 
 TreeResult Tree::get_tree_result() const {
   auto value = tree_.get_q_value();
-  return {get_root_visits(), tree_.get_children_visits(),
-          is_two_player_ ? -value : value};
+  return {get_root_visits(), tree_.get_children_visits(), is_two_player_ ? -value : value};
 }
 
 size_t Tree::get_root_visits() const {

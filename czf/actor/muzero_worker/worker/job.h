@@ -7,14 +7,14 @@ namespace czf::actor::muzero_worker::worker {
 
 struct Job {
   enum class Step {
-    kEnqueue,               ///< enqueue a batch of jobs
-    kForwardRoot,           ///< forward the representation (h => f)
-    kSelect,                ///< Mcts selection & expansion
-    kForward,               ///< forward the dynamics model (g => f)
-    kUpdate,                ///< Mcts update
-    kDone,                  ///< the job is finished
-    kDequeue,               ///< dequeue a batch of jobs
-  } step = Step::kEnqueue;  ///< current step of the job
+    kEnqueue,                                  ///< enqueue a batch of jobs
+    kForwardRoot,                              ///< forward the representation (h => f)
+    kSelect,                                   ///< Mcts selection & expansion
+    kForward,                                  ///< forward the dynamics model (g => f)
+    kUpdate,                                   ///< Mcts update
+    kDone,                                     ///< the job is finished
+    kDequeue,                                  ///< dequeue a batch of jobs
+  } step = Step::kEnqueue;                     ///< current step of the job
   czf::actor::muzero_worker::mcts::Tree tree;  ///< Mcts tree
   std::string job_str;                         ///< protobuf packet buffer
 };

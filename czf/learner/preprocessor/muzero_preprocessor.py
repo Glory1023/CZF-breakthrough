@@ -28,8 +28,7 @@ class MuZeroPreprocessor(Preprocessor):
         if transform == 'Atari':
             # sign(x) * (sqrt(|x| + 1) − 1 + eps * x)
             epsilon = 0.001
-            self._transform = lambda x: np.sign(x) * (np.sqrt(np.abs(x) + 1) -
-                                                      1 + epsilon * x)
+            self._transform = lambda x: np.sign(x) * (np.sqrt(np.abs(x) + 1) - 1 + epsilon * x)
         self._r_heads = r_heads
         self._v_heads = v_heads
         self._kstep = kstep
@@ -86,8 +85,7 @@ class MuZeroPreprocessor(Preprocessor):
                 if self._num_player == 1:
                     terminal_value = terminal_next_value
                 else:
-                    terminal_value = state.transition.rewards[
-                        state.transition.current_player]
+                    terminal_value = state.transition.rewards[state.transition.current_player]
                 if self._transform is not None:
                     terminal_value = self._transform(terminal_value)
                     terminal_value = self.__get_target_dist(
@@ -126,16 +124,15 @@ class MuZeroPreprocessor(Preprocessor):
             # monte carlo returns
             for player in range(self._num_player):
                 rewards = state.transition.rewards
-                discounted_return[player].append(rewards[player] + gamma *
-                                                 discounted_return[player][-1])
+                discounted_return[player].append(rewards[player] +
+                                                 gamma * discounted_return[player][-1])
             values.append(state.evaluation.value)
             # nstep value
             player = state.transition.current_player
             nstep_value = discounted_return[player][-1]
             if (nstep > 0) and (i >= nstep):
-                nstep_value += (
-                    values[-nstep - 1] -
-                    discounted_return[player][-nstep - 1]) * gamma**nstep
+                nstep_value += (values[-nstep - 1] -
+                                discounted_return[player][-nstep - 1]) * gamma**nstep
             reward = state.transition.rewards[state.transition.current_player]
             # priority
             priority = 1.
@@ -188,9 +185,7 @@ class MuZeroPreprocessor(Preprocessor):
                 num_games=1,
                 num_states=num_states,
                 game_steps=(trajectory.statistics.game_steps, ),
-                player_returns=tuple(
-                    (reward, ) for reward in trajectory.statistics.rewards),
+                player_returns=tuple((reward, ) for reward in trajectory.statistics.rewards),
             )
         # add trajectory to buffer (from start to terminal)
-        self._result_queue.put(
-            (stats, tuple(reversed(priorities)), tuple(reversed(buffer))))
+        self._result_queue.put((stats, tuple(reversed(priorities)), tuple(reversed(buffer))))

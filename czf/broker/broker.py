@@ -49,8 +49,7 @@ class Broker:
         else:
             operation = job.procedure[job.step]
             loop = asyncio.get_event_loop()
-            worker = await loop.run_in_executor(self._executor, get_worker,
-                                                self._peers[operation])
+            worker = await loop.run_in_executor(self._executor, get_worker, self._peers[operation])
             packet = czf_pb2.Packet(job_batch=czf_pb2.JobBatch(jobs=[job]))
             await self.__send_packet(worker, packet)
 
