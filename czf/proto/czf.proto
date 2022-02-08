@@ -47,8 +47,6 @@ message WorkerState {
     float value = 1;
     // MCTS root policy (used to determine action)
     repeated float policy = 2;
-    // MCTS root children's average value
-    float average_value = 3;
   }
   // a message for a game transition (GameServer)
   message Transition {
@@ -133,24 +131,6 @@ message Trajectory {
 // a collection of Trajectory messages
 message TrajectoryBatch { repeated Trajectory trajectories = 1; }
 
-// a message for an Evaluator result
-message EvaluationResult {
-  // evaluation iteration
-  int32 iteration = 1;
-  // target model info
-  ModelInfo target = 2;
-  // base (opponent) model info
-  ModelInfo base = 3;
-  // elo rating for target model
-  float elo = 4;
-  // win rate for target model
-  float win = 5;
-  // draw rate for target model
-  float draw = 6;
-  // lose rate for target model
-  float lose = 7;
-}
-
 // a general Packet message
 message Packet {
   // with one of the following payload
@@ -165,6 +145,5 @@ message Packet {
     JobBatch job_batch = 8;
     Job job = 9;
     TrajectoryBatch trajectory_batch = 10;
-    EvaluationResult evaluation_result = 11;
   }
 }

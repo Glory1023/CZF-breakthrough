@@ -140,8 +140,6 @@ class Learner:
                 self._trajectory_queue.put(raw)
             elif packet_type == 'model_request':
                 await self._model_request.put((identity, packet.model_request))
-            elif packet_type == 'evaluation_result':
-                await self.__on_evaluation_result(packet.evaluation_result)
             elif packet_type == 'model_subscribe':
                 self._model_peers.add(identity)
             elif packet_type == 'goodbye':
@@ -172,20 +170,6 @@ class Learner:
             packet = czf_pb2.Packet()
             packet.model_response.CopyFrom(model)
             await self.__send_packet(identity, packet)
-
-    async def __on_evaluation_result(self, result: czf_pb2.EvaluationResult):
-        '''store evaluation result'''
-        step = result.iteration
-        writer = self._trainer._summary_writer
-        writer.add_scalar('eval/elo', result.elo, step)
-        writer.add_scalar('eval/current_version', result.target.version, step)
-        writer.add_scalar('eval/best_version', result.base.version, step)
-        writer.add_scalars('eval/result', {
-            'win': result.win,
-            'draw': result.draw,
-            'lose': result.lose,
-        }, step)
-        writer.flush()
 
     async def __send_packet(self, identity: bytes, packet: czf_pb2.Packet):
         '''helper to send a `Packet` to `identity`'''

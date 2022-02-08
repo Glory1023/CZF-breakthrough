@@ -244,7 +244,6 @@ class GameServer:
         self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
         # model
         self._model_info = mp.Value(ModelInfo, 'default', -1)
-        self._has_new_model = asyncio.Event()
         # server mode
         algorithm = config['algorithm']
         assert algorithm in ('AlphaZero', 'MuZero')
@@ -327,7 +326,6 @@ class GameServer:
                 # assert packet._model_info.name == self._model_info.name
                 if version > self._model_info.version:
                     self._model_info.version = version
-                    self._has_new_model.set()
 
     async def _send_job_loop(self):
         '''a loop to send `Job`'''
