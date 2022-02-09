@@ -31,7 +31,7 @@ class WorkerManager {
   /** enqueue a serialized `JobBatch` */
   std::tuple<py::bytes, std::string, int> enqueue_job_batch(const std::string&);
   /** dequeue a serialized `Packet` from the result queue */
-  py::bytes wait_dequeue_result(size_t);
+  py::bytes dequeue_job_batch(size_t);
   /** load model from bytes */
   void load_from_bytes(const std::string&);
   /** load model from file */

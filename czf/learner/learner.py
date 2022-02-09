@@ -157,7 +157,7 @@ class Learner:
                 version=version,
             )).SerializeToString()
             for peer in self._model_peers:
-                await self.__send_raw(peer, raw)
+                await self._send_raw(peer, raw)
 
     async def _model_request_loop(self):
         '''send `Model` loop'''
@@ -169,12 +169,12 @@ class Learner:
             model = self._model_provider.get(info)
             packet = czf_pb2.Packet()
             packet.model_response.CopyFrom(model)
-            await self.__send_packet(identity, packet)
+            await self._send_packet(identity, packet)
 
-    async def __send_packet(self, identity: bytes, packet: czf_pb2.Packet):
+    async def _send_packet(self, identity: bytes, packet: czf_pb2.Packet):
         '''helper to send a `Packet` to `identity`'''
-        await self.__send_raw(identity, packet.SerializeToString())
+        await self._send_raw(identity, packet.SerializeToString())
 
-    async def __send_raw(self, identity: bytes, raw: bytes):
+    async def _send_raw(self, identity: bytes, raw: bytes):
         '''helper to send a zmq message'''
         await self._socket.send_multipart([identity, raw])

@@ -1,6 +1,7 @@
 '''CZF MuZero Replay Buffer'''
 from collections import deque, namedtuple
 from itertools import zip_longest
+
 import numpy as np
 import zstandard as zstd
 
@@ -42,11 +43,11 @@ class MuZeroRolloutBatch:
 
 class MuZeroTransitionBuffer:
     '''MuZeroTransitionBuffer is mainly used to stack frames.
-    When `frame_stack` equals to 0, it essentially works as a deque with compression.
+    When `frame_stack` equals to 0, it essentially works as a deque.
 
     Usage:
 
-    - Store transitions with compression
+    - Store transitions
     - Get a transition with stacked features from the buffer
     '''
     def __init__(self, maxlen, frame_stack, spatial_shape):
@@ -126,26 +127,23 @@ class MuZeroReplayBuffer(ReplayBuffer):
       | `torch.Tensor` and may contains several `None` at the end due to terminals.
       | In addition, a data sample contains the following:
 
-        .. code-block:: python
-
-            [
-                observation,                     # a stacked feature
-                gradient_scale,                  # 1 / K
-                *[value, mask, policy, reward],  # K-steps transitions
-            ]
+        [
+            observation,                             # a stacked feature
+            gradient_scale,                          # 1 / K
+            *[value, mask, policy, action, reward],  # K-steps transitions
+        ]
 
       | For example, if the next state of `obs` is terminal, then the data sample is:
 
-        .. code-block:: python
-
-            [
-                obs,
-                1.,              # = 1 / 1
-                terminal_value,  # `value`: the value of terminal state
-                0.,              # `mask`: terminal state has no next state
-                None,            # `policy`: terminal state has no policy
-                None,            # `reward`: terminal state has no reward
-            ]
+        [
+            obs,
+            1.,              # = 1 / 1
+            terminal_value,  # `value`: the value of terminal state
+            0.,              # `mask`: terminal state has no next state
+            None,            # `policy`: terminal state has no policy
+            None,            # `action`: terminal state has no action
+            None,            # `reward`: terminal state has no reward
+        ]
     '''
     def __init__(
         self,
@@ -168,7 +166,11 @@ class MuZeroReplayBuffer(ReplayBuffer):
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
         self._kstep = kstep
-        self._buffer = MuZeroTransitionBuffer(capacity, self._frame_stack, self._spatial_shape)
+        self._buffer = MuZeroTransitionBuffer(
+            capacity,
+            self._frame_stack,
+            self._spatial_shape,
+        )
 
     def __len__(self):
         return len(self._buffer)

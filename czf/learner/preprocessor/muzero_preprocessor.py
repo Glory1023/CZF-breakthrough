@@ -38,7 +38,7 @@ class MuZeroPreprocessor(Preprocessor):
         self._use_prioritize = use_prioritize
 
     @staticmethod
-    def __get_target_dist(x, heads):
+    def _get_target_dist(x, heads):
         '''Returns the target distribution of a reward or a value'''
         h_low, h_high = heads
         x = np.clip(x, h_low, h_high)
@@ -68,13 +68,12 @@ class MuZeroPreprocessor(Preprocessor):
         nstep, gamma = self._nstep, self._discount_factor
         discounted_return = [[] for _ in range(self._num_player)]
         values = []
-        priorities, buffer = [], []
+        priorities, buffer_ = [], []
         has_statistics = trajectory.HasField('statistics')
         num_states = 0
         for i, state in enumerate(reversed(trajectory.states)):
             # tensor
             observation = to_bytes(state.observation_tensor)
-            # observation = self._cctx_observation.compress(observation)
             if i == 0:
                 # terminal returns and values (equal to 0 if _real_ terminal)
                 terminal_next_value = 0. if has_statistics else state.evaluation.value
@@ -88,7 +87,7 @@ class MuZeroPreprocessor(Preprocessor):
                     terminal_value = state.transition.rewards[state.transition.current_player]
                 if self._transform is not None:
                     terminal_value = self._transform(terminal_value)
-                    terminal_value = self.__get_target_dist(
+                    terminal_value = self._get_target_dist(
                         terminal_value,
                         self._v_heads,
                     )
@@ -96,7 +95,7 @@ class MuZeroPreprocessor(Preprocessor):
                     terminal_value = [terminal_value]
                 terminal_value = to_bytes(terminal_value)
                 priorities.append(0.)
-                buffer.append(
+                buffer_.append(
                     MuZeroTransition(
                         observation=observation,
                         action=None,
@@ -109,7 +108,7 @@ class MuZeroPreprocessor(Preprocessor):
                 continue
             if not state.HasField('transition'):  # is_frame_stack
                 priorities.append(0.)
-                buffer.append(
+                buffer_.append(
                     MuZeroTransition(
                         observation=observation,
                         action=None,
@@ -147,12 +146,12 @@ class MuZeroPreprocessor(Preprocessor):
             # transform
             if self._transform is not None:
                 nstep_value = self._transform(nstep_value)
-                nstep_value = self.__get_target_dist(
+                nstep_value = self._get_target_dist(
                     nstep_value,
                     self._v_heads,
                 )
                 reward = self._transform(reward)
-                reward = self.__get_target_dist(reward, self._r_heads)
+                reward = self._get_target_dist(reward, self._r_heads)
             else:
                 nstep_value = [nstep_value]
                 reward = [reward]
@@ -162,7 +161,7 @@ class MuZeroPreprocessor(Preprocessor):
             value = to_bytes(nstep_value)
             reward = to_bytes(reward)
             # (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
-            buffer.append(
+            buffer_.append(
                 MuZeroTransition(
                     observation=observation,
                     action=action,
@@ -188,4 +187,4 @@ class MuZeroPreprocessor(Preprocessor):
                 player_returns=tuple((reward, ) for reward in trajectory.statistics.rewards),
             )
         # add trajectory to buffer (from start to terminal)
-        self._result_queue.put((stats, tuple(reversed(priorities)), tuple(reversed(buffer))))
+        self._result_queue.put((stats, tuple(reversed(priorities)), tuple(reversed(buffer_))))

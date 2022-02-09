@@ -1,5 +1,6 @@
 '''CZF atari_env'''
 import gym
+
 from czf.env.atari_env.game import AtariGame
 
 

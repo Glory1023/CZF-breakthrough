@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 from uuid import uuid4
+
 import zmq.asyncio
 
 from czf.model_provider.model_provider import ModelProvider

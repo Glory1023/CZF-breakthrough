@@ -4,15 +4,15 @@ from io import BytesIO
 import os
 import subprocess
 import sys
+
 import numpy as np
+import psutil
 import torch
 from torch.utils.tensorboard import SummaryWriter
-# import zstandard as zstd
-import psutil
 
-from czf.learner.trainer.trainer import Trainer
 from czf.learner.data_parallel import DataParallelWrapper
 from czf.learner.nn import MuZero, MuZeroAtari
+from czf.learner.trainer.trainer import Trainer
 
 
 class MuZeroTrainer(Trainer):
@@ -72,17 +72,35 @@ class MuZeroTrainer(Trainer):
             **self._model_kwargs,
             is_train=True,
         ).to(self._device)
+        # loss function
+        self._p_loss_func = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
+        if self._v_loss == 'mse':
+            self._v_loss_func = lambda target, pred: (target - pred).square().squeeze()
+        else:  # == 'cross_entropy'
+            self._v_loss_func = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
+        if self._r_loss == 'mse':
+            self._r_loss_func = lambda target, pred: torch.nn.MSELoss(reduction='none')(
+                target, pred).squeeze()
+        else:  # == 'cross_entropy'
+            self._r_loss_func = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
+        # transform function
+        if self._model_cls == 'MuZeroAtari':
+            self._value_transform = lambda x: MuZeroAtari.to_scalar(self._model.v_supp, x)
+            self._reward_transform = lambda x: MuZeroAtari.to_scalar(self._model.r_supp, x)
+        else:
+            self._value_transform = lambda x: x
+            self._reward_transform = lambda x: x
+
         # restore the latest checkpoint
         if restore:
             print('Restore from', restore)
             with open(restore, 'rb') as model_blob:
                 buffer = model_blob.read()
-                # dctx = zstd.ZstdDecompressor()
-                # buffer = dctx.decompress(buffer)
             state_dict = torch.load(BytesIO(buffer))
             self.iteration = state_dict['iteration']
             self._model = state_dict['model']
             # self._optimizer.load_state_dict(state_dict['optimizer'])
+
         self._model = DataParallelWrapper(self._model)
         # optimizer
         torch.backends.cudnn.benchmark = True
@@ -111,20 +129,10 @@ class MuZeroTrainer(Trainer):
 
     def _train(self, dataloader, replay_buffer):
         '''optimize the model and increment model version'''
-        p_criterion = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
-        if self._v_loss == 'mse':
-            v_criterion = lambda target, pred: (target - pred).square().squeeze()
-        else:  # == 'cross_entropy'
-            v_criterion = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
-        if self._r_loss == 'mse':
-            r_criterion = lambda target, pred: torch.nn.MSELoss(reduction='none')(target, pred
-                                                                                  ).squeeze()
-        else:  # == 'cross_entropy'
-            r_criterion = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
-
         scale_gradient = lambda tensor, scale: (tensor * scale + tensor.detach() * (1 - scale))
-        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(np.frombuffer(x, dtype=dtype),
-                                                                device=self._device)
+        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
+            np.array(np.frombuffer(x, dtype=dtype)), device=self._device)
+        # shape for one transition
         shape = (
             (-1, self._v_heads),
             (-1, ),
@@ -136,13 +144,6 @@ class MuZeroTrainer(Trainer):
         self._model.train()
         replay_buffer.copy_weights()
         print(f'>> Priority Mean: {replay_buffer.get_mean_weight():.5f}')
-
-        if self._model_cls == 'MuZeroAtari':
-            value_transform = lambda x: MuZeroAtari.to_scalar(self._model.v_supp, x)
-            reward_transform = lambda x: MuZeroAtari.to_scalar(self._model.r_supp, x)
-        else:
-            value_transform = lambda x: x
-            reward_transform = lambda x: x
 
         # logging
         value_target, value_rollout = [], []
@@ -156,9 +157,10 @@ class MuZeroTrainer(Trainer):
             observation = to_tensor(rollout.observation).view(-1, *self._observation_shape)
             scale = to_tensor(rollout.scale)
             transition = [
-                to_tensor(t).view(shape[i % 5]) for i, t in enumerate(rollout.transition)
+                to_tensor(t).view(shape[i % len(shape)]) for i, t in enumerate(rollout.transition)
             ]
 
+            total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
             # logging info
             num_states = len(observation)
             ksteps = torch.zeros((num_states, 1), device=self._device)
@@ -168,10 +170,7 @@ class MuZeroTrainer(Trainer):
             target_r_sum = torch.zeros((num_states, 1), device=self._device)
             rollout_r_sum = torch.zeros((num_states, 1), device=self._device)
 
-            # forward
             state = self._model.parallel_forward_representation(observation)
-            total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
-
             # rollout k steps
             for t, i in enumerate(range(0, len(transition), 5)):
                 is_last_step = (t == self._kstep)
@@ -184,17 +183,20 @@ class MuZeroTrainer(Trainer):
                 ksteps[rollout_index] += 1.
 
                 # logging info
-                target_v[rollout_index] += value_transform(
-                    target_value) if self._num_player == 1 else value_transform(target_value) * (
-                        (-1)**t)
-                rollout_v[rollout_index] += value_transform(value.detach(
-                )) if self._num_player == 1 else value_transform(value.detach()) * ((-1)**t)
+                if self._num_player == 1:
+                    target_v[rollout_index] += self._value_transform(target_value)
+                else:
+                    target_v[rollout_index] += self._value_transform(target_value) * ((-1)**t)
+                if self._num_player == 1:
+                    rollout_v[rollout_index] += self._value_transform(value.detach())
+                else:
+                    rollout_v[rollout_index] += self._value_transform(value.detach()) * ((-1)**t)
 
                 # priority
                 if t == 0 and self._use_prioritize:
                     priority = torch.abs(
-                        value_transform(value.detach()) -
-                        value_transform(target_value)).squeeze(dim=-1).tolist()
+                        self._value_transform(value.detach()) -
+                        self._value_transform(target_value)).squeeze(dim=-1).tolist()
                     replay_buffer.update_weights(rollout.index, priority)
 
                 if next_transition:
@@ -205,8 +207,8 @@ class MuZeroTrainer(Trainer):
                     rollout_index = rollout_index[mask]
                     # logging info
                     if not is_last_step:
-                        target_r_sum[rollout_index] += reward_transform(target_reward)
-                        rollout_r_sum[rollout_index] += reward_transform(reward.detach())
+                        target_r_sum[rollout_index] += self._reward_transform(target_reward)
+                        rollout_r_sum[rollout_index] += self._reward_transform(reward.detach())
                     policy_target.extend(target_policy.tolist())
                     policy_rollout.extend(policy.detach().tolist())
                     if t == 0 and self._num_player == 1:
@@ -216,12 +218,12 @@ class MuZeroTrainer(Trainer):
                               [round(p, 3) for p in torch.mean(policy, dim=0).tolist()])
 
                 # loss
-                v_loss_i = weight * v_criterion(target_value, value)
+                v_loss_i = weight * self._v_loss_func(target_value, value)
                 if next_transition:
                     masked_weight = weight[mask]
-                    p_loss_i = masked_weight * p_criterion(target_policy, policy)
+                    p_loss_i = masked_weight * self._p_loss_func(target_policy, policy)
                     if not is_last_step:
-                        r_loss_i = masked_weight * r_criterion(target_reward, reward)
+                        r_loss_i = masked_weight * self._r_loss_func(target_reward, reward)
                     weight = masked_weight
                 # scale gradient
                 if i > 0:
@@ -298,7 +300,7 @@ class MuZeroTrainer(Trainer):
         writer.add_scalar('loss/value', v_loss, step)
         writer.add_scalar('loss/reward', r_loss, step)
         # logging: train
-        get_logging_info = lambda x: dict(
+        get_logging_dict = lambda x: dict(
             mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
         writer.add_scalars('train/policy_target',
                            {f'action {i}': np.mean(p)
@@ -306,16 +308,18 @@ class MuZeroTrainer(Trainer):
         writer.add_scalars('train/policy_rollout',
                            {f'action {i}': np.mean(p)
                             for i, p in enumerate(zip(*policy_rollout))}, step)
-        writer.add_scalars('train/value_target', get_logging_info(value_target), step)
-        writer.add_scalars('train/value_rollout', get_logging_info(value_rollout), step)
-        writer.add_scalars('train/reward_target', get_logging_info(reward_sum_target), step)
-        writer.add_scalars('train/reward_rollout', get_logging_info(reward_sum_rollout), step)
-        writer.add_scalars('train/priority', get_logging_info(priority_sampled), step)
+        writer.add_scalars('train/value_target', get_logging_dict(value_target), step)
+        writer.add_scalars('train/value_rollout', get_logging_dict(value_rollout), step)
+        writer.add_scalars('train/reward_target', get_logging_dict(reward_sum_target), step)
+        writer.add_scalars('train/reward_rollout', get_logging_dict(reward_sum_rollout), step)
+        writer.add_scalars('train/priority', get_logging_dict(priority_sampled), step)
         # write back priorities
         replay_buffer.write_back_weights()
 
     def log_statistics(self, replay_buffer):
         '''log statistics for recent trajectories'''
+        get_logging_dict = lambda x: dict(
+            mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
         statistics = replay_buffer.get_statistics()
         replay_buffer.reset_statistics()
         writer, step = self._summary_writer, self.iteration
@@ -323,23 +327,11 @@ class MuZeroTrainer(Trainer):
         writer.add_scalar('game/num_states', statistics.num_states, step)
         game_steps = statistics.game_steps
         if game_steps:
-            writer.add_scalars(
-                'game/steps', {
-                    'mean': np.mean(game_steps),
-                    'min': np.min(game_steps),
-                    'max': np.max(game_steps),
-                    'std': np.std(game_steps),
-                }, step)
+            writer.add_scalars('game/steps', get_logging_dict(game_steps), step)
         if self._num_player == 1:
             score = statistics.player_returns[0]
             if score:
-                writer.add_scalars(
-                    'game/score', {
-                        'mean': np.mean(score),
-                        'min': np.min(score),
-                        'max': np.max(score),
-                        'std': np.std(score),
-                    }, step)
+                writer.add_scalars('game/score', get_logging_dict(score), step)
         else:
             for p, player_returns in enumerate(statistics.player_returns):
                 player_returns = Counter(player_returns)
@@ -353,11 +345,11 @@ class MuZeroTrainer(Trainer):
         process_memory = process.memory_info()
         for name in process_memory._fields:
             value = getattr(process_memory, name)
-            writer.add_scalar("Memory/{}".format(name.capitalize()), value, self.iteration)
+            writer.add_scalar('memory/{}'.format(name.capitalize()), value, self.iteration)
 
     def save_model(self, checkpoint=False):
         '''save model to file'''
-        buffer = BytesIO()
+        buffer_ = BytesIO()
         torch.save(
             {
                 'name': self.model_name,
@@ -366,12 +358,11 @@ class MuZeroTrainer(Trainer):
                 'optimizer': self._optimizer.state_dict(),
                 'observation_shape': self._observation_shape,
                 'state_shape': self._state_shape,
-            }, buffer)
-        buffer.seek(0)
-        buffer = buffer.read()
-        # buffer = self._ckpt_compressor.compress(buffer)
+            }, buffer_)
+        buffer_.seek(0)
+        buffer_ = buffer_.read()
         ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt'
-        ckpt_path.write_bytes(buffer)
+        ckpt_path.write_bytes(buffer_)
         # frozen model
         args = [
             sys.executable,

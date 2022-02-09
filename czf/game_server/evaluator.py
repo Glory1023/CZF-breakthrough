@@ -1,24 +1,20 @@
 '''CZF Game Server'''
 import asyncio
 from collections import namedtuple
-from dataclasses import dataclass
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-import ctypes
+from datetime import datetime
 import multiprocessing as mp
+from pathlib import Path
 import platform
 import time
-import typing
-import sys
-from pathlib import Path
 
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from czf.env import czf_env, atari_env
+from czf.env import atari_env, czf_env
+from czf.game_server.game_server import EnvInfo, ModelInfo
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_dealer, Queue
-from czf.game_server.game_server import ModelInfo, EnvInfo
 
 EvalResult = namedtuple('EvalResult', [
     'game_steps',
@@ -207,7 +203,10 @@ class EvalEnvManager:
 class EvalGameServer:
     '''Evalutation Game Server'''
     def __init__(self, args, config, callbacks):
-        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
+        self._node = czf_pb2.Node(
+            identity=f'game-server-{args.suffix}',
+            hostname=platform.node(),
+        )
         # server mode
         algorithm = config['algorithm']
         assert algorithm in ('AlphaZero', 'MuZero')
@@ -239,27 +238,33 @@ class EvalGameServer:
         # operation
         if algorithm == 'AlphaZero':
             if self._num_players == 1:
-                self._operation = {'1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P}
+                self._operation = {
+                    '1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P,
+                }
             elif self._num_players == 2:
                 self._operation = {
                     '1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P,
-                    '2P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_2P
+                    '2P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_2P,
                 }
         elif algorithm == 'MuZero':
             if self._num_players == 1:
-                self._operation = {'1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P}
+                self._operation = {
+                    '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
+                }
             elif self._num_players == 2:
                 self._operation = {
                     '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
-                    '2P': czf_pb2.Job.Operation.MUZERO_EVALUATE_2P
+                    '2P': czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
                 }
         # model
         if self._num_players == 1:
-            self._model_info = {'1P': mp.Value(ModelInfo, 'default', self._first_ckpt)}
+            self._model_info = {
+                '1P': mp.Value(ModelInfo, 'default', self._first_ckpt),
+            }
         elif self._num_players == 2:
             self._model_info = {
                 '1P': mp.Value(ModelInfo, 'default', self._first_ckpt),
-                '2P': mp.Value(ModelInfo, 'default', self._first_ckpt)
+                '2P': mp.Value(ModelInfo, 'default', self._first_ckpt),
             }
         # tensorboard log
         storage_path = Path(args.storage_dir)
@@ -267,35 +272,40 @@ class EvalGameServer:
         if not log_path.exists():
             log_path.mkdir(exist_ok=True)
         self._summary_writer = SummaryWriter(log_dir=log_path, purge_step=self._first_ckpt)
+
         # start EvalEnvManager
         self._num_env_per_proc = args.num_env * self._num_players
         self._total_env = self._num_env_per_proc * args.num_proc
         self._job_queue = Queue()
         self._result_queue = Queue()
-        self._pipe = [mp.Pipe() for i in range(args.num_proc)]
-        self._manager = [
-            mp.Process(target=lambda *args: asyncio.run(run_eval_env_manager(*args)),
-                       args=(
-                           args,
-                           config,
-                           callbacks,
-                           index,
-                           pipe,
-                           self._job_queue,
-                           self._result_queue,
-                           self._operation,
-                           self._model_info,
-                       )) for index, (_, pipe) in enumerate(self._pipe)
+        self._pipes = [mp.Pipe() for i in range(args.num_proc)]
+        self._managers = [
+            mp.Process(
+                target=lambda *args: asyncio.run(run_eval_env_manager(*args)),
+                args=(
+                    args,
+                    config,
+                    callbacks,
+                    index,
+                    pipe,
+                    self._job_queue,
+                    self._result_queue,
+                    self._operation,
+                    self._model_info,
+                ),
+            ) for index, (_, pipe) in enumerate(self._pipes)
         ]
-        for manager in self._manager:
+        for manager in self._managers:
             manager.start()
 
-        print('connect to learner @', args.upstream)
+        # connect to model info upstream
+        print('connect to learner/model_provider @', args.upstream)
         self._upstream = get_zmq_dealer(
             identity=self._node.identity,
             remote_address=args.upstream,
         )
-        asyncio.create_task(self.__send_model_subscribe())
+        # subscribe for the latest model info
+        asyncio.create_task(self._send_model_subscribe())
         # connect to broker
         print('connect to broker  @', args.broker)
         self._broker = get_zmq_dealer(
@@ -305,7 +315,7 @@ class EvalGameServer:
 
     def terminate(self):
         '''terminate all EvalEnvManager'''
-        for manager in self._manager:
+        for manager in self._managers:
             manager.join()
 
     async def loop(self):
@@ -329,21 +339,21 @@ class EvalGameServer:
                 if not job.HasField('payload'):
                     # if flush model has done, start jobs for each env
                     # print(job)
-                    for pipe in self._pipe:
+                    for pipe in self._pipes:
                         pipe[0].send(job.SerializeToString())
                     continue
                 index = job.payload.env_index // self._num_env_per_proc
-                self._pipe[index][0].send(job.SerializeToString())
+                self._pipes[index][0].send(job.SerializeToString())
             elif packet_type == 'job_batch':
                 jobs = packet.job_batch.jobs
                 for job in jobs:
                     if not job.HasField('payload'):
                         # if flush model has done, start jobs for each env
-                        for pipe in self._pipe:
+                        for pipe in self._pipes:
                             pipe[0].send(job.SerializeToString())
                         continue
                     index = job.payload.env_index // self._num_env_per_proc
-                    self._pipe[index][0].send(job.SerializeToString())
+                    self._pipes[index][0].send(job.SerializeToString())
 
     async def _recv_model_info_loop(self):
         '''a loop to receive `ModelInfo`'''
@@ -380,18 +390,18 @@ class EvalGameServer:
             if self._num_players == 2 and version == self._first_ckpt:
                 continue
             self._model_info['1P'].version = version
-            await self.__send_load_model()
+            await self._send_load_model()
             # wait for the results of all envs
             eval_results = []
             while len(eval_results) < self._total_env:
                 result = await loop.run_in_executor(result_executor, result_queue.get)
                 eval_results.append(result)
-            asyncio.create_task(self.__write_result(eval_results))
+            asyncio.create_task(self._write_result(eval_results))
 
-    async def __write_result(self, eval_results: list):
+    async def _write_result(self, eval_results: list):
         '''helper to process evaluation result'''
-        total = len(eval_results)
-        assert total == self._total_env
+        total_env = len(eval_results)
+        assert total_env == self._total_env
         game_steps, total_rewards = [], []
         for result in eval_results:
             game_steps.append(result.game_steps)
@@ -423,11 +433,11 @@ class EvalGameServer:
                 }, step)
             writer.flush()
         elif self._num_players == 2:
-            win_rate = total_rewards.count(1) / total
-            draw_rate = total_rewards.count(0) / total
-            lose_rate = total_rewards.count(-1) / total
+            win_rate = total_rewards.count(1) / total_env
+            draw_rate = total_rewards.count(0) / total_env
+            lose_rate = total_rewards.count(-1) / total_env
             # score for win: 2, draw: 1, lose: 0
-            score = np.sum(np.array(total_rewards) + 1) / (2 * total)
+            score = np.sum(np.array(total_rewards) + 1) / (2 * total_env)
             elo_1p_diff = 400 * np.log10(score / (1 - score))
             elo_1p = elo_1p_diff + self._best_elo
             print(
@@ -456,12 +466,15 @@ class EvalGameServer:
                 self._model_info['2P'].version = self._model_info['1P'].version
                 self._best_elo = elo_1p
 
-    async def __send_load_model(self):
+    async def _send_load_model(self):
         '''helper to wait for new model and send jobs to flush'''
         # send jobs to flush model
         for (_, op), (_, model_info) in zip(self._operation.items(), self._model_info.items()):
             job = czf_pb2.Job(
-                model=czf_pb2.ModelInfo(name=model_info.name, version=model_info.version),
+                model=czf_pb2.ModelInfo(
+                    name=model_info.name,
+                    version=model_info.version,
+                ),
                 procedure=[op],
                 step=0,
             )
@@ -470,7 +483,7 @@ class EvalGameServer:
             # print(packet)
             await self._broker.send(packet.SerializeToString())
 
-    async def __send_model_subscribe(self):
+    async def _send_model_subscribe(self):
         '''helper to send a `model_subscribe` to optimizer'''
         packet = czf_pb2.Packet(model_subscribe=czf_pb2.Heartbeat())
         await self._upstream.send(packet.SerializeToString())

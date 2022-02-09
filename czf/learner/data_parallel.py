@@ -1,19 +1,17 @@
 # pylint: skip-file
-import operator
-import torch
-import warnings
 from itertools import chain
-from torch.nn.parallel.scatter_gather import scatter_kwargs, gather
-from torch.nn.parallel.replicate import replicate
-from torch.nn.parallel.parallel_apply import parallel_apply
-from torch._utils import (_get_all_device_indices, _get_available_device_type, _get_device_index,
-                          _get_devices_properties)
-# parallel_apply
+import operator
 import threading
+import warnings
+
 import torch
-from torch.cuda._utils import _get_device_index
 from torch.cuda.amp import autocast
-from torch._utils import ExceptionWrapper
+from torch.cuda._utils import _get_device_index
+from torch.nn.parallel.parallel_apply import parallel_apply
+from torch.nn.parallel.replicate import replicate
+from torch.nn.parallel.scatter_gather import scatter_kwargs, gather
+from torch._utils import (ExceptionWrapper, _get_all_device_indices, _get_available_device_type,
+                          _get_device_index, _get_devices_properties)
 
 
 def _check_balance(device_ids):

@@ -51,7 +51,8 @@ std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(const s
     job_pb.set_step(job_pb.step() + 1);
     model_name = job_pb.model().name();
     model_version = std::max(model_version, job_pb.model().version());
-    if (!job_pb.has_payload()) {  // special job: flush model
+    if (!job_pb.has_payload()) {
+      // special job: flush model (without payload)
       std::string packet_str;
       packet.SerializeToString(&packet_str);
       py::gil_scoped_acquire acquire;
@@ -69,7 +70,7 @@ std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(const s
   return {{}, model_name, model_version};
 }
 
-py::bytes WorkerManager::wait_dequeue_result(size_t max_batch_size) {
+py::bytes WorkerManager::dequeue_job_batch(size_t max_batch_size) {
   constexpr auto zero = std::chrono::duration<double>::zero();
   const auto max_timeout = std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
   // collect result jobs

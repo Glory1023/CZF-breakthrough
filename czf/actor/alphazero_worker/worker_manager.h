@@ -30,7 +30,7 @@ class WorkerManager {
   void run(size_t, size_t, size_t);
   void terminate();
   std::tuple<py::bytes, std::string, int> enqueue_job_batch(const std::string&);
-  py::bytes wait_dequeue_result(size_t);
+  py::bytes dequeue_job_batch(size_t);
   void load_from_bytes(const std::string&);
   void load_from_file(const std::string&);
   void load_game(const std::string& name);

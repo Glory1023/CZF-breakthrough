@@ -67,7 +67,6 @@ class CliAgent:
             remote_address=args.broker,
         )
         self._flush = False
-        # asyncio.create_task(self.send_load_model())
 
     async def send_load_model(self):
         '''helper to wait for new model and send jobs to flush'''
@@ -75,10 +74,10 @@ class CliAgent:
         job = czf_pb2.Job(procedure=[self._operation], step=0)
         job.model.CopyFrom(self._model_info)
         job.initiator.CopyFrom(self._node)
-        await self.__send_job(job)
+        await self._send_job(job)
 
         # receive job to ensure flushing is finished
-        job = await self.__recv_job()
+        job = await self._recv_job()
         if not job.HasField('payload'):
             self._flush = True
 
@@ -88,50 +87,50 @@ class CliAgent:
 
     async def _cmd_loop(self):
         '''command loop'''
-        self.__reset()
-        self.__showboard()
+        self._reset()
+        self._showboard()
         while not self._state.is_terminal:
             print('$ ', end='')
             command = input()
             if 'showboard' in command or 'sb' in command:
-                self.__showboard()
+                self._showboard()
             elif 'clear' in command or 'reset' in command:
-                self.__reset()
+                self._reset()
             elif 'genmove' in command or 'gen' in command:
                 if not self._flush:
                     print('Model flushing is not finished yet')
                     continue
                 if len(command.split()) > 1:
                     self._tree_option.simulation_count = int(command.split()[-1])
-                actions = await self.__genmove()
-                self.__play(actions)
+                actions = await self._genmove()
+                self._play(actions)
                 actions_string = [self._game.action_to_string(action) for action in actions]
                 print('action: ' + ', '.join(actions_string))
                 self._history.append(actions_string)
             elif 'play' in command:
                 substr = command[command.find('play') + len('play'):]
                 actions = self._game.string_to_action(substr)
-                self.__play(actions)
+                self._play(actions)
                 actions_string = [self._game.action_to_string(action) for action in actions]
                 print('action: ' + ', '.join(actions_string))
                 self._history.append(actions_string)
             elif 'exit' in command or 'quit' in command:
                 break
-            self.__showboard()
+            self._showboard()
 
         print(f'Final rewards: {self._state.rewards}')
         print(f'Total steps: {self._num_steps}')
 
-    def __showboard(self, file=sys.stdout):
+    def _showboard(self, file=sys.stdout):
         print(self._state, file=file)
         print(file=file)
 
-    def __reset(self):
+    def _reset(self):
         self._state = self._game.new_initial_state()
         self._history = []
         self._num_steps = 0
 
-    async def __genmove(self):
+    async def _genmove(self):
         # send job
         # print('serialize:', self._state.serialize())
         if self._algorithm == 'AlphaZero':
@@ -154,10 +153,10 @@ class CliAgent:
         # job.payload.state.workers.CopyFrom(env.workers)
         job.payload.state.CopyFrom(state)
         job.payload.state.tree_option.CopyFrom(self._tree_option)
-        await self.__send_job(job)
+        await self._send_job(job)
 
         # receive job
-        job = await self.__recv_job()
+        job = await self._recv_job()
         evaluated_state = job.payload.state
         policy = evaluated_state.evaluation.policy
         legal_actions = self._state.legal_actions
@@ -172,7 +171,7 @@ class CliAgent:
             self._after_apply_callback(evaluated_state)
         return [chosen_action]
 
-    def __play(self, actions):
+    def _play(self, actions):
         for action in actions:
             if action not in self._state.legal_actions:
                 print('Illegal Action')
@@ -180,11 +179,11 @@ class CliAgent:
                 self._num_steps += 1
                 self._state.apply_action(action)
 
-    async def __send_job(self, job):
+    async def _send_job(self, job):
         packet = czf_pb2.Packet(job=job)
         await self._broker.send(packet.SerializeToString())
 
-    async def __recv_job(self):
+    async def _recv_job(self):
         raw = await self._broker.recv()
         packet = czf_pb2.Packet.FromString(raw)
         packet_type = packet.WhichOneof('payload')

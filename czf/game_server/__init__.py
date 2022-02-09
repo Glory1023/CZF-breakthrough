@@ -1,10 +1,11 @@
 '''CZF Game Server'''
 import argparse
 import asyncio
+from functools import partial
 from pathlib import Path
 import random
-from functools import partial
 from uuid import uuid4
+
 import numpy as np
 import yaml
 import zmq.asyncio

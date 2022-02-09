@@ -27,12 +27,12 @@ float MctsInfo::update(float z, bool is_root_player, bool is_two_player, float d
 
 bool NodeInfo::can_select_child() const { return !children.empty(); }
 
-void NodeInfo::expand(const std::vector<Action_t> &legal_actions, const bool is_two_player) {
-  const auto size = legal_actions.size();
+void NodeInfo::expand(const std::vector<Action_t> &actions, const bool is_two_player) {
+  const auto size = actions.size();
   const auto child_player = is_two_player ? !is_root_player : is_root_player;
   children.resize(size);
   for (size_t i = 0; i < size; ++i) {
-    children[i].set_player_and_action(child_player, legal_actions[i]);
+    children[i].set_player_and_action(child_player, actions[i]);
   }
 }
 
@@ -40,9 +40,8 @@ bool Node::can_select_child() const { return node_info_.can_select_child(); }
 
 Node *Node::select_child(const TreeInfo &tree_info, const TreeOption &tree_option,
                          bool is_two_player) const {
-  // init value
+  // calculate init value for unvisited actions
   float init_value = 0.F;
-  // if (is_two_player) {
   float value_sum = 0.F;
   size_t num_selected = 0U;
   for (const auto &child : node_info_.children) {
@@ -58,7 +57,7 @@ Node *Node::select_child(const TreeInfo &tree_info, const TreeOption &tree_optio
   if (num_selected > 0) {
     init_value = value_sum / static_cast<float>(num_selected + 1U);
   }
-  // }
+
   // selection
   float selected_score = std::numeric_limits<float>::lowest();
   Node *selected_child = nullptr;
@@ -89,8 +88,8 @@ void Node::set_player_and_action(bool player, Action_t action) {
   mcts_info_.action_index = static_cast<size_t>(action);
 }
 
-void Node::expand_children(const std::vector<Action_t> &legal_actions, bool is_two_player) {
-  node_info_.expand(legal_actions, is_two_player);
+void Node::expand_children(const std::vector<Action_t> &actions, bool is_two_player) {
+  node_info_.expand(actions, is_two_player);
 }
 
 void Node::normalize_policy() {
@@ -172,6 +171,7 @@ void Tree::before_forward(const std::vector<Action_t> &all_actions) {
 
 bool Tree::after_forward(RNG_t &rng) {
   if (selection_path_.size() == 1) {
+    // normalize policy for legal actions only
     tree_.normalize_policy();
     tree_.add_dirichlet_noise(rng, tree_option_);
   }

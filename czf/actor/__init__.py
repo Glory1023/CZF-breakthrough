@@ -2,9 +2,10 @@
 import argparse
 import asyncio
 import os
+from pathlib import Path
 import random
 from uuid import uuid4
-from pathlib import Path
+
 import torch
 import yaml
 import zmq
@@ -46,7 +47,7 @@ def create_worker_manager(args, config):
         ]
         manager.game_info.num_actions = game_config['actions']
         manager.game_info.all_actions = list(range(game_config['actions']))
-        manager.game_info.two_player = (game_config.get('num_player', 2) == 2)
+        manager.game_info.is_two_player = (game_config.get('num_player', 2) == 2)
         # JobOption
         manager.worker_option.seed = args.seed
         manager.worker_option.timeout_us = args.gpu_timeout

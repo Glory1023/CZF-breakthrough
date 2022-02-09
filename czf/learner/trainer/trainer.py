@@ -6,6 +6,7 @@ from multiprocessing.managers import BaseManager
 import os
 from queue import Empty
 import time
+
 from torch.utils.data import WeightedRandomSampler
 from tqdm import tqdm
 
@@ -39,9 +40,9 @@ class MyDataLoader:
         self._collate_fn = collate_fn
         self._num_sample = 0
 
-    def put(self, sampler):
-        '''Put all samples from `sampler` into `index_queue`'''
-        for index in sampler:
+    def put(self, sampled_index):
+        '''Put all sampled index into `index_queue`'''
+        for index in sampled_index:
             self._num_sample += 1
             self._index_queue.put(index)
 
@@ -73,7 +74,11 @@ def run_trainer(
     batch_size = config['learner']['batch_size']
 
     # replay buffer
-    BaseManager.register('ReplayBuffer', replay_buffer_cls, exposed=replay_buffer_exposed_methods)
+    BaseManager.register(
+        'ReplayBuffer',
+        replay_buffer_cls,
+        exposed=replay_buffer_exposed_methods,
+    )
     manager = BaseManager()
     manager.start()
     replay_buffer = manager.ReplayBuffer(**replay_buffer_config)
@@ -129,6 +134,7 @@ def run_trainer(
     while True:
         trajectories = trajectory_queue.get_all()
         progress = 0
+        # move trajectories from trajectory queue to replay buffer
         for trajectory in trajectories:
             progress += replay_buffer.add_trajectory(trajectory)
         pbar.update(min(progress, pbar.total - pbar.n))
@@ -140,11 +146,12 @@ def run_trainer(
             start = time.time()
             trainer.log_statistics(replay_buffer)
             replay_buffer.save_trajectory(trajectory_path, trainer.iteration)
-            sampler = WeightedRandomSampler(
+            # get sampled index according to the weight of each transition
+            sampled_index = WeightedRandomSampler(
                 replay_buffer.get_weights(),
                 states_to_train,
             )
-            dataloader.put(sampler)
+            dataloader.put(sampled_index)
             trainer.train(dataloader, replay_buffer)
             save_ckpt = (trainer.iteration % checkpoint_freq == 0)
             trainer.save_model(save_ckpt)

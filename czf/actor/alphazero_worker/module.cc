@@ -29,7 +29,7 @@ PYBIND11_MODULE(alphazero_worker, m) {  // NOLINT
       .def("terminate", &WorkerManager::terminate)
       .def("enqueue_job_batch", &WorkerManager::enqueue_job_batch, "jobs"_a,
            py::call_guard<py::gil_scoped_release>())
-      .def("wait_dequeue_result", &WorkerManager::wait_dequeue_result,
+      .def("dequeue_job_batch", &WorkerManager::dequeue_job_batch,
            py::call_guard<py::gil_scoped_release>(), py::return_value_policy::move)
       .def("load_from_bytes", &WorkerManager::load_from_bytes, "bytes"_a)
       .def("load_from_file", &WorkerManager::load_from_file, "path"_a)

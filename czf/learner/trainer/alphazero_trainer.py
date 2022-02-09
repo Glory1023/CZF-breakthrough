@@ -4,17 +4,17 @@ from io import BytesIO
 import os
 import subprocess
 import sys
+
 import numpy as np
+import psutil
 import torch
 import torch.nn
 from torch.utils.tensorboard import SummaryWriter
 from torch._utils import _get_all_device_indices
-# import zstandard as zstd
-import psutil
 
 from czf.env import czf_env
-from czf.learner.trainer.trainer import Trainer
 from czf.learner.nn import AlphaZero
+from czf.learner.trainer.trainer import Trainer
 
 
 class AlphaZeroTrainer(Trainer):
@@ -31,10 +31,10 @@ class AlphaZeroTrainer(Trainer):
         self._model_kwargs = dict(
             observation_tensor_shape=self._game.observation_tensor_shape,
             action_dim=self._game.num_distinct_actions,
-            channels=model_config["channels"],
+            channels=model_config['channels'],
             blocks=model_config['blocks'],
             v_heads=self._game.num_players,
-            backbone=model_config.get("backbone", "ResNet"),
+            backbone=model_config.get('backbone', 'ResNet'),
         )
         self._model = AlphaZero(**self._model_kwargs)
         self._model = torch.nn.DataParallel(
@@ -83,8 +83,8 @@ class AlphaZeroTrainer(Trainer):
 
     def _train(self, dataloader, replay_buffer):
         self._model.train()
-        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(np.frombuffer(x, dtype=dtype),
-                                                                device=self._device)
+        to_tensor = lambda x, dtype=np.float32: torch.as_tensor(
+            np.array(np.frombuffer(x, dtype=dtype)), device=self._device)
         # for observation_tensor, target_policy, target_value in dataloader:
         for transition in dataloader:
             observation_tensor = to_tensor(transition.observation).view(
@@ -110,6 +110,8 @@ class AlphaZeroTrainer(Trainer):
 
     def log_statistics(self, replay_buffer):
         '''log statistics for recent trajectories'''
+        get_logging_dict = lambda x: dict(
+            mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
         statistics = replay_buffer.get_statistics()
         replay_buffer.reset_statistics()
         writer, step = self._summary_writer, self.iteration
@@ -117,23 +119,10 @@ class AlphaZeroTrainer(Trainer):
         writer.add_scalar('game/num_states', statistics.num_states, step)
         game_steps = statistics.game_steps
         if game_steps:
-            writer.add_scalars(
-                'game/steps', {
-                    'mean': np.mean(game_steps),
-                    'min': np.min(game_steps),
-                    'max': np.max(game_steps),
-                    'std': np.std(game_steps),
-                }, step)
+            writer.add_scalars('game/steps', get_logging_dict(game_steps), step)
         if self._num_player == 1:
             score = statistics.player_returns[0]
-            if score:
-                writer.add_scalars(
-                    'game/score', {
-                        'mean': np.mean(score),
-                        'min': np.min(score),
-                        'max': np.max(score),
-                        'std': np.std(score),
-                    }, step)
+            writer.add_scalars('game/score', get_logging_dict(score), step)
         else:
             for p, player_returns in enumerate(statistics.player_returns):
                 player_returns = Counter(player_returns)
@@ -147,11 +136,11 @@ class AlphaZeroTrainer(Trainer):
         process_memory = process.memory_info()
         for name in process_memory._fields:
             value = getattr(process_memory, name)
-            writer.add_scalar("Memory/{}".format(name.capitalize()), value, self.iteration)
+            writer.add_scalar('memory/{}'.format(name.capitalize()), value, self.iteration)
 
     def save_model(self, checkpoint=False):
         '''save model to file'''
-        buffer = BytesIO()
+        buffer_ = BytesIO()
         torch.save(
             {
                 'name': self.model_name,
@@ -160,12 +149,11 @@ class AlphaZeroTrainer(Trainer):
                 'model': self._model.module,
                 'optimizer': self._optimizer.state_dict(),
                 'scheduler': self._scheduler.state_dict()
-            }, buffer)
-        buffer.seek(0)
-        buffer = buffer.read()
-        # buffer = self._ckpt_compressor.compress(buffer)
+            }, buffer_)
+        buffer_.seek(0)
+        buffer_ = buffer_.read()
         ckpt_path = self._ckpt_dir / f'{self.iteration:05d}.pt'
-        ckpt_path.write_bytes(buffer)
+        ckpt_path.write_bytes(buffer_)
         # frozen model
         args = [
             sys.executable,

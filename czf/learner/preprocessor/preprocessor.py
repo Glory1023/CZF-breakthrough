@@ -1,6 +1,7 @@
 '''CZF Preprocessor'''
 import abc
 from multiprocessing import Queue
+
 import torch
 import torch.multiprocessing as mp
 
@@ -28,13 +29,15 @@ class TrajectoryQueue:
         self._raw_queue = Queue()
         self._result_queue = Queue()
         self._process = [
-            mp.Process(target=run_preprocessor,
-                       args=(
-                           preprocessor_cls,
-                           self._raw_queue,
-                           self._result_queue,
-                       ),
-                       kwargs=kwargs) for _ in range(num_proc)
+            mp.Process(
+                target=run_preprocessor,
+                args=(
+                    preprocessor_cls,
+                    self._raw_queue,
+                    self._result_queue,
+                ),
+                kwargs=kwargs,
+            ) for _ in range(num_proc)
         ]
         for process in self._process:
             process.start()

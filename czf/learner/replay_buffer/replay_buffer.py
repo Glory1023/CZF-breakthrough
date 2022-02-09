@@ -1,23 +1,19 @@
 '''CZF Replay Buffer'''
 from dataclasses import dataclass
+
 from torch.utils.data import Dataset
 import zstandard as zstd
+
 from czf.pb import czf_pb2
 
 
 @dataclass
 class Statistics:
-    '''Statistics for a :class:`ReplayBuffer`
-
-    :param num_games: total number of games
-    :param num_states: total number of states
-    :param game_steps: a list of total number of game steps
-    :param player_returns: returns for each player
-    '''
-    num_games: int
-    num_states: int
-    game_steps: list
-    player_returns: list
+    '''Statistics for a :class:`ReplayBuffer`'''
+    num_games: int  # get_target_dist
+    num_states: int  # total number of states
+    game_steps: list  # a list of total number of game steps
+    player_returns: list  # returns for each player
 
 
 class ReplayBuffer(Dataset):
@@ -120,8 +116,7 @@ class ReplayBuffer(Dataset):
         )
 
     def save_trajectory(self, path, iteration):
-        '''Save all trajectories to the `path` with compression,
-        and clear up all trajactories'''
+        '''Save all trajectories to the `path` with compression, and clear up all trajactories'''
         trajectory = self._pb_trajectory_batch.SerializeToString()
         compressed = self._cctx_trajectory.compress(trajectory)
         trajectory_path = path / f'{iteration:05d}.pb.zst'

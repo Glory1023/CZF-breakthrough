@@ -1,5 +1,6 @@
 '''CZF AtariGame & AtariState'''
 from collections import deque
+
 import numpy as np
 import gym
 from gym.wrappers import AtariPreprocessing

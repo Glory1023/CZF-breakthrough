@@ -1,15 +1,15 @@
 '''CZF Game Server'''
 import asyncio
-from dataclasses import dataclass
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 import ctypes
+from dataclasses import dataclass
+from datetime import datetime
 import multiprocessing as mp
 import platform
 import time
 import typing
 
-from czf.env import czf_env, atari_env
+from czf.env import atari_env, czf_env
 from czf.pb import czf_pb2
 from czf.utils import get_zmq_dealer, Queue
 
@@ -44,7 +44,10 @@ class EnvManager:
     def __init__(self, args, config, callbacks, proc_index, model_info, pipe, job_queue,
                  trajectory_queue):
         self._algorithm = config['algorithm']
-        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
+        self._node = czf_pb2.Node(
+            identity=f'game-server-{args.suffix}',
+            hostname=platform.node(),
+        )
         # multiprocess
         self._proc_index = proc_index
         self._model_info = model_info
@@ -76,11 +79,13 @@ class EnvManager:
                 dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
                 discount=mcts_config.get('discount', 1.),
             )
+        # game_server config
+        self._sequence = config['game_server']['sequence']
+        self._mstep = 0
+        if self._algorithm == 'MuZero':
             kstep = config['learner']['rollout_steps']
             nstep = mcts_config['nstep']
             self._mstep = kstep + nstep
-        # game_server config
-        self._sequence = config['game_server']['sequence']
         # game env
         self._num_env = args.num_env
         game_config = config['game']
@@ -104,20 +109,20 @@ class EnvManager:
         self._total_rewards = [None] * self._num_env
         self._num_steps = [None] * self._num_env
         for index in range(args.num_env):
-            self.__reset(index, new=True)
+            self._reset(index, new=True)
 
     def start_search(self):
         '''all envs start to send search'''
         for index in range(len(self._envs)):
-            self.__send_search_job(index)
+            self._send_search_job(index)
 
     async def loop(self):
         '''main loop'''
         while True:
             job = self._pipe.recv()
-            self.__on_job_completed(czf_pb2.Job.FromString(job))
+            self._on_job_completed(czf_pb2.Job.FromString(job))
 
-    def __reset(self, env_index, new=False):
+    def _reset(self, env_index, new=False):
         '''reset env of index'''
         if not new:
             state = self._envs[env_index].state
@@ -141,7 +146,7 @@ class EnvManager:
         self._total_rewards[env_index] = [0.] * self._game.num_players
         self._num_steps[env_index] = 0
 
-    def __send_search_job(self, env_index):
+    def _send_search_job(self, env_index):
         '''helper to send a `Job` to actor'''
         env = self._envs[env_index]
         # workers = [czf_pb2.Node(identity='g', hostname=str(time.time()))] * 2
@@ -152,12 +157,15 @@ class EnvManager:
                 legal_actions=env.state.legal_actions,
                 observation_tensor=env.state.observation_tensor,
             )
-        job = czf_pb2.Job(model=czf_pb2.ModelInfo(name=self._model_info.name,
-                                                  version=self._model_info.version),
-                          procedure=[self._operation],
-                          step=0,
-                          payload=czf_pb2.Job.Payload(env_index=self._proc_index * self._num_env +
-                                                      env_index, ))
+        job = czf_pb2.Job(
+            model=czf_pb2.ModelInfo(
+                name=self._model_info.name,
+                version=self._model_info.version,
+            ),
+            procedure=[self._operation],
+            step=0,
+            payload=czf_pb2.Job.Payload(env_index=self._proc_index * self._num_env + env_index, ),
+        )
         job.initiator.CopyFrom(self._node)
         # job.payload.state.workers.CopyFrom(env.workers)
         job.payload.state.CopyFrom(state)
@@ -167,7 +175,7 @@ class EnvManager:
         self._job_queue.put(packet.SerializeToString())
         # self.start_time[env_index] = time.time()
 
-    def __on_job_completed(self, job: czf_pb2.Job):
+    def _on_job_completed(self, job: czf_pb2.Job):
         '''callback on job completion'''
         env_index = job.payload.env_index % self._num_env
         env = self._envs[env_index]
@@ -210,16 +218,16 @@ class EnvManager:
             # add game statistics
             env.trajectory.statistics.rewards[:] = self._total_rewards[env_index]
             env.trajectory.statistics.game_steps = self._num_steps[env_index]
-            # send optimize job
+            # send optimize job of one entire game
             print('send 1 traj with len', len(env.trajectory.states), 'of score',
                   int(self._total_rewards[env_index][0]))
             packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
                 trajectories=[env.trajectory]))
             self._trajectory_queue.put(packet.SerializeToString())
-            self.__reset(env_index)
+            self._reset(env_index)
         elif self._sequence > 0 and (len(env.trajectory.states) %
                                      (self._sequence + self._mstep) == 0):
-            # send optimize job of length (sequence + mstep)
+            # send optimize job of length (sequence + mstep), not entire game
             print('send 1 traj of len', len(env.trajectory.states))
             packet = czf_pb2.Packet(trajectory_batch=czf_pb2.TrajectoryBatch(
                 trajectories=[env.trajectory]))
@@ -235,13 +243,16 @@ class EnvManager:
             env.trajectory = trajectory
 
         # send a search job
-        self.__send_search_job(env_index)
+        self._send_search_job(env_index)
 
 
 class GameServer:
     '''Game Server'''
     def __init__(self, args, config, callbacks):
-        self._node = czf_pb2.Node(identity=f'game-server-{args.suffix}', hostname=platform.node())
+        self._node = czf_pb2.Node(
+            identity=f'game-server-{args.suffix}',
+            hostname=platform.node(),
+        )
         # model
         self._model_info = mp.Value(ModelInfo, 'default', -1)
         # server mode
@@ -253,30 +264,33 @@ class GameServer:
         self._num_env = args.num_env
         self._job_queue = Queue()
         self._trajectory_queue = Queue()
-        self._pipe = [mp.Pipe() for i in range(args.num_proc)]
-        self._manager = [
-            mp.Process(target=lambda *args: asyncio.run(run_env_manager(*args)),
-                       args=(
-                           args,
-                           config,
-                           callbacks,
-                           index,
-                           self._model_info,
-                           pipe,
-                           self._job_queue,
-                           self._trajectory_queue,
-                       )) for index, (_, pipe) in enumerate(self._pipe)
+        self._pipes = [mp.Pipe() for i in range(args.num_proc)]
+        self._managers = [
+            mp.Process(
+                target=lambda *args: asyncio.run(run_env_manager(*args)),
+                args=(
+                    args,
+                    config,
+                    callbacks,
+                    index,
+                    self._model_info,
+                    pipe,
+                    self._job_queue,
+                    self._trajectory_queue,
+                ),
+            ) for index, (_, pipe) in enumerate(self._pipes)
         ]
-        for manager in self._manager:
+        for manager in self._managers:
             manager.start()
 
-        # trajectory upstream
+        # connect to trajectory and model info upstream
         print('connect to learner @', args.upstream)
         self._upstream = get_zmq_dealer(
             identity=self._node.identity,
             remote_address=args.upstream,
         )
-        asyncio.create_task(self.__send_model_subscribe())
+        # subscribe for the latest model info
+        asyncio.create_task(self._send_model_subscribe())
         # connect to broker
         print('connect to broker  @', args.broker)
         self._broker = get_zmq_dealer(
@@ -286,7 +300,7 @@ class GameServer:
 
     def terminate(self):
         '''terminate all EnvManager'''
-        for manager in self._manager:
+        for manager in self._managers:
             manager.join()
 
     async def loop(self):
@@ -304,16 +318,16 @@ class GameServer:
             raw = await self._broker.recv()
             packet = czf_pb2.Packet.FromString(raw)
             packet_type = packet.WhichOneof('payload')
-            #print(packet)
+            # print(packet)
             if packet_type == 'job':
                 job = packet.job
                 index = job.payload.env_index // self._num_env
-                self._pipe[index][0].send(job.SerializeToString())
+                self._pipes[index][0].send(job.SerializeToString())
             elif packet_type == 'job_batch':
                 jobs = packet.job_batch.jobs
                 for job in jobs:
                     index = job.payload.env_index // self._num_env
-                    self._pipe[index][0].send(job.SerializeToString())
+                    self._pipes[index][0].send(job.SerializeToString())
 
     async def _recv_model_info_loop(self):
         '''a loop to receive `ModelInfo`'''
@@ -345,7 +359,7 @@ class GameServer:
             raw = await loop.run_in_executor(executor, queue.get)
             await self._upstream.send(raw)
 
-    async def __send_model_subscribe(self):
+    async def _send_model_subscribe(self):
         '''helper to send a `model_subscribe` to optimizer'''
         packet = czf_pb2.Packet(model_subscribe=czf_pb2.Heartbeat())
         await self._upstream.send(packet.SerializeToString())

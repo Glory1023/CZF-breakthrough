@@ -32,14 +32,14 @@ class AlphaZeroPreprocessor(Preprocessor):
         # from the initial state to the terminal state
         num_states = len(trajectory.states)
         priorities = [1.] * num_states
-        buffer = []
+        buffer_ = []
         for state in trajectory.states:
             # tensor
             observation = to_bytes(state.observation_tensor)
             policy = to_bytes(state.evaluation.policy)
             returns = to_bytes(trajectory.statistics.rewards)
             # (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
-            buffer.append(
+            buffer_.append(
                 AlphaZeroTransition(
                     observation=observation,
                     policy=policy,
@@ -54,4 +54,4 @@ class AlphaZeroPreprocessor(Preprocessor):
             player_returns=tuple((reward, ) for reward in trajectory.statistics.rewards),
         )
         # add trajectory to buffer (from start to terminal)
-        self._result_queue.put((stats, tuple(priorities), tuple(buffer)))
+        self._result_queue.put((stats, tuple(priorities), tuple(buffer_)))
