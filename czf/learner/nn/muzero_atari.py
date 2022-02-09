@@ -30,6 +30,7 @@ class MuZeroAtari(nn.Module):
         super().__init__()
         self.observation_shape = observation_shape
         self.state_shape = state_shape
+        self.action_dim = action_dim
         # channels, height, width
         in_channels, _, _ = self.observation_shape
         _, height, width = self.state_shape
@@ -50,11 +51,12 @@ class MuZeroAtari(nn.Module):
             ResNet(in_channels=h_channels, blocks=h_blocks, out_channels=h_channels),
             nn.AvgPool2d(kernel_size=3, stride=2, padding=1),
         )
-        self.dynamics = ResNet(h_channels + 1, g_blocks, h_channels)
+        self.dynamics = ResNet(h_channels + action_dim, g_blocks, h_channels)
         self.prediction = ResNet(h_channels, f_blocks, f_channels)
         # g: action plane map
-        action_map = torch.cat(
-            [torch.full((1, *state_shape[-2:]), (i + 1) / action_dim) for i in range(action_dim)])
+        action_map = torch.zeros(action_dim, action_dim, height, width)
+        for i in range(action_dim):
+            action_map[i][i] = 1
         self.register_buffer('action_map', action_map)
         # g => reward head
         self.reward_head_front = nn.Sequential(
@@ -108,7 +110,7 @@ class MuZeroAtari(nn.Module):
     def forward_dynamics(self, state, action):
         '''g: dynamics function'''
         _, height, width = self.state_shape
-        action_plane = self.action_map[action.long()].view(-1, 1, height, width)
+        action_plane = self.action_map[action.long()].view(-1, self.action_dim, height, width)
         state = torch.cat((state, action_plane), 1)
         x = self.dynamics(state)
         x_max = x.flatten(1).max(dim=1).values.view(-1, 1, 1, 1)
