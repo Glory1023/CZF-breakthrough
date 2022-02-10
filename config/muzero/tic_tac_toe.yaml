@@ -120,12 +120,12 @@ evaluator:
   # the first checkpoint to be evaluated
   first_checkpoint: 0
   # the last checkpoint to be evaluated
+  # if `latest` is set to `True`, set `last_checkpoint` to `0`
   last_checkpoint: 1000
   # evaluate performance every N checkpoints
   frequency: 10
   # whether to listen to the latest model
-  # if set `True`, `last_checkpoint` is ignored
-  latest: True
+  latest: False
   # the elo rating for the first checkpoint
   elo_base: 0.
   # the win rate threshold to replace the base model

@@ -114,9 +114,9 @@ evaluator:
   # the first checkpoint to be evaluated
   first_checkpoint: 0
   # the last checkpoint to be evaluated
+  # if `latest` is set to `True`, set `last_checkpoint` to `0`
   last_checkpoint: 7000
   # evaluate performance every N checkpoints
   frequency: 100
   # whether to listen to the latest model
-  # if set `True`, `last_checkpoint` is ignored
-  latest: True
+  latest: False

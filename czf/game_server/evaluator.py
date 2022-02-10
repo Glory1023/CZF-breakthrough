@@ -100,7 +100,7 @@ class EvalEnvManager:
                 self._player_roles[args.num_env + i] = ['2P', '1P']
         # reset all environments
         for index in range(self._num_env):
-            self.__reset(index, new=True)
+            self._reset(index, new=True)
 
     async def loop(self):
         '''main loop'''
@@ -114,11 +114,11 @@ class EvalEnvManager:
                 for index in range(self._num_env):
                     player_role = self._player_roles[index][0]
                     if self._operation[player_role] == operation:
-                        self.__send_search_job(index)
+                        self._send_search_job(index)
                 continue
-            self.__on_job_completed(job)
+            self._on_job_completed(job)
 
-    def __reset(self, env_index, new=False):
+    def _reset(self, env_index, new=False):
         '''reset env of index'''
         if not new:
             state = self._envs[env_index].state
@@ -137,9 +137,9 @@ class EvalEnvManager:
         self._total_rewards[env_index] = [0.] * self._game.num_players
         self._num_steps[env_index] = 0
 
-    def __send_search_job(self, env_index):
+    def _send_search_job(self, env_index):
         '''helper to send a `Job` to actor'''
-        # print(f'__send_search_job: process {self._proc_index} env {env_index}')
+        # print(f'_send_search_job: process {self._proc_index} env {env_index}')
         env = self._envs[env_index]
         current_player = self._envs[env_index].state.current_player
         player_role = self._player_roles[env_index][current_player]
@@ -165,10 +165,10 @@ class EvalEnvManager:
         # print(packet)
         self._job_queue.put(packet.SerializeToString())
 
-    def __on_job_completed(self, job: czf_pb2.Job):
+    def _on_job_completed(self, job: czf_pb2.Job):
         '''callback on job completion'''
         env_index = job.payload.env_index % self._num_env
-        # print(f'__on_job_completed: process {self._proc_index} env {env_index}')
+        # print(f'_on_job_completed: process {self._proc_index} env {env_index}')
         env = self._envs[env_index]
         # choose action according to the policy
         evaluated_state = job.payload.state
@@ -201,9 +201,9 @@ class EvalEnvManager:
                 total_rewards = self._total_rewards[env_index][1]
             result = EvalResult(game_steps=game_steps, total_rewards=total_rewards)
             self._result_queue.put(result)
-            self.__reset(env_index)
+            self._reset(env_index)
         else:
-            self.__send_search_job(env_index)
+            self._send_search_job(env_index)
 
 
 class EvalGameServer:
@@ -227,16 +227,16 @@ class EvalGameServer:
         self._freq = eval_config.get('frequency', 1)
         self._latest = eval_config.get('latest', False)
         assert self._last_ckpt >= self._first_ckpt
-        assert self._freq > 0
+        assert self._latest or self._freq > 0
 
         # a queue to store model version to evaluate
         self._model_version_queue = Queue()
-        if self._latest:
-            self._last_ckpt = self._first_ckpt
-            self._model_version_queue.put(self._last_ckpt)
-        else:
+        if self._freq > 0:
             for version in range(self._first_ckpt, self._last_ckpt + 1, self._freq):
                 self._model_version_queue.put(version)
+        elif self._latest:
+            self._last_ckpt = self._first_ckpt
+            self._model_version_queue.put(self._last_ckpt)
 
         # for two-player game
         self._best_elo = eval_config.get('elo_base', 0.)
@@ -370,10 +370,12 @@ class EvalGameServer:
             if packet_type == 'model_info':
                 new_version = packet.model_info.version
                 if self._latest and new_version > self._last_ckpt:
-                    for version in range(self._last_ckpt + 1, new_version + 1):
-                        if (version - self._first_ckpt) % self._freq == 0:
-                            self._model_version_queue.put(version)
+                    if self._freq > 0:
+                        for version in range(self._last_ckpt + 1, new_version + 1):
+                            if (version - self._first_ckpt) % self._freq == 0:
+                                self._model_version_queue.put(version)
                     self._last_ckpt = new_version
+                    print('Update last_ckpt to: ', new_version)
 
     async def _send_job_loop(self):
         '''a loop to send `Job`'''
@@ -396,18 +398,25 @@ class EvalGameServer:
             if self._num_players == 2 and version == self._first_ckpt:
                 continue
             self._model_info['1P'].version = version
+            print('start version {} evaluation'.format(version))
             await self._send_load_model()
             # wait for the results of all envs
             eval_results = []
             while len(eval_results) < self._total_env:
                 result = await loop.run_in_executor(result_executor, result_queue.get)
                 eval_results.append(result)
+            print('finish version {} evaluation with {} games'.format(version, len(eval_results)))
             asyncio.create_task(self._write_result(eval_results))
+            if self._latest and self._freq <= 0:
+                self._model_version_queue.put(self._last_ckpt)
 
     async def _write_result(self, eval_results: list):
         '''helper to process evaluation result'''
-        total_env = len(eval_results)
-        assert total_env == self._total_env
+        def get_logging_info(x):
+            return dict(mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
+
+        total_games = len(eval_results)
+        assert total_games == self._total_env
         game_steps, total_rewards = [], []
         for result in eval_results:
             game_steps.append(result.game_steps)
@@ -415,13 +424,8 @@ class EvalGameServer:
 
         step = self._model_info['1P'].version
         writer = self._summary_writer
-        writer.add_scalars(
-            'eval/steps', {
-                'mean': np.mean(game_steps),
-                'min': np.min(game_steps),
-                'max': np.max(game_steps),
-                'std': np.std(game_steps),
-            }, step)
+        writer.add_scalar('eval/num_games', total_games, step)
+        writer.add_scalars('eval/steps', get_logging_info(game_steps), step)
 
         if self._num_players == 1:
             print('{} Reward Mean: {:.2f}, Max: {:.2f}, Min: {:.2f}'.format(
@@ -430,20 +434,14 @@ class EvalGameServer:
                 np.max(total_rewards),
                 np.min(total_rewards),
             ))
-            writer.add_scalars(
-                'eval/score', {
-                    'mean': np.mean(total_rewards),
-                    'min': np.min(total_rewards),
-                    'max': np.max(total_rewards),
-                    'std': np.std(total_rewards),
-                }, step)
+            writer.add_scalars('eval/score', get_logging_info(total_rewards), step)
             writer.flush()
         elif self._num_players == 2:
-            win_rate = total_rewards.count(1) / total_env
-            draw_rate = total_rewards.count(0) / total_env
-            lose_rate = total_rewards.count(-1) / total_env
+            win_rate = total_rewards.count(1) / total_games
+            draw_rate = total_rewards.count(0) / total_games
+            lose_rate = total_rewards.count(-1) / total_games
             # score for win: 2, draw: 1, lose: 0
-            score = np.sum(np.array(total_rewards) + 1) / (2 * total_env)
+            score = np.sum(np.array(total_rewards) + 1) / (2 * total_games)
             elo_1p_diff = 400 * np.log10(score / (1 - score))
             elo_1p = elo_1p_diff + self._best_elo
             print(
