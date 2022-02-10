@@ -96,7 +96,23 @@ mcts:
 game_server:
   # drop the softmax temperature from 1 to 0 after the number of steps
   # (set `True` to always enable)
-  softmax_temperature_step: True
+  softmax_temperature:
+    # drop the softmax temperature to 0 after the number of game steps
+    # (set `True` to always enable)
+    steps: True
+    # softmax temperature value (can be scalar or a list for scheduling)
+    # Examples:
+    #     temperatures: 1.0 (T = 1.0)
+    #     temperatures: [
+    #       [1000, 1.0], (if    0 <= model_iteration <= 1000, set T = 1.0)
+    #       [2000, 0.5], (if 1000 <= model_iteration <= 2000, set T = 0.5)
+    #       [3000, 0.1]  (if 2000 <= model_iteration <= 3000, set T = 0.1)
+    #     ]              (if 3000 <  model_iteration        , set T = 0)
+    temperatures: [
+      [1000, 1.0],
+      [2000, 0.5],
+      [3000, 0.1]
+    ]
   # send a sequence every length N (set `0` to send full game)
   sequence: 0
 

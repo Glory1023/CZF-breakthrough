@@ -65,7 +65,8 @@ class EvalEnvManager:
                 dirichlet_epsilon=0.,
                 discount=mcts_config.get('discount', 1.),
             )
-            self._mstep = max(mcts_config['nstep'], config['learner']['rollout_steps'])
+        print(self._action_policy_fn)
+        print(self._tree_option)
         # game env
         self._num_env = args.num_env * self._num_players
         game_config = config['game']
@@ -175,7 +176,12 @@ class EvalEnvManager:
         legal_actions = env.state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
         num_moves = self._num_steps[env_index]
-        chosen_action = self._action_policy_fn(num_moves, legal_actions, legal_actions_policy)
+        chosen_action = self._action_policy_fn(
+            num_moves,
+            0,
+            legal_actions,
+            legal_actions_policy,
+        )
         # apply action
         env.state.apply_action(chosen_action)
         # print(chosen_action)

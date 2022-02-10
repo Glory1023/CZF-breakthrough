@@ -79,6 +79,8 @@ class EnvManager:
                 dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
                 discount=mcts_config.get('discount', 1.),
             )
+        print(self._action_policy_fn)
+        print(self._tree_option)
         # game_server config
         self._sequence = config['game_server']['sequence']
         self._mstep = 0
@@ -186,7 +188,12 @@ class EnvManager:
         legal_actions = env.state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
         num_moves = self._num_steps[env_index]
-        chosen_action = self._action_policy_fn(num_moves, legal_actions, legal_actions_policy)
+        chosen_action = self._action_policy_fn(
+            num_moves,
+            self._model_info.version,
+            legal_actions,
+            legal_actions_policy,
+        )
         # add to trajectory
         state = env.trajectory.states.add()
         state.observation_tensor[:] = env.state.feature_tensor

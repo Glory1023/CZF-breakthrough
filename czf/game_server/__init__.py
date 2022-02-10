@@ -14,20 +14,71 @@ from czf.game_server.game_server import GameServer
 from czf.game_server.evaluator import EvalGameServer
 
 
-def make_default_action_policy_fn(softmax_step, num_moves, legal_actions, legal_actions_policy):
+def make_default_action_policy_fn(softmax_temperature, simulation_count, num_moves,
+                                  model_iteration, legal_actions, legal_actions_policy):
     '''Default action policy: switch betweens softmax and argmax action policy'''
-    if num_moves < softmax_step:
-        return softmax_action_policy_fn(num_moves, legal_actions, legal_actions_policy)
-    return argmax_action_policy_fn(num_moves, legal_actions, legal_actions_policy)
+    steps = softmax_temperature['steps']
+    temperatures = softmax_temperature['temperatures']
+    current_temperature = None
+    if isinstance(temperatures, float):
+        current_temperature = temperatures
+    elif isinstance(temperatures, list):
+        for (iteration, temperature) in temperatures:
+            # print(iteration, temperature)
+            if model_iteration <= iteration:
+                current_temperature = temperature
+                break
+
+    if not isinstance(current_temperature, float):
+        return argmax_action_policy_fn(
+            num_moves,
+            model_iteration,
+            legal_actions,
+            legal_actions_policy,
+        )
+    if isinstance(steps, bool):
+        if steps:
+            return softmax_action_policy_fn(
+                current_temperature,
+                simulation_count,
+                legal_actions,
+                legal_actions_policy,
+            )
+        else:
+            return argmax_action_policy_fn(
+                num_moves,
+                model_iteration,
+                legal_actions,
+                legal_actions_policy,
+            )
+    if isinstance(steps, int) and num_moves < steps:
+        return softmax_action_policy_fn(
+            current_temperature,
+            simulation_count,
+            legal_actions,
+            legal_actions_policy,
+        )
+    return argmax_action_policy_fn(
+        num_moves,
+        model_iteration,
+        legal_actions,
+        legal_actions_policy,
+    )
 
 
-def softmax_action_policy_fn(_, legal_actions, legal_actions_policy):
+def softmax_action_policy_fn(temperature, simulation_count, legal_actions, legal_actions_policy):
     '''Softmax action policy'''
-    return random.choices(legal_actions, legal_actions_policy)[0]
+    # print(temperature)
+    # recover original simulation count
+    visit_counts = np.array(legal_actions_policy) * simulation_count
+    policy = visit_counts**(1.0 / temperature)
+    policy /= np.sum(policy)
+    return random.choices(legal_actions, policy)[0]
 
 
-def argmax_action_policy_fn(_, legal_actions, legal_actions_policy):
+def argmax_action_policy_fn(num_moves, model_iteration, legal_actions, legal_actions_policy):
     '''Argmax action policy'''
+    # print('argmax')
     return legal_actions[np.argmax(legal_actions_policy)]
 
 
@@ -81,18 +132,16 @@ def run_main():
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
-    softmax_step = config['game_server']['softmax_temperature_step']
+    softmax_temperature = config['game_server']['softmax_temperature']
     callbacks = {
         'metric': {},
     }
     # default action policy
-    if isinstance(softmax_step, bool):
-        if softmax_step:
-            callbacks['action_policy'] = softmax_action_policy_fn
-        else:
-            callbacks['action_policy'] = argmax_action_policy_fn
-    elif isinstance(softmax_step, int):
-        callbacks['action_policy'] = partial(make_default_action_policy_fn, softmax_step)
+    callbacks['action_policy'] = partial(
+        make_default_action_policy_fn,
+        softmax_temperature,
+        config['mcts']['simulation_count'],
+    )
     if args.eval:
         callbacks['action_policy'] = argmax_action_policy_fn
         # np.set_printoptions(precision=3)
