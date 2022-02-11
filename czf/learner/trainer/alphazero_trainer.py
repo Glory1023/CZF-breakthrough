@@ -26,6 +26,7 @@ class AlphaZeroTrainer(Trainer):
         self._model_dir = model_path / self.model_name
         for path in (self._ckpt_dir, self._model_dir):
             path.mkdir(parents=True, exist_ok=True)
+        self._checkpoint_freq = config['learner']['checkpoint_freq']
         self._game = czf_env.load_game(config['game']['name'])
         model_config = config['model']
         self._model_kwargs = dict(
@@ -138,8 +139,9 @@ class AlphaZeroTrainer(Trainer):
             value = getattr(process_memory, name)
             writer.add_scalar('memory/{}'.format(name.capitalize()), value, self.iteration)
 
-    def save_model(self, checkpoint=False):
+    def save_model(self):
         '''save model to file'''
+        # save the checkpoint of current iteration
         buffer_ = BytesIO()
         torch.save(
             {
@@ -159,19 +161,35 @@ class AlphaZeroTrainer(Trainer):
             sys.executable,
             '-m',
             'czf.utils.model_saver',
-            '--checkpoint',
+            '--checkpoint-path',
             str(ckpt_path),
             '--model-dir',
             str(self._model_dir),
             '--algorithm',
             'AlphaZero',
         ]
-        if not checkpoint:
-            args.append('--rm')
         subprocess.run(args, check=True, env=os.environ.copy())
-        if checkpoint:
-            # update the latest checkpoint
+
+        prev_iteration = self.iteration - 1
+        remove_prev_ckpt = (prev_iteration >= 0) and (prev_iteration % self._checkpoint_freq != 0)
+        if remove_prev_ckpt:
+            # remove previous checkpoint
+            prev_ckpt_path = self._ckpt_dir / f'{prev_iteration:05d}.pt'
+            os.remove(str(prev_ckpt_path))
+            # remove previous model
+            prev_model_path = self._model_dir / f'{prev_iteration:05d}.pt'
+            os.remove(str(prev_model_path))
+
+        keep_current_ckpt = (self.iteration % self._checkpoint_freq == 0)
+        if keep_current_ckpt:
+            # update the link to latest checkpoint
             latest_ckpt = self._ckpt_dir / 'latest.pt'
             temp_ckpt = self._ckpt_dir / 'latest-temp.pt'
             os.symlink(ckpt_path, temp_ckpt)
             os.replace(temp_ckpt, latest_ckpt)
+            # update the link to latest model
+            latest_model = self._model_dir / 'latest.pt'
+            temp_model = self._model_dir / 'latest-temp.pt'
+            model_path = self._model_dir / f'{self.iteration:05d}.pt'
+            os.symlink(model_path, temp_model)
+            os.replace(temp_model, latest_model)

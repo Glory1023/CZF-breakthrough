@@ -62,20 +62,13 @@ def save(args, iteration, buffer):
     # cctx = zstd.ZstdCompressor()
     # buffer = cctx.compress(buffer)
     model_path.write_bytes(buffer)
-    # update the latest model file
-    latest_model = model_dir / 'latest.pt'
-    temp_model = model_dir / 'latest-temp.pt'
-    os.symlink(model_path, temp_model)
-    os.replace(temp_model, latest_model)
-    if args.rm:
-        os.remove(args.checkpoint)
 
 
 def main(args):
     '''czf.utils.model_server main program'''
     device = 'cuda'
     # load checkpoint
-    with open(args.checkpoint, 'rb') as model_blob:
+    with open(args.checkpoint_path, 'rb') as model_blob:
         buffer = model_blob.read()
         # dctx = zstd.ZstdDecompressor()
         # buffer = dctx.decompress(buffer)
@@ -89,10 +82,9 @@ def main(args):
 def run_main():
     '''Run main program'''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--checkpoint', help='path to load checkpoint')
+    parser.add_argument('--checkpoint-path', help='path to load checkpoint')
     parser.add_argument('--model-dir', help='directory to save model')
     parser.add_argument('--algorithm', help='used algorithm (AlphaZero or MuZero)')
-    parser.add_argument('--rm', action='store_true', help='remove the checkpoint')
     args = parser.parse_args()
     main(args)
 

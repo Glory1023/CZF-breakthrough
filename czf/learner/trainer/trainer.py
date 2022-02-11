@@ -70,7 +70,6 @@ def run_trainer(
 ):
     '''run :class:`Trainer`'''
     storage_path, checkpoint_path, model_path, log_path, trajectory_path = path
-    checkpoint_freq = config['learner']['checkpoint_freq']
     batch_size = config['learner']['batch_size']
 
     # replay buffer
@@ -153,8 +152,7 @@ def run_trainer(
             )
             dataloader.put(sampled_index)
             trainer.train(dataloader, replay_buffer)
-            save_ckpt = (trainer.iteration % checkpoint_freq == 0)
-            trainer.save_model(save_ckpt)
+            trainer.save_model()
             notify_model_queue.put((trainer.model_name, trainer.iteration))
             print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
                   f'Finish optimization with time {time.time() - start:.3f}')
@@ -213,6 +211,6 @@ class Trainer(abc.ABC):
         raise NotImplementedError('Trainer must be able to log statistics')
 
     @abc.abstractmethod
-    def save_model(self, checkpoint=False):
+    def save_model(self):
         '''save model to file'''
         raise NotImplementedError('Trainer must be able to save model')
