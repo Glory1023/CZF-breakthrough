@@ -47,6 +47,21 @@ class CliAgent:
                 dirichlet_epsilon=0.,
                 discount=mcts_config.get('discount', 1.),
             )
+        elif self._algorithm == 'MuZero_Gumbel':
+            self._operation = czf_pb2.Job.Operation.MUZERO_SEARCH
+            self._tree_option = czf_pb2.WorkerState.TreeOption(
+                simulation_count=mcts_config['simulation_count'],
+                tree_min_value=mcts_config.get('tree_min_value', float('inf')),
+                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
+                c_puct=mcts_config['c_puct'],
+                dirichlet_alpha=mcts_config['dirichlet']['alpha'],
+                dirichlet_epsilon=0.,
+                discount=mcts_config.get('discount', 1.),
+                gumbel_sampled_actions=mcts_config['gumbel']['sampled_actions'],
+                gumbel_c_visit=mcts_config['gumbel']['c_visit'],
+                gumbel_c_scale=mcts_config['gumbel']['c_scale'],
+                gumbel_use_noise=False,
+            )
         # game env
         game_config = config['game']
         obs_config = game_config['observation']
@@ -135,7 +150,7 @@ class CliAgent:
         # print('serialize:', self._state.serialize())
         if self._algorithm == 'AlphaZero':
             state = czf_pb2.WorkerState(serialized_state=self._state.serialize())
-        elif self._algorithm == 'MuZero':
+        elif self._algorithm == 'MuZero' or self._algorithm == 'MuZero_Gumbel':
             state = czf_pb2.WorkerState(
                 legal_actions=self._state.legal_actions,
                 observation_tensor=self._state.observation_tensor,

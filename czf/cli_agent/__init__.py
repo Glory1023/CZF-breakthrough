@@ -48,7 +48,6 @@ def run_main():
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
-    softmax_step = config['game_server']['softmax_temperature_step']
     callbacks = {
         'metric': {},
     }

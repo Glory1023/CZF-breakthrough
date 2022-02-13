@@ -65,6 +65,20 @@ class EvalEnvManager:
                 dirichlet_epsilon=0.,
                 discount=mcts_config.get('discount', 1.),
             )
+        elif self._algorithm == 'MuZero_Gumbel':
+            self._tree_option = czf_pb2.WorkerState.TreeOption(
+                simulation_count=mcts_config['simulation_count'],
+                tree_min_value=mcts_config.get('tree_min_value', float('inf')),
+                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
+                c_puct=mcts_config['c_puct'],
+                dirichlet_alpha=mcts_config['dirichlet']['alpha'],
+                dirichlet_epsilon=0.,
+                discount=mcts_config.get('discount', 1.),
+                gumbel_sampled_actions=mcts_config['gumbel']['sampled_actions'],
+                gumbel_c_visit=mcts_config['gumbel']['c_visit'],
+                gumbel_c_scale=mcts_config['gumbel']['c_scale'],
+                gumbel_use_noise=False,
+            )
         print(self._action_policy_fn)
         print(self._tree_option)
         # game env
@@ -148,7 +162,7 @@ class EvalEnvManager:
 
         if self._algorithm == 'AlphaZero':
             state = czf_pb2.WorkerState(serialized_state=env.state.serialize(), )
-        elif self._algorithm == 'MuZero':
+        elif self._algorithm == 'MuZero' or self._algorithm == 'MuZero_Gumbel':
             state = czf_pb2.WorkerState(
                 legal_actions=env.state.legal_actions,
                 observation_tensor=env.state.observation_tensor,
@@ -176,12 +190,15 @@ class EvalEnvManager:
         legal_actions = env.state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
         num_moves = self._num_steps[env_index]
-        chosen_action = self._action_policy_fn(
-            num_moves,
-            0,
-            legal_actions,
-            legal_actions_policy,
-        )
+        if self._algorithm == 'MuZero_Gumbel':
+            chosen_action = evaluated_state.evaluation.selected_action
+        else:
+            chosen_action = self._action_policy_fn(
+                num_moves,
+                0,
+                legal_actions,
+                legal_actions_policy,
+            )
         # apply action
         env.state.apply_action(chosen_action)
         # print(chosen_action)
@@ -215,7 +232,7 @@ class EvalGameServer:
         )
         # server mode
         algorithm = config['algorithm']
-        assert algorithm in ('AlphaZero', 'MuZero')
+        assert algorithm in ('AlphaZero', 'MuZero', 'MuZero_Gumbel')
         print(f'[{algorithm} Evaluation Mode]', self._node.identity)
         # game config
         game_config = config['game']
@@ -252,7 +269,7 @@ class EvalGameServer:
                     '1P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_1P,
                     '2P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_2P,
                 }
-        elif algorithm == 'MuZero':
+        elif algorithm == 'MuZero' or algorithm == 'MuZero_Gumbel':
             if self._num_players == 1:
                 self._operation = {
                     '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,

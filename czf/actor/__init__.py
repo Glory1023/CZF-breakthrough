@@ -14,7 +14,7 @@ from czf.actor.actor import Actor
 
 
 def create_worker_manager(args, config):
-    assert config['algorithm'] in ('AlphaZero', 'MuZero')
+    assert config['algorithm'] in ('AlphaZero', 'MuZero', 'MuZero_Gumbel')
     '''create a worker manager from args and config'''
     if config['algorithm'] == 'AlphaZero':
         # import worker here since importing both two workers will encounter protobuf error
@@ -32,6 +32,30 @@ def create_worker_manager(args, config):
         # import worker here since importing both two workers will encounter protobuf error
         from czf.actor import muzero_worker
         manager = muzero_worker.WorkerManager()
+        # GameInfo
+        game_config = config['game']
+        obs_config = game_config['observation']
+        frame_stack = obs_config['frame_stack']
+        channel = obs_config['channel']
+        spatial_shape = obs_config['spatial_shape']
+        if frame_stack > 0:
+            manager.game_info.observation_shape = [frame_stack * (channel + 1), *spatial_shape]
+        else:
+            manager.game_info.observation_shape = [channel, *spatial_shape]
+        manager.game_info.state_shape = [
+            config['model']['h_channels'], *game_config['state_spatial_shape']
+        ]
+        manager.game_info.num_actions = game_config['actions']
+        manager.game_info.all_actions = list(range(game_config['actions']))
+        manager.game_info.is_two_player = (game_config.get('num_player', 2) == 2)
+        # JobOption
+        manager.worker_option.seed = args.seed
+        manager.worker_option.timeout_us = args.gpu_timeout
+        manager.worker_option.batch_size = args.batch_size
+    elif config['algorithm'] == 'MuZero_Gumbel':
+        # import worker here since importing both two workers will encounter protobuf error
+        from czf.actor import muzero_worker_gumbel
+        manager = muzero_worker_gumbel.WorkerManager()
         # GameInfo
         game_config = config['game']
         obs_config = game_config['observation']

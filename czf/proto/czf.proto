@@ -40,6 +40,10 @@ message WorkerState {
     float dirichlet_alpha = 5;
     float dirichlet_epsilon = 6;
     float discount = 7;
+    int32 gumbel_sampled_actions = 8;
+    float gumbel_c_visit = 9;
+    float gumbel_c_scale = 10;
+    bool gumbel_use_noise = 11;
   }
   // a message for an evaluation result (Actor)
   message Evaluation {
@@ -47,6 +51,8 @@ message WorkerState {
     float value = 1;
     // MCTS root policy (used to determine action)
     repeated float policy = 2;
+    // the best action in Gumbel
+    int32 selected_action = 3;
   }
   // a message for a game transition (GameServer)
   message Transition {

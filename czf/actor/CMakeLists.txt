@@ -10,3 +10,4 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_subdirectory(alphazero_worker)
 add_subdirectory(muzero_worker)
+add_subdirectory(muzero_worker_gumbel)

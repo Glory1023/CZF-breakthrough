@@ -79,12 +79,27 @@ class EnvManager:
                 dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
                 discount=mcts_config.get('discount', 1.),
             )
+        elif self._algorithm == 'MuZero_Gumbel':
+            self._operation = czf_pb2.Job.Operation.MUZERO_SEARCH
+            self._tree_option = czf_pb2.WorkerState.TreeOption(
+                simulation_count=mcts_config['simulation_count'],
+                tree_min_value=mcts_config.get('tree_min_value', float('inf')),
+                tree_max_value=mcts_config.get('tree_max_value', float('-inf')),
+                c_puct=mcts_config['c_puct'],
+                dirichlet_alpha=mcts_config['dirichlet']['alpha'],
+                dirichlet_epsilon=mcts_config['dirichlet']['epsilon'],
+                discount=mcts_config.get('discount', 1.),
+                gumbel_sampled_actions=mcts_config['gumbel']['sampled_actions'],
+                gumbel_c_visit=mcts_config['gumbel']['c_visit'],
+                gumbel_c_scale=mcts_config['gumbel']['c_scale'],
+                gumbel_use_noise=mcts_config['gumbel']['use_noise'],
+            )
         print(self._action_policy_fn)
         print(self._tree_option)
         # game_server config
         self._sequence = config['game_server']['sequence']
         self._mstep = 0
-        if self._algorithm == 'MuZero':
+        if self._algorithm == 'MuZero' or self._algorithm == 'MuZero_Gumbel':
             kstep = config['learner']['rollout_steps']
             nstep = mcts_config['nstep']
             self._mstep = kstep + nstep
@@ -154,7 +169,7 @@ class EnvManager:
         # workers = [czf_pb2.Node(identity='g', hostname=str(time.time()))] * 2
         if self._algorithm == 'AlphaZero':
             state = czf_pb2.WorkerState(serialized_state=env.state.serialize(), )
-        elif self._algorithm == 'MuZero':
+        elif self._algorithm == 'MuZero' or self._algorithm == 'MuZero_Gumbel':
             state = czf_pb2.WorkerState(
                 legal_actions=env.state.legal_actions,
                 observation_tensor=env.state.observation_tensor,
@@ -188,12 +203,19 @@ class EnvManager:
         legal_actions = env.state.legal_actions
         legal_actions_policy = [policy[action] for action in legal_actions]
         num_moves = self._num_steps[env_index]
-        chosen_action = self._action_policy_fn(
-            num_moves,
-            self._model_info.version,
-            legal_actions,
-            legal_actions_policy,
-        )
+        if self._algorithm == 'MuZero_Gumbel':
+            chosen_action = evaluated_state.evaluation.selected_action
+            # print("======= on job completed ========")
+            # print(legal_actions)
+            # print(legal_actions_policy)
+            # print(chosen_action)
+        else:
+            chosen_action = self._action_policy_fn(
+                num_moves,
+                self._model_info.version,
+                legal_actions,
+                legal_actions_policy,
+            )
         # add to trajectory
         state = env.trajectory.states.add()
         state.observation_tensor[:] = env.state.feature_tensor
@@ -207,6 +229,8 @@ class EnvManager:
         #       time.time() - self.start_time[env_index])
         env.state.apply_action(chosen_action)
         self._num_steps[env_index] += 1
+        # if self._num_steps[env_index] >= 7:
+        #     return
         if self._after_apply_callback:
             self._after_apply_callback(evaluated_state, env.state)
         # game transition
@@ -216,7 +240,7 @@ class EnvManager:
 
         if env.state.is_terminal:
             # (MuZero) add the terminal state to the trajectory
-            if self._algorithm == 'MuZero':
+            if self._algorithm == 'MuZero' or self._algorithm == 'MuZero_Gumbel':
                 state = env.trajectory.states.add()
                 state.observation_tensor[:] = env.state.feature_tensor
                 state.evaluation.value = evaluated_state.evaluation.value
@@ -264,7 +288,7 @@ class GameServer:
         self._model_info = mp.Value(ModelInfo, 'default', -1)
         # server mode
         algorithm = config['algorithm']
-        assert algorithm in ('AlphaZero', 'MuZero')
+        assert algorithm in ('AlphaZero', 'MuZero', 'MuZero_Gumbel')
         print(f'[{algorithm} Training Mode]', self._node.identity)
 
         # start EnvManager

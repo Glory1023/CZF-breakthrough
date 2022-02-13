@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='czf.pb',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\tczf.proto\x12\x06\x63zf.pb\"\x0b\n\tHeartbeat\"*\n\x04Node\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x10\n\x08hostname\x18\x02 \x01(\t\"*\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\"7\n\x05Model\x12\x1f\n\x04info\x18\x01 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\x9a\x04\n\x0bWorkerState\x12\x15\n\rlegal_actions\x18\x01 \x03(\x05\x12\x1a\n\x12observation_tensor\x18\x02 \x03(\x02\x12\x33\n\x0btree_option\x18\x03 \x01(\x0b\x32\x1e.czf.pb.WorkerState.TreeOption\x12\x32\n\nevaluation\x18\x04 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Evaluation\x12\x32\n\ntransition\x18\x05 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Transition\x12\x18\n\x10serialized_state\x18\x06 \x01(\t\x1a\xac\x01\n\nTreeOption\x12\x18\n\x10simulation_count\x18\x01 \x01(\x05\x12\x16\n\x0etree_min_value\x18\x02 \x01(\x02\x12\x16\n\x0etree_max_value\x18\x03 \x01(\x02\x12\x0e\n\x06\x63_puct\x18\x04 \x01(\x02\x12\x17\n\x0f\x64irichlet_alpha\x18\x05 \x01(\x02\x12\x19\n\x11\x64irichlet_epsilon\x18\x06 \x01(\x02\x12\x10\n\x08\x64iscount\x18\x07 \x01(\x02\x1a+\n\nEvaluation\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\x1a\x45\n\nTransition\x12\x16\n\x0e\x63urrent_player\x18\x01 \x01(\x05\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\x05\x12\x0f\n\x07rewards\x18\x03 \x03(\x02\"\xc3\x03\n\x03Job\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x1f\n\tinitiator\x18\x02 \x01(\x0b\x32\x0c.czf.pb.Node\x12 \n\x05model\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12(\n\tprocedure\x18\x04 \x03(\x0e\x32\x15.czf.pb.Job.Operation\x12\x0c\n\x04step\x18\x05 \x01(\x05\x12\x1d\n\x07workers\x18\x06 \x03(\x0b\x32\x0c.czf.pb.Node\x12$\n\x07payload\x18\x07 \x01(\x0b\x32\x13.czf.pb.Job.Payload\x1a@\n\x07Payload\x12\x11\n\tenv_index\x18\x01 \x01(\x05\x12\"\n\x05state\x18\x02 \x01(\x0b\x32\x13.czf.pb.WorkerState\"\xa7\x01\n\tOperation\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x14\n\x10\x41LPHAZERO_SEARCH\x10\x01\x12\x19\n\x15\x41LPHAZERO_EVALUATE_1P\x10\x02\x12\x19\n\x15\x41LPHAZERO_EVALUATE_2P\x10\x03\x12\x11\n\rMUZERO_SEARCH\x10\x04\x12\x16\n\x12MUZERO_EVALUATE_1P\x10\x05\x12\x16\n\x12MUZERO_EVALUATE_2P\x10\x06\"H\n\nJobRequest\x12(\n\toperation\x18\x01 \x01(\x0e\x32\x15.czf.pb.Job.Operation\x12\x10\n\x08\x63\x61pacity\x18\x02 \x01(\x05\"%\n\x08JobBatch\x12\x19\n\x04jobs\x18\x01 \x03(\x0b\x32\x0b.czf.pb.Job\"\x97\x01\n\nTrajectory\x12#\n\x06states\x18\x01 \x03(\x0b\x32\x13.czf.pb.WorkerState\x12\x31\n\nstatistics\x18\x02 \x01(\x0b\x32\x1d.czf.pb.Trajectory.Statistics\x1a\x31\n\nStatistics\x12\x0f\n\x07rewards\x18\x01 \x03(\x02\x12\x12\n\ngame_steps\x18\x02 \x01(\x05\";\n\x0fTrajectoryBatch\x12(\n\x0ctrajectories\x18\x01 \x03(\x0b\x32\x12.czf.pb.Trajectory\"\xb0\x03\n\x06Packet\x12&\n\theartbeat\x18\x01 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12$\n\x07goodbye\x18\x02 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12,\n\x0fmodel_subscribe\x18\x03 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12\'\n\nmodel_info\x18\x04 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12*\n\rmodel_request\x18\x05 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12\'\n\x0emodel_response\x18\x06 \x01(\x0b\x32\r.czf.pb.ModelH\x00\x12)\n\x0bjob_request\x18\x07 \x01(\x0b\x32\x12.czf.pb.JobRequestH\x00\x12%\n\tjob_batch\x18\x08 \x01(\x0b\x32\x10.czf.pb.JobBatchH\x00\x12\x1a\n\x03job\x18\t \x01(\x0b\x32\x0b.czf.pb.JobH\x00\x12\x33\n\x10trajectory_batch\x18\n \x01(\x0b\x32\x17.czf.pb.TrajectoryBatchH\x00\x42\t\n\x07payloadb\x06proto3')
+  serialized_pb=_b('\n\tczf.proto\x12\x06\x63zf.pb\"\x0b\n\tHeartbeat\"*\n\x04Node\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x10\n\x08hostname\x18\x02 \x01(\t\"*\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\"7\n\x05Model\x12\x1f\n\x04info\x18\x01 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12\r\n\x05\x62lobs\x18\x02 \x03(\x0c\"\x9d\x05\n\x0bWorkerState\x12\x15\n\rlegal_actions\x18\x01 \x03(\x05\x12\x1a\n\x12observation_tensor\x18\x02 \x03(\x02\x12\x33\n\x0btree_option\x18\x03 \x01(\x0b\x32\x1e.czf.pb.WorkerState.TreeOption\x12\x32\n\nevaluation\x18\x04 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Evaluation\x12\x32\n\ntransition\x18\x05 \x01(\x0b\x32\x1e.czf.pb.WorkerState.Transition\x12\x18\n\x10serialized_state\x18\x06 \x01(\t\x1a\x96\x02\n\nTreeOption\x12\x18\n\x10simulation_count\x18\x01 \x01(\x05\x12\x16\n\x0etree_min_value\x18\x02 \x01(\x02\x12\x16\n\x0etree_max_value\x18\x03 \x01(\x02\x12\x0e\n\x06\x63_puct\x18\x04 \x01(\x02\x12\x17\n\x0f\x64irichlet_alpha\x18\x05 \x01(\x02\x12\x19\n\x11\x64irichlet_epsilon\x18\x06 \x01(\x02\x12\x10\n\x08\x64iscount\x18\x07 \x01(\x02\x12\x1e\n\x16gumbel_sampled_actions\x18\x08 \x01(\x05\x12\x16\n\x0egumbel_c_visit\x18\t \x01(\x02\x12\x16\n\x0egumbel_c_scale\x18\n \x01(\x02\x12\x18\n\x10gumbel_use_noise\x18\x0b \x01(\x08\x1a\x44\n\nEvaluation\x12\r\n\x05value\x18\x01 \x01(\x02\x12\x0e\n\x06policy\x18\x02 \x03(\x02\x12\x17\n\x0fselected_action\x18\x03 \x01(\x05\x1a\x45\n\nTransition\x12\x16\n\x0e\x63urrent_player\x18\x01 \x01(\x05\x12\x0e\n\x06\x61\x63tion\x18\x02 \x01(\x05\x12\x0f\n\x07rewards\x18\x03 \x03(\x02\"\xc3\x03\n\x03Job\x12\x10\n\x08identity\x18\x01 \x01(\t\x12\x1f\n\tinitiator\x18\x02 \x01(\x0b\x32\x0c.czf.pb.Node\x12 \n\x05model\x18\x03 \x01(\x0b\x32\x11.czf.pb.ModelInfo\x12(\n\tprocedure\x18\x04 \x03(\x0e\x32\x15.czf.pb.Job.Operation\x12\x0c\n\x04step\x18\x05 \x01(\x05\x12\x1d\n\x07workers\x18\x06 \x03(\x0b\x32\x0c.czf.pb.Node\x12$\n\x07payload\x18\x07 \x01(\x0b\x32\x13.czf.pb.Job.Payload\x1a@\n\x07Payload\x12\x11\n\tenv_index\x18\x01 \x01(\x05\x12\"\n\x05state\x18\x02 \x01(\x0b\x32\x13.czf.pb.WorkerState\"\xa7\x01\n\tOperation\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x14\n\x10\x41LPHAZERO_SEARCH\x10\x01\x12\x19\n\x15\x41LPHAZERO_EVALUATE_1P\x10\x02\x12\x19\n\x15\x41LPHAZERO_EVALUATE_2P\x10\x03\x12\x11\n\rMUZERO_SEARCH\x10\x04\x12\x16\n\x12MUZERO_EVALUATE_1P\x10\x05\x12\x16\n\x12MUZERO_EVALUATE_2P\x10\x06\"H\n\nJobRequest\x12(\n\toperation\x18\x01 \x01(\x0e\x32\x15.czf.pb.Job.Operation\x12\x10\n\x08\x63\x61pacity\x18\x02 \x01(\x05\"%\n\x08JobBatch\x12\x19\n\x04jobs\x18\x01 \x03(\x0b\x32\x0b.czf.pb.Job\"\x97\x01\n\nTrajectory\x12#\n\x06states\x18\x01 \x03(\x0b\x32\x13.czf.pb.WorkerState\x12\x31\n\nstatistics\x18\x02 \x01(\x0b\x32\x1d.czf.pb.Trajectory.Statistics\x1a\x31\n\nStatistics\x12\x0f\n\x07rewards\x18\x01 \x03(\x02\x12\x12\n\ngame_steps\x18\x02 \x01(\x05\";\n\x0fTrajectoryBatch\x12(\n\x0ctrajectories\x18\x01 \x03(\x0b\x32\x12.czf.pb.Trajectory\"\xb0\x03\n\x06Packet\x12&\n\theartbeat\x18\x01 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12$\n\x07goodbye\x18\x02 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12,\n\x0fmodel_subscribe\x18\x03 \x01(\x0b\x32\x11.czf.pb.HeartbeatH\x00\x12\'\n\nmodel_info\x18\x04 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12*\n\rmodel_request\x18\x05 \x01(\x0b\x32\x11.czf.pb.ModelInfoH\x00\x12\'\n\x0emodel_response\x18\x06 \x01(\x0b\x32\r.czf.pb.ModelH\x00\x12)\n\x0bjob_request\x18\x07 \x01(\x0b\x32\x12.czf.pb.JobRequestH\x00\x12%\n\tjob_batch\x18\x08 \x01(\x0b\x32\x10.czf.pb.JobBatchH\x00\x12\x1a\n\x03job\x18\t \x01(\x0b\x32\x0b.czf.pb.JobH\x00\x12\x33\n\x10trajectory_batch\x18\n \x01(\x0b\x32\x17.czf.pb.TrajectoryBatchH\x00\x42\t\n\x07payloadb\x06proto3')
 )
 
 
@@ -61,8 +61,8 @@ _JOB_OPERATION = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=1005,
-  serialized_end=1172,
+  serialized_start=1136,
+  serialized_end=1303,
 )
 _sym_db.RegisterEnumDescriptor(_JOB_OPERATION)
 
@@ -261,6 +261,34 @@ _WORKERSTATE_TREEOPTION = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='gumbel_sampled_actions', full_name='czf.pb.WorkerState.TreeOption.gumbel_sampled_actions', index=7,
+      number=8, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='gumbel_c_visit', full_name='czf.pb.WorkerState.TreeOption.gumbel_c_visit', index=8,
+      number=9, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='gumbel_c_scale', full_name='czf.pb.WorkerState.TreeOption.gumbel_c_scale', index=9,
+      number=10, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='gumbel_use_noise', full_name='czf.pb.WorkerState.TreeOption.gumbel_use_noise', index=10,
+      number=11, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -274,7 +302,7 @@ _WORKERSTATE_TREEOPTION = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=430,
-  serialized_end=602,
+  serialized_end=708,
 )
 
 _WORKERSTATE_EVALUATION = _descriptor.Descriptor(
@@ -298,6 +326,13 @@ _WORKERSTATE_EVALUATION = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='selected_action', full_name='czf.pb.WorkerState.Evaluation.selected_action', index=2,
+      number=3, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -310,8 +345,8 @@ _WORKERSTATE_EVALUATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=604,
-  serialized_end=647,
+  serialized_start=710,
+  serialized_end=778,
 )
 
 _WORKERSTATE_TRANSITION = _descriptor.Descriptor(
@@ -354,8 +389,8 @@ _WORKERSTATE_TRANSITION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=649,
-  serialized_end=718,
+  serialized_start=780,
+  serialized_end=849,
 )
 
 _WORKERSTATE = _descriptor.Descriptor(
@@ -420,7 +455,7 @@ _WORKERSTATE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=180,
-  serialized_end=718,
+  serialized_end=849,
 )
 
 
@@ -457,8 +492,8 @@ _JOB_PAYLOAD = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=938,
-  serialized_end=1002,
+  serialized_start=1069,
+  serialized_end=1133,
 )
 
 _JOB = _descriptor.Descriptor(
@@ -530,8 +565,8 @@ _JOB = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=721,
-  serialized_end=1172,
+  serialized_start=852,
+  serialized_end=1303,
 )
 
 
@@ -568,8 +603,8 @@ _JOBREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1174,
-  serialized_end=1246,
+  serialized_start=1305,
+  serialized_end=1377,
 )
 
 
@@ -599,8 +634,8 @@ _JOBBATCH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1248,
-  serialized_end=1285,
+  serialized_start=1379,
+  serialized_end=1416,
 )
 
 
@@ -637,8 +672,8 @@ _TRAJECTORY_STATISTICS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1390,
-  serialized_end=1439,
+  serialized_start=1521,
+  serialized_end=1570,
 )
 
 _TRAJECTORY = _descriptor.Descriptor(
@@ -674,8 +709,8 @@ _TRAJECTORY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1288,
-  serialized_end=1439,
+  serialized_start=1419,
+  serialized_end=1570,
 )
 
 
@@ -705,8 +740,8 @@ _TRAJECTORYBATCH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1441,
-  serialized_end=1500,
+  serialized_start=1572,
+  serialized_end=1631,
 )
 
 
@@ -802,8 +837,8 @@ _PACKET = _descriptor.Descriptor(
       name='payload', full_name='czf.pb.Packet.payload',
       index=0, containing_type=None, fields=[]),
   ],
-  serialized_start=1503,
-  serialized_end=1935,
+  serialized_start=1634,
+  serialized_end=2066,
 )
 
 _MODEL.fields_by_name['info'].message_type = _MODELINFO

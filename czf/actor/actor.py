@@ -17,7 +17,7 @@ class Actor:
 
         # Actor mode
         self.algorithm = config['algorithm']
-        assert self.algorithm in ('AlphaZero', 'MuZero')
+        assert self.algorithm in ('AlphaZero', 'MuZero', 'MuZero_Gumbel')
         operation = {
             'AlphaZero': {
                 None: czf_pb2.Job.Operation.ALPHAZERO_SEARCH,
@@ -25,6 +25,11 @@ class Actor:
                 '2P': czf_pb2.Job.Operation.ALPHAZERO_EVALUATE_2P,
             },
             'MuZero': {
+                None: czf_pb2.Job.Operation.MUZERO_SEARCH,
+                '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
+                '2P': czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
+            },
+            'MuZero_Gumbel': {
                 None: czf_pb2.Job.Operation.MUZERO_SEARCH,
                 '1P': czf_pb2.Job.Operation.MUZERO_EVALUATE_1P,
                 '2P': czf_pb2.Job.Operation.MUZERO_EVALUATE_2P,
@@ -45,7 +50,7 @@ class Actor:
                 num_gpu_worker=args.num_gpu_worker,
                 num_gpu=args.num_gpu,
             )
-        elif self.algorithm == 'MuZero':
+        elif self.algorithm == 'MuZero' or self.algorithm == 'MuZero_Gumbel':
             self._worker_manager.run(
                 num_cpu_worker=args.num_cpu_worker,
                 num_gpu_worker=args.num_gpu_worker,
