@@ -10,7 +10,8 @@ struct Job {
     kEnqueue,                                  ///< enqueue a batch of jobs
     kForwardRoot,                              ///< forward the representation (h => f)
     kSelect,                                   ///< Mcts selection & expansion
-    kForward,                                  ///< forward the dynamics model (g => f)
+    kForwardState,                             ///< forward the dynamics model (g => f)
+    kForwardAfterstate,                        ///< forward the afterstate_dynamics model (g => f)
     kUpdate,                                   ///< Mcts update
     kDone,                                     ///< the job is finished
     kDequeue,                                  ///< dequeue a batch of jobs

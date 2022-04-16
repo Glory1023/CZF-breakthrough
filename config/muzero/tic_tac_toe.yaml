@@ -3,6 +3,7 @@ algorithm: 'MuZero'
 game:
   name: 'tic_tac_toe'
   num_player: 2
+  is_stochastic: False
   # number of total actions
   actions: 9
   # if frame_stack equals to 0, then

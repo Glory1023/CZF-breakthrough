@@ -97,6 +97,21 @@ class AtariState:
         '''Returns the feature tensor for the replay buffer'''
         return self._feat.flatten()
 
+    @property
+    def is_chance_node(self):
+        '''Returns if current state is chance node'''
+        return False
+
+    @property
+    def legal_chance_outcome_probs(self):
+        '''Return all legal chance outcomes with probabilities'''
+        return [(0, 1.0)]
+
+    @property
+    def current_stage(self):
+        '''Returns the stage'''
+        return 0
+
 
 class AtariGame:
     '''Atari game wrapper'''
@@ -133,3 +148,8 @@ class AtariGame:
         '''
         raise NotImplementedError
         #return self._env.observation_space.shape
+
+    @property
+    def num_chance_outcomes(self):
+        '''Maximum number of chance outcomes'''
+        return 0

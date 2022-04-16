@@ -33,6 +33,7 @@ def create_worker_manager(args, config):
         from czf.actor import muzero_worker
         manager = muzero_worker.WorkerManager()
         # GameInfo
+        model_config = config['model']
         game_config = config['game']
         obs_config = game_config['observation']
         frame_stack = obs_config['frame_stack']
@@ -47,7 +48,10 @@ def create_worker_manager(args, config):
         ]
         manager.game_info.num_actions = game_config['actions']
         manager.game_info.all_actions = list(range(game_config['actions']))
+        manager.game_info.num_chance_outcomes = model_config.get('codebook_size', 0)
+        manager.game_info.all_chance_outcomes = list(range(model_config.get('codebook_size', 0)))
         manager.game_info.is_two_player = (game_config.get('num_player', 2) == 2)
+        manager.game_info.is_stochastic = game_config['is_stochastic']
         # JobOption
         manager.worker_option.seed = args.seed
         manager.worker_option.timeout_us = args.gpu_timeout

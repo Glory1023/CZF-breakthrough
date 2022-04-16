@@ -45,7 +45,7 @@ class WorkerManager {
   /** cpu worker */
   void cpu_worker(Seed_t, Seed_t);
   /** gpu worker */
-  void gpu_worker(bool);
+  void gpu_worker(GpuWorkerType);
 
  private:
   /** can worker continue to run */
@@ -55,7 +55,7 @@ class WorkerManager {
   /** threads on cpu and gpu */
   std::vector<std::thread> cpu_threads_, gpu_threads_;
   /** job queues for cpu, gpu, root gpu, and result */
-  JobQueue cpu_queue_, gpu_queue_, gpu_root_queue_, result_queue_;
+  JobQueue cpu_queue_, gpu_state_queue_, gpu_afterstate_queue_, gpu_root_queue_, result_queue_;
 };
 
 }  // namespace czf::actor::muzero_worker::worker

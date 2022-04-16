@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import multiprocessing as mp
 import platform
+import random
 import time
 import typing
 
@@ -150,6 +151,15 @@ class EnvManager:
                 state = self._game.new_initial_state(video_dir=self._video_dir)
             else:
                 state = self._game.new_initial_state()
+
+        # initial chance outcomes
+        while state.is_chance_node:
+            legal_chance_outcome_probs = state.legal_chance_outcome_probs
+            chance_outcomes, chance_probs = list(zip(*legal_chance_outcome_probs))
+            chance_outcome = random.choices(chance_outcomes, chance_probs)[0]
+            state.apply_action(chance_outcome)
+
+        # print(state)
         self._envs[env_index] = EnvInfo(
             state,
             czf_pb2.Trajectory(),
@@ -166,6 +176,7 @@ class EnvManager:
     def _send_search_job(self, env_index):
         '''helper to send a `Job` to actor'''
         env = self._envs[env_index]
+        assert not env.state.is_chance_node, '[_send_search_job] send job from chance node'
         # workers = [czf_pb2.Node(identity='g', hostname=str(time.time()))] * 2
         if self._algorithm == 'AlphaZero':
             state = czf_pb2.WorkerState(serialized_state=env.state.serialize(), )
@@ -237,6 +248,20 @@ class EnvManager:
         state.transition.rewards[:] = env.state.rewards
         for player, reward in enumerate(env.state.rewards):
             self._total_rewards[env_index][player] += reward
+
+        if env.state.is_chance_node:
+            legal_chance_outcome_probs = env.state.legal_chance_outcome_probs
+            chance_outcomes, chance_probs = list(zip(*legal_chance_outcome_probs))
+            chance_outcome = random.choices(chance_outcomes, chance_probs)[0]
+            # stochastic MuZero
+            if self._algorithm == 'MuZero':
+                all_chance_probs = [0.0] * self._game.num_chance_outcomes
+                for chance, chance_prob in legal_chance_outcome_probs:
+                    all_chance_probs[chance] = chance_prob
+                state.transition.chance_probs[:] = all_chance_probs
+                state.transition.chance_outcome = chance_outcome
+            env.state.apply_action(chance_outcome)
+            assert not env.state.is_chance_node, '[__on_job_completed] apply chance error'
 
         if env.state.is_terminal:
             # (MuZero) add the terminal state to the trajectory

@@ -24,7 +24,9 @@ PYBIND11_MODULE(czf_env, m) {  // NOLINT
       .def_property_readonly("rewards", &State::rewards)
       .def("clone", &State::clone)
       .def("serialize", &State::serialize)
-      .def("__repr__", &State::to_string);
+      .def("__repr__", &State::to_string)
+      .def_property_readonly("is_chance_node", &State::is_chance_node)
+      .def_property_readonly("legal_chance_outcome_probs", &State::legal_chance_outcome_probs);
 
   py::class_<Game, std::shared_ptr<Game>>(m, "Game")
       .def_property_readonly("name", &Game::name)
@@ -38,7 +40,8 @@ PYBIND11_MODULE(czf_env, m) {  // NOLINT
       .def("restore_policy", &Game::restore_policy)
       .def("action_to_string", &Game::action_to_string)
       .def("string_to_action", &Game::string_to_action)
-      .def("deserialize_state", &Game::deserialize_state);
+      .def("deserialize_state", &Game::deserialize_state)
+      .def_property_readonly("num_chance_outcomes", &Game::num_chance_outcomes);
 }
 
 }  // namespace

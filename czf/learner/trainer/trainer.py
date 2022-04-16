@@ -4,6 +4,7 @@ from datetime import datetime
 import multiprocessing as mp
 from multiprocessing.managers import BaseManager
 import os
+from pathlib import Path
 from queue import Empty
 import time
 
@@ -84,7 +85,8 @@ def run_trainer(
 
     # restore the replay buffer
     if args.restore_buffer_dir:
-        pass  # TODO: restore the replay buffer
+        restore_trajectory_path = Path(args.restore_buffer_dir)
+        replay_buffer.restore_trajectory(restore_trajectory_path, args.restore_buffer_iter)
 
     # sampler
     index_queue = mp.Queue()
@@ -112,6 +114,7 @@ def run_trainer(
         log_path,
         args.model_name,
         args.restore_checkpoint_path,
+        args.gpus,
     )
     trainer.save_model()
     print('Storage path:', storage_path)
@@ -152,7 +155,9 @@ def run_trainer(
             )
             dataloader.put(sampled_index)
             trainer.train(dataloader, replay_buffer)
+            print(f'Finish train with time {time.time() - start:.3f}')
             trainer.save_model()
+            print(f'Finish save model with time {time.time() - start:.3f}')
             notify_model_queue.put((trainer.model_name, trainer.iteration))
             print(f'[{datetime.now().strftime("%Y/%m/%d %H:%M:%S")}] >> '
                   f'Finish optimization with time {time.time() - start:.3f}')

@@ -1,4 +1,4 @@
-'''CZF MuZero Trainer'''
+'''CZF StochasticMuZero Trainer'''
 from collections import Counter
 from io import BytesIO
 import os
@@ -12,12 +12,12 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from czf.learner.data_parallel import DataParallelWrapper
-from czf.learner.nn import MuZero, MuZeroAtari
+from czf.learner.nn import MuZero, MuZeroAtari, StochasticMuZero
 from czf.learner.trainer.trainer import Trainer
 
 
-class MuZeroTrainer(Trainer):
-    '''MuZero Trainer'''
+class StochasticMuZeroTrainer(Trainer):
+    '''StochasticMuZero Trainer'''
     def __init__(self, config, checkpoint_path, model_path, log_path, model_name,
                  restore_checkpoint_path, gpus):
         self._device = 'cuda:' + str(gpus[0]) if len(gpus) > 0 else 'cuda'
@@ -38,6 +38,7 @@ class MuZeroTrainer(Trainer):
         self._gamma = config['mcts']['discount_factor']
         # model kwargs
         self._action_dim = config['game']['actions']
+        self._chance_outcome_dim = config['game']['chance_outcomes']
         model_config = config['model']
         h_channels = model_config['h_channels']
         state_shape = [h_channels, *config['game']['state_spatial_shape']]
@@ -52,6 +53,7 @@ class MuZeroTrainer(Trainer):
             observation_shape=observation_shape,
             state_shape=state_shape,
             action_dim=self._action_dim,
+            chance_outcome_dim=model_config['codebook_size'],
             h_blocks=model_config['h_blocks'],
             h_channels=h_channels,
             g_blocks=model_config['g_blocks'],
@@ -59,6 +61,8 @@ class MuZeroTrainer(Trainer):
             f_blocks=model_config['f_blocks'],
             f_channels=model_config['f_channels'],
             v_heads=v_heads,
+            e_blocks=model_config['e_blocks'],
+            e_channels=model_config['e_channels'],
         )
         # config
         self._observation_shape = observation_shape
@@ -70,7 +74,12 @@ class MuZeroTrainer(Trainer):
         self._r_loss = model_config['r_loss']
         self._v_loss = model_config['v_loss']
         # model
-        Model = MuZeroAtari if (self._model_cls == 'MuZeroAtari') else MuZero
+        if self._model_cls == 'MuZeroAtari':
+            Model = MuZeroAtari
+        elif self._model_cls == 'StochasticMuZero':
+            Model = StochasticMuZero
+        else:
+            Model = MuZero
         self._model = Model(
             **self._model_kwargs,
             is_train=True,
@@ -86,10 +95,14 @@ class MuZeroTrainer(Trainer):
                 target, pred).squeeze()
         else:  # == 'cross_entropy'
             self._r_loss_func = lambda target, prob: ((-target * (1e-8 + prob).log()).sum(dim=1))
+        self._e_loss_func = lambda target, pred: torch.nn.MSELoss()(target, pred).squeeze()
         # transform function
         if self._model_cls == 'MuZeroAtari':
             self._value_transform = lambda x: MuZeroAtari.to_scalar(self._model.v_supp, x)
             self._reward_transform = lambda x: MuZeroAtari.to_scalar(self._model.r_supp, x)
+        if self._model_cls == 'StochasticMuZero':
+            self._value_transform = lambda x: StochasticMuZero.to_scalar(self._model.v_supp, x)
+            self._reward_transform = lambda x: StochasticMuZero.to_scalar(self._model.r_supp, x)
         else:
             self._value_transform = lambda x: x
             self._reward_transform = lambda x: x
@@ -103,6 +116,7 @@ class MuZeroTrainer(Trainer):
             self.iteration = state_dict['iteration']
             self._model = state_dict['model'].to(self._device)
             optimizer_state_dict = state_dict['optimizer']
+
         device_ids = gpus if len(gpus) > 0 else None
         self._model = DataParallelWrapper(self._model, device_ids=device_ids)
         # optimizer
@@ -128,6 +142,12 @@ class MuZeroTrainer(Trainer):
         if restore_checkpoint_path:
             print('Restore optimizer')
             self._optimizer.load_state_dict(optimizer_state_dict)
+        self._lr_scheduler_name = config['learner']['lr_scheduler'].get('name', None)
+        if self._lr_scheduler_name == 'MultiStepLR':
+            self._scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                self._optimizer,
+                milestones=config['learner']['lr_scheduler']['milestones'],
+                gamma=config['learner']['lr_scheduler']['gamma'])
         # tensorboard log
         self._num_player = config['game']['num_player']
         self._summary_writer = SummaryWriter(
@@ -156,7 +176,11 @@ class MuZeroTrainer(Trainer):
             (-1, self._action_dim),
             (-1, ),
             (-1, self._r_heads),
+            (-1, ),
+            (-1, self._chance_outcome_dim),
+            (-1, *self._observation_shape),
         )
+        shape_len = len(shape)
 
         self._model.train()
         replay_buffer.copy_weights()
@@ -166,6 +190,7 @@ class MuZeroTrainer(Trainer):
         value_target, value_rollout = [], []
         policy_target, policy_rollout = [], []
         reward_sum_target, reward_sum_rollout = [], []
+        chance_probs_target, chance_probs_rollout, chance_probs_encoder = [], [], []
         priority_sampled = []
 
         start = time.time()
@@ -180,7 +205,7 @@ class MuZeroTrainer(Trainer):
                 to_tensor(t).view(shape[i % len(shape)]) for i, t in enumerate(rollout.transition)
             ]
 
-            total_batch, loss, p_loss, v_loss, r_loss = 0, 0, 0, 0, 0
+            total_batch, loss, p_loss, v_loss, r_loss, c_loss, q_loss, e_loss = 0, 0, 0, 0, 0, 0, 0, 0
             # logging info
             num_states = len(observation)
             ksteps = torch.zeros((num_states, 1), device=self._device)
@@ -191,12 +216,15 @@ class MuZeroTrainer(Trainer):
             rollout_r_sum = torch.zeros((num_states, 1), device=self._device)
 
             state = self._model.parallel_forward_representation(observation)
+            next_observation = observation
+
             # rollout k steps
-            for t, i in enumerate(range(0, len(transition), 5)):
+            for t, i in enumerate(range(0, len(transition), shape_len)):
                 is_last_step = (t == self._kstep)
-                target_value, mask, *next_transition = transition[i:i + 5]
+                target_value, mask, *next_transition = transition[i:i + shape_len]
                 if next_transition:
-                    target_policy, action, target_reward = next_transition
+                    current_observation = next_observation
+                    target_policy, action, target_reward, _, target_chance_probs, next_observation = next_transition
                 mask = mask.nonzero(as_tuple=True)
                 total_batch += len(state)
                 policy, value = self._model.parallel_forward(state)
@@ -222,20 +250,31 @@ class MuZeroTrainer(Trainer):
                 if next_transition:
                     policy = policy[mask]
                     state = state[mask]
-                    state, reward = self._model.parallel_forward_dynamics(state, action)
+                    current_observation = current_observation[mask]
+                    afterstate = self._model.parallel_forward_afterstate_dynamics(state, action)
+                    chance_probs, afterstate_value = self._model.parallel_forward_afterstate_prediction(
+                        afterstate)
+                    chance_encoder_hard, chance_encoder_soft = self._model.parallel_forward_encoder(
+                        current_observation, action, next_observation)
+                    state, reward = self._model.parallel_forward_dynamics_onehot(
+                        afterstate, chance_encoder_hard)
+
                     state = scale_gradient(state, 0.5)
                     rollout_index = rollout_index[mask]
                     # logging info
                     if not is_last_step:
                         target_r_sum[rollout_index] += self._reward_transform(target_reward)
                         rollout_r_sum[rollout_index] += self._reward_transform(reward.detach())
+                        chance_probs_target.extend(target_chance_probs.tolist())
+                        chance_probs_rollout.extend(chance_probs.detach().tolist())
+                        chance_probs_encoder.extend(chance_encoder_soft.detach().tolist())
                     policy_target.extend(target_policy.tolist())
                     policy_rollout.extend(policy.detach().tolist())
-                    if t == 0 and self._num_player == 1:
-                        print('>>> avg target_p:',
-                              [round(p, 3)
-                               for p in torch.mean(target_policy, dim=0).tolist()], 'avg pred_p:',
-                              [round(p, 3) for p in torch.mean(policy, dim=0).tolist()])
+                    # if t == 0 and self._num_player == 1:
+                    #     print('>>> avg target_p:',
+                    #           [round(p, 3)
+                    #            for p in torch.mean(target_policy, dim=0).tolist()], 'avg pred_p:',
+                    #           [round(p, 3) for p in torch.mean(policy, dim=0).tolist()])
 
                 # loss
                 v_loss_i = weight * self._v_loss_func(target_value, value)
@@ -244,6 +283,13 @@ class MuZeroTrainer(Trainer):
                     p_loss_i = masked_weight * self._p_loss_func(target_policy, policy)
                     if not is_last_step:
                         r_loss_i = masked_weight * self._r_loss_func(target_reward, reward)
+                        c_loss_i = masked_weight * self._p_loss_func(chance_encoder_hard.detach(),
+                                                                     chance_probs)
+                        target_value = target_value[mask]
+                        q_loss_i = masked_weight * self._v_loss_func(target_value,
+                                                                     afterstate_value)
+                        e_loss_i = masked_weight * self._e_loss_func(chance_encoder_hard.detach(),
+                                                                     chance_encoder_soft)
                     weight = masked_weight
                 # scale gradient
                 if i > 0:
@@ -254,6 +300,9 @@ class MuZeroTrainer(Trainer):
                         p_loss_i = scale_gradient(p_loss_i, scale)
                     if not is_last_step:
                         r_loss_i = scale_gradient(r_loss_i, scale)
+                        c_loss_i = scale_gradient(c_loss_i, scale)
+                        q_loss_i = scale_gradient(q_loss_i, scale)
+                        e_loss_i = scale_gradient(e_loss_i, scale)
                 # total loss
                 v_loss_i = v_loss_i.sum()
                 loss += v_loss_i
@@ -262,17 +311,26 @@ class MuZeroTrainer(Trainer):
                     loss += p_loss_i
                     if not is_last_step:
                         r_loss_i = r_loss_i.sum()
-                        loss += r_loss_i
+                        c_loss_i = c_loss_i.sum()
+                        q_loss_i = q_loss_i.sum()
+                        e_loss_i = e_loss_i.sum()
+                        loss += r_loss_i + c_loss_i + q_loss_i + 0.25 * e_loss_i
                 v_loss += v_loss_i.item()
                 if next_transition:
                     p_loss += p_loss_i.item()
                     if not is_last_step:
                         r_loss += r_loss_i.item()
+                        c_loss += c_loss_i.item()
+                        q_loss += q_loss_i.item()
+                        e_loss += e_loss_i.item()
 
             loss /= total_batch
             p_loss /= total_batch
             v_loss /= total_batch
             r_loss /= total_batch
+            c_loss /= total_batch
+            q_loss /= total_batch
+            e_loss /= total_batch
             target_v /= ksteps
             rollout_v /= ksteps
             # logging
@@ -283,10 +341,17 @@ class MuZeroTrainer(Trainer):
             priority_sampled.extend(
                 (replay_buffer.get_mean_weight() / to_tensor(rollout.weight)).tolist())
             print(
-                '... p_loss: {:.3f}, v_loss: {:.3f}, r_loss: {:.3f}, priority: {:.3f} \u00b1 {:.3f}'
-                .format(p_loss, v_loss, r_loss,
-                        torch.mean(replay_buffer.get_mean_weight() / to_tensor(rollout.weight)),
-                        torch.std(replay_buffer.get_mean_weight() / to_tensor(rollout.weight))))
+                '... p_loss: {:.3f}, v_loss: {:.3f}, r_loss: {:.3f}, c_loss: {:.3f}, q_loss: {:.3f}, e_loss: {:.3f}, priority: {:.3f} \u00b1 {:.3f}'
+                .format(
+                    p_loss,
+                    v_loss,
+                    r_loss,
+                    c_loss,
+                    q_loss,
+                    e_loss,
+                    torch.mean(replay_buffer.get_mean_weight() / to_tensor(rollout.weight)),
+                    torch.std(replay_buffer.get_mean_weight() / to_tensor(rollout.weight)),
+                ))
             print(
                 '... target_v: {:.3f} \u00b1 {:.3f}, rollout_v: {:.3f} \u00b1 {:.3f},'
                 ' target_r_sum: {:.3f} \u00b1 {:.3f}, rollout_r_sum: {:.3f} \u00b1 {:.3f}'.format(
@@ -308,6 +373,7 @@ class MuZeroTrainer(Trainer):
             del weight, observation, scale, transition
             del rollout, target_value, mask, next_transition
             del state, action, policy, value, reward
+            del chance_probs, chance_encoder_hard, chance_encoder_soft
             del ksteps, rollout_index, target_v, rollout_v, target_r_sum, rollout_r_sum
 
             print(f'[train] optimize with time {time.time() - start:.3f}')
@@ -323,6 +389,9 @@ class MuZeroTrainer(Trainer):
         writer.add_scalar('loss/policy', p_loss, step)
         writer.add_scalar('loss/value', v_loss, step)
         writer.add_scalar('loss/reward', r_loss, step)
+        writer.add_scalar('loss/chance_probs', c_loss, step)
+        writer.add_scalar('loss/afterstate_value', q_loss, step)
+        writer.add_scalar('loss/commitment', e_loss, step)
         # logging: train
         get_logging_dict = lambda x: dict(
             mean=np.mean(x), min=np.min(x), max=np.max(x), std=np.std(x))
@@ -332,6 +401,18 @@ class MuZeroTrainer(Trainer):
         writer.add_scalars('train/policy_rollout',
                            {f'action {i}': np.mean(p)
                             for i, p in enumerate(zip(*policy_rollout))}, step)
+        writer.add_scalars(
+            'train/chance_probs_target',
+            {f'action {i}': np.mean(p)
+             for i, p in enumerate(zip(*chance_probs_target))}, step)
+        writer.add_scalars(
+            'train/chance_probs_rollout',
+            {f'action {i}': np.mean(p)
+             for i, p in enumerate(zip(*chance_probs_rollout))}, step)
+        writer.add_scalars(
+            'train/chance_probs_encoder',
+            {f'action {i}': np.mean(p)
+             for i, p in enumerate(zip(*chance_probs_encoder))}, step)
         writer.add_scalars('train/value_target', get_logging_dict(value_target), step)
         writer.add_scalars('train/value_rollout', get_logging_dict(value_rollout), step)
         writer.add_scalars('train/reward_target', get_logging_dict(reward_sum_target), step)
@@ -339,6 +420,9 @@ class MuZeroTrainer(Trainer):
         writer.add_scalars('train/priority', get_logging_dict(priority_sampled), step)
         # write back priorities
         replay_buffer.write_back_weights()
+
+        if self._lr_scheduler_name:
+            self._scheduler.step()
 
     def log_statistics(self, replay_buffer):
         '''log statistics for recent trajectories'''
@@ -398,7 +482,7 @@ class MuZeroTrainer(Trainer):
             '--model-dir',
             str(self._model_dir),
             '--algorithm',
-            'MuZero',
+            'StochasticMuZero',
             '--device',
             self._device,
         ]

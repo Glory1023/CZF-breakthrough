@@ -17,6 +17,18 @@ MuZeroTransition = namedtuple('MuZeroTransition', [
     'valid',
 ])
 
+StochasticMuZeroTransition = namedtuple('StochasticMuZeroTransition', [
+    'observation',
+    'action',
+    'policy',
+    'value',
+    'reward',
+    'chance_outcome',
+    'chance_probs',
+    'is_terminal',
+    'valid',
+])
+
 
 class MuZeroRolloutBatch:
     '''MuZeroRolloutBatch is used to collate data samples from :class:`ReplayBuffer`.
@@ -155,6 +167,7 @@ class MuZeroReplayBuffer(ReplayBuffer):
         observation_config,
         capacity,
         kstep,
+        is_stochastic,
     ):
         super().__init__(
             num_player,
@@ -162,10 +175,12 @@ class MuZeroReplayBuffer(ReplayBuffer):
             sequences_to_train,
             sample_ratio,
             sample_states,
+            capacity,
         )
         self._spatial_shape = observation_config['spatial_shape']
         self._frame_stack = observation_config['frame_stack']
         self._kstep = kstep
+        self._is_stochastic = is_stochastic
         self._buffer = MuZeroTransitionBuffer(
             capacity,
             self._frame_stack,
@@ -182,17 +197,41 @@ class MuZeroReplayBuffer(ReplayBuffer):
         kstep, transitions = 0, []
         np0 = np.array(0, dtype=np.float32).tobytes()
         np1 = np.array(1, dtype=np.float32).tobytes()
-        for transition in rollout:
-            kstep += 1
-            transitions.extend([
-                transition.value,
-                np0 if transition.is_terminal else np1,
-                transition.policy,
-                transition.action,
-                transition.reward,
-            ])
-            if transition.is_terminal:
-                break
+
+        if self._is_stochastic:
+            for i, transition in enumerate(rollout):
+                kstep += 1
+                if transition.is_terminal or transition.action == None:
+                    next_observation = None
+                elif i >= self._kstep:
+                    next_observation = rollout[i].observation
+                else:
+                    next_observation = rollout[i + 1].observation
+                transitions.extend([
+                    transition.value,
+                    np0 if transition.is_terminal else np1,
+                    transition.policy,
+                    transition.action,
+                    transition.reward,
+                    transition.chance_outcome,
+                    transition.chance_probs,
+                    next_observation,
+                ])
+                if transition.is_terminal:
+                    break
+        else:
+            for transition in rollout:
+                kstep += 1
+                transitions.extend([
+                    transition.value,
+                    np0 if transition.is_terminal else np1,
+                    transition.policy,
+                    transition.action,
+                    transition.reward,
+                ])
+                if transition.is_terminal:
+                    break
+
         kstep -= 1
         scale = np.array(1. / kstep, dtype=np.float32).tobytes()
         # i, w, o, s, [(v, m, p, a, r)]

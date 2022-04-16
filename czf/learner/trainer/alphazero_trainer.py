@@ -10,7 +10,6 @@ import psutil
 import torch
 import torch.nn
 from torch.utils.tensorboard import SummaryWriter
-from torch._utils import _get_all_device_indices
 
 from czf.env import czf_env
 from czf.learner.nn import AlphaZero
@@ -19,8 +18,8 @@ from czf.learner.trainer.trainer import Trainer
 
 class AlphaZeroTrainer(Trainer):
     '''AlphaZero Trainer'''
-    def __init__(self, config, checkpoint_path, model_path, log_path, model_name, restore):
-        self._device = 'cuda'
+    def __init__(self, config, checkpoint_path, model_path, log_path, model_name, restore, gpus):
+        self._device = 'cuda:' + str(gpus[0]) if len(gpus) > 0 else 'cuda'
         self.model_name, self.iteration = model_name, 0
         self._ckpt_dir = checkpoint_path / self.model_name
         self._model_dir = model_path / self.model_name
@@ -38,9 +37,10 @@ class AlphaZeroTrainer(Trainer):
             backbone=model_config.get('backbone', 'ResNet'),
         )
         self._model = AlphaZero(**self._model_kwargs)
+        device_ids = gpus if len(gpus) > 0 else None
         self._model = torch.nn.DataParallel(
             self._model,
-            device_ids=_get_all_device_indices(),
+            device_ids=device_ids,
         )
         self._model.to(self._device)
         # optimizer
@@ -175,10 +175,12 @@ class AlphaZeroTrainer(Trainer):
         if remove_prev_ckpt:
             # remove previous checkpoint
             prev_ckpt_path = self._ckpt_dir / f'{prev_iteration:05d}.pt'
-            os.remove(str(prev_ckpt_path))
+            if os.path.exists(str(prev_ckpt_path)):
+                os.remove(str(prev_ckpt_path))
             # remove previous model
             prev_model_path = self._model_dir / f'{prev_iteration:05d}.pt'
-            os.remove(str(prev_model_path))
+            if os.path.exists(str(prev_model_path)):
+                os.remove(str(prev_model_path))
 
         keep_current_ckpt = (self.iteration % self._checkpoint_freq == 0)
         if keep_current_ckpt:

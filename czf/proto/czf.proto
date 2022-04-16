@@ -62,6 +62,10 @@ message WorkerState {
     int32 action = 2;
     // immediate rewards after applying the action
     repeated float rewards = 3;
+    // probabilities of chance outcomes
+    repeated float chance_probs = 4;
+    // chance outcome applied in the game
+    int32 chance_outcome = 5;
   }
   // unordered legal actions
   repeated int32 legal_actions = 1;

@@ -1,6 +1,6 @@
 '''CZF Replay Buffer'''
 from dataclasses import dataclass
-
+import pickle
 from torch.utils.data import Dataset
 import zstandard as zstd
 
@@ -25,6 +25,7 @@ class ReplayBuffer(Dataset):
         sequences_to_train,
         sample_ratio,
         sample_states,
+        capacity,
     ):
         self._num_player = num_player
         assert states_to_train != sequences_to_train, 'the two options are disjoint.'
@@ -33,11 +34,13 @@ class ReplayBuffer(Dataset):
         assert sample_ratio != sample_states, 'the two options are disjoint.'
         self._sample_ratio = sample_ratio
         self._sample_states = sample_states
-        self._pb_trajectory_batch = czf_pb2.TrajectoryBatch()
-        self._cctx_trajectory = zstd.ZstdCompressor()
+        self._capacity = capacity
         self._num_states = 0
         self._num_games = 0
         self._ready = False
+        self._trajectory_to_save = []
+        self._cctx_trajectory = zstd.ZstdCompressor()
+        self._dctx_trajectory = zstd.ZstdDecompressor()
         self.reset_statistics()
 
     def __len__(self):
@@ -66,6 +69,7 @@ class ReplayBuffer(Dataset):
 
         # add trajectory to buffer
         self._extend(priorities, trajectories)
+        self._trajectory_to_save.append(trajectory)
 
         # train the model when there are N newly generated states
         if self._states_to_train is not None:
@@ -117,8 +121,38 @@ class ReplayBuffer(Dataset):
 
     def save_trajectory(self, path, iteration):
         '''Save all trajectories to the `path` with compression, and clear up all trajactories'''
-        trajectory = self._pb_trajectory_batch.SerializeToString()
-        compressed = self._cctx_trajectory.compress(trajectory)
-        trajectory_path = path / f'{iteration:05d}.pb.zst'
+        '''Save all trajectories to the `path` with compression, and clear up all trajactories'''
+        print(len(self._trajectory_to_save))
+        serialized = pickle.dumps(self._trajectory_to_save)
+        compressed = self._cctx_trajectory.compress(serialized)
+        trajectory_path = path / f'{iteration:05d}.zst'
         trajectory_path.write_bytes(compressed)
-        self._pb_trajectory_batch.Clear()
+        self._trajectory_to_save = []
+
+    def restore_trajectory(self, path, end_iteration):
+        num_states = 0
+        start_iteration = 0
+        # calculate the range of iterations to restore the full replay buffer
+        for iteration in range(end_iteration, -1, -1):
+            trajectory_path = path / f'{iteration:05d}.zst'
+            compressed = trajectory_path.read_bytes()
+            decompressed = self._dctx_trajectory.decompress(compressed)
+            trajectories = pickle.loads(decompressed)
+            for trajectory in trajectories:
+                stats, _, _ = trajectory
+                num_states += stats.num_states
+            print(iteration, num_states, self._capacity)
+            if num_states >= self._capacity:
+                start_iteration = iteration
+                break
+
+        print(f'Restore trajectory from {start_iteration} to {end_iteration} iteration')
+        for iteration in range(start_iteration, end_iteration + 1):
+            trajectory_path = path / f'{iteration:05d}.zst'
+            compressed = trajectory_path.read_bytes()
+            decompressed = self._dctx_trajectory.decompress(compressed)
+            trajectories = pickle.loads(decompressed)
+            for trajectory in trajectories:
+                self.add_trajectory(trajectory)
+            print(iteration, len(self))
+        self.reset_statistics()

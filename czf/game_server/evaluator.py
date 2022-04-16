@@ -6,6 +6,7 @@ from datetime import datetime
 import multiprocessing as mp
 from pathlib import Path
 import platform
+import random
 import time
 
 import numpy as np
@@ -143,6 +144,14 @@ class EvalEnvManager:
                 state = self._game.new_initial_state(video_dir=self._video_dir)
             else:
                 state = self._game.new_initial_state()
+
+        # initial chance outcomes
+        while state.is_chance_node:
+            legal_chance_outcome_probs = state.legal_chance_outcome_probs
+            chance_outcomes, chance_probs = list(zip(*legal_chance_outcome_probs))
+            chance_outcome = random.choices(chance_outcomes, chance_probs)[0]
+            state.apply_action(chance_outcome)
+
         self._envs[env_index] = EnvInfo(
             state,
             czf_pb2.Trajectory(),
@@ -155,6 +164,8 @@ class EvalEnvManager:
         '''helper to send a `Job` to actor'''
         # print(f'_send_search_job: process {self._proc_index} env {env_index}')
         env = self._envs[env_index]
+        assert not env.state.is_chance_node, 'send job from chance node'
+
         current_player = self._envs[env_index].state.current_player
         player_role = self._player_roles[env_index][current_player]
         operation = self._operation[player_role]
@@ -209,6 +220,13 @@ class EvalEnvManager:
         for player, reward in enumerate(env.state.rewards):
             self._total_rewards[env_index][player] += reward
 
+        if env.state.is_chance_node:
+            legal_chance_outcome_probs = env.state.legal_chance_outcome_probs
+            chance_outcomes, chance_probs = list(zip(*legal_chance_outcome_probs))
+            chance_outcome = random.choices(chance_outcomes, chance_probs)[0]
+            env.state.apply_action(chance_outcome)
+            assert not env.state.is_chance_node, '[__on_job_completed] apply chance error'
+
         if env.state.is_terminal:
             game_steps = self._num_steps[env_index]
             first_player_role = self._player_roles[env_index][0]
@@ -243,6 +261,7 @@ class EvalGameServer:
         self._last_ckpt = eval_config.get('last_checkpoint', self._first_ckpt)
         self._freq = eval_config.get('frequency', 1)
         self._latest = eval_config.get('latest', False)
+        self._eval_tag = eval_config.get('tag', 'eval')
         assert self._last_ckpt >= self._first_ckpt
         assert self._latest or self._freq > 0
 
@@ -441,8 +460,8 @@ class EvalGameServer:
 
         step = self._model_info['1P'].version
         writer = self._summary_writer
-        writer.add_scalar('eval/num_games', total_games, step)
-        writer.add_scalars('eval/steps', get_logging_info(game_steps), step)
+        writer.add_scalar(self._eval_tag + '/num_games', total_games, step)
+        writer.add_scalars(self._eval_tag + '/steps', get_logging_info(game_steps), step)
 
         if self._num_players == 1:
             print('{} Reward Mean: {:.2f}, Max: {:.2f}, Min: {:.2f}'.format(
@@ -451,7 +470,7 @@ class EvalGameServer:
                 np.max(total_rewards),
                 np.min(total_rewards),
             ))
-            writer.add_scalars('eval/score', get_logging_info(total_rewards), step)
+            writer.add_scalars(self._eval_tag + '/score', get_logging_info(total_rewards), step)
             writer.flush()
         elif self._num_players == 2:
             win_rate = total_rewards.count(1) / total_games
@@ -472,10 +491,12 @@ class EvalGameServer:
                     elo_1p_diff,
                 ))
             # write the evaluation result to tensorboard
-            writer.add_scalar('eval/elo', elo_1p, step)
-            writer.add_scalar('eval/current_version', self._model_info['1P'].version, step)
-            writer.add_scalar('eval/best_version', self._model_info['2P'].version, step)
-            writer.add_scalars('eval/result', {
+            writer.add_scalar(self._eval_tag + '/elo', elo_1p, step)
+            writer.add_scalar(self._eval_tag + '/current_version', self._model_info['1P'].version,
+                              step)
+            writer.add_scalar(self._eval_tag + '/best_version', self._model_info['2P'].version,
+                              step)
+            writer.add_scalars(self._eval_tag + '/result', {
                 'win': win_rate,
                 'draw': draw_rate,
                 'lose': lose_rate,

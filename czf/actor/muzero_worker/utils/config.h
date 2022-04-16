@@ -14,11 +14,14 @@ static constexpr size_t kDefaultTimeout = 1000U;  ///< default timeout: 1000ms
 }  // namespace BuildOption
 
 struct GameInfo {
-  std::vector<int64_t> observation_shape;  ///< root observation shape
-  std::vector<int64_t> state_shape;        ///< internal state shape
-  std::vector<int32_t> all_actions;        ///< all possible actions
-  size_t num_actions;                      ///< number of all possible actions
-  bool is_two_player;                      ///< single-player or two-player
+  std::vector<int64_t> observation_shape;    ///< root observation shape
+  std::vector<int64_t> state_shape;          ///< internal state shape
+  std::vector<int32_t> all_actions;          ///< all possible actions
+  size_t num_actions;                        ///< number of all possible actions
+  std::vector<int32_t> all_chance_outcomes;  ///< all possible chance outcomes
+  size_t num_chance_outcomes;                ///< number of all possible chance outcomes
+  bool is_two_player;                        ///< single-player or two-player
+  bool is_stochastic;                        ///< whether is stochastis game
 };
 
 struct WorkerOption {
@@ -36,6 +39,12 @@ struct TreeOption {
       dirichlet_alpha,      ///< Dir(alpha)
       dirichlet_epsilon,    ///< (1 - eps) * p + eps * Dir(a);
       discount;             ///< discount factor of the return
+};
+
+enum class GpuWorkerType {
+  kWorkerRoot,
+  kWorkerState,
+  kWorkerAfterstate,
 };
 
 }  // namespace czf::actor::muzero_worker

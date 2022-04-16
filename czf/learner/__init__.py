@@ -36,6 +36,10 @@ async def main():
                         const='',
                         metavar='TRAJECTORY_DIR',
                         help='restore the replay buffer')
+    parser.add_argument('--restore-buffer-iter',
+                        type=int,
+                        default=0,
+                        help='restore the replay buffer from this iteration')
     parser.add_argument('--pretrain-trajectory-dir',
                         metavar='TRAJECTORY_DIR',
                         help='pretrain the trajectory')
@@ -48,6 +52,7 @@ async def main():
                         type=int,
                         default=0,
                         help='distributed rank (provided by pytorch)')
+    parser.add_argument("--gpus", nargs="+", type=int, default=[])
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())

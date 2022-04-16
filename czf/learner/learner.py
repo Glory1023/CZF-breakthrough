@@ -57,8 +57,10 @@ class Learner:
         elif algorithm == 'MuZero' or algorithm == 'MuZero_Gumbel':
             from czf.learner.preprocessor.muzero_preprocessor import MuZeroPreprocessor
             from czf.learner.trainer.muzero_trainer import MuZeroTrainer
+            from czf.learner.trainer.stochastic_muzero_trainer import StochasticMuZeroTrainer
             from czf.learner.replay_buffer.muzero_replay_buffer import MuZeroReplayBuffer, MuZeroRolloutBatch
-            trainer_cls = MuZeroTrainer
+            is_stochastic = config['game']['is_stochastic']
+            trainer_cls = StochasticMuZeroTrainer if is_stochastic else MuZeroTrainer
             dataloder_collate_fn = MuZeroRolloutBatch
             replay_buffer_cls = MuZeroReplayBuffer
             replay_buffer_exposed_methods = [
@@ -70,6 +72,7 @@ class Learner:
                 'get_statistics',
                 'reset_statistics',
                 'save_trajectory',
+                'restore_trajectory',
                 'get_weights',
                 'get_mean_weight',
                 'update_weights',
@@ -85,6 +88,7 @@ class Learner:
                 observation_config=config['game']['observation'],
                 kstep=config['learner']['rollout_steps'],
                 capacity=config['learner']['replay_buffer_size'],
+                is_stochastic=config['game']['is_stochastic'],
             )
             # preprocess queue
             self._trajectory_queue = TrajectoryQueue(
@@ -98,6 +102,7 @@ class Learner:
                 nstep=config['mcts']['nstep'],
                 discount_factor=config['mcts']['discount_factor'],
                 use_prioritize=config['learner']['prioritized'],
+                is_stochastic=config['game']['is_stochastic'],
             )
 
         # trainer

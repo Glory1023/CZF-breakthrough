@@ -59,6 +59,8 @@ class DataParallelWrapper(torch.nn.Module):
         self.output_device = _get_device_index(output_device, True)
         self.src_device_obj = torch.device(device_type, self.device_ids[0])
 
+        print('device id: ', self.device_ids)
+
         _check_balance(self.device_ids)
 
         if len(self.device_ids) == 1:
@@ -99,7 +101,7 @@ class DataParallelWrapper(torch.nn.Module):
         if len(self.device_ids) == 1:
             return self.module.forward_representation(*inputs[0], **kwargs[0])
         replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
-        outputs = self.parallel_apply_representation(replicas, inputs, kwargs)
+        outputs = self.parallel_apply_network(replicas, "representation", inputs, kwargs)
         return self.gather(outputs, self.output_device)
 
     def parallel_forward_dynamics(self, *inputs, **kwargs):
@@ -116,7 +118,75 @@ class DataParallelWrapper(torch.nn.Module):
         if len(self.device_ids) == 1:
             return self.module.forward_dynamics(*inputs[0], **kwargs[0])
         replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
-        outputs = self.parallel_apply_dynamics(replicas, inputs, kwargs)
+        outputs = self.parallel_apply_network(replicas, "dynamics", inputs, kwargs)
+        return self.gather(outputs, self.output_device)
+
+    def parallel_forward_dynamics_onehot(self, *inputs, **kwargs):
+        if not self.device_ids:
+            return self.module.forward_dynamics_onehot(*inputs, **kwargs)
+
+        for t in chain(self.module.parameters(), self.module.buffers()):
+            if t.device != self.src_device_obj:
+                raise RuntimeError("module must have its parameters and buffers "
+                                   "on device {} (device_ids[0]) but found one of "
+                                   "them on device: {}".format(self.src_device_obj, t.device))
+
+        inputs, kwargs = self.scatter(inputs, kwargs, self.device_ids)
+        if len(self.device_ids) == 1:
+            return self.module.forward_dynamics_onehot(*inputs[0], **kwargs[0])
+        replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
+        outputs = self.parallel_apply_network(replicas, "dynamics_onehot", inputs, kwargs)
+        return self.gather(outputs, self.output_device)
+
+    def parallel_forward_afterstate_dynamics(self, *inputs, **kwargs):
+        if not self.device_ids:
+            return self.module.forward_afterstate_dynamics(*inputs, **kwargs)
+
+        for t in chain(self.module.parameters(), self.module.buffers()):
+            if t.device != self.src_device_obj:
+                raise RuntimeError("module must have its parameters and buffers "
+                                   "on device {} (device_ids[0]) but found one of "
+                                   "them on device: {}".format(self.src_device_obj, t.device))
+
+        inputs, kwargs = self.scatter(inputs, kwargs, self.device_ids)
+        if len(self.device_ids) == 1:
+            return self.module.forward_afterstate_dynamics(*inputs[0], **kwargs[0])
+        replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
+        outputs = self.parallel_apply_network(replicas, "afterstate_dynamics", inputs, kwargs)
+        return self.gather(outputs, self.output_device)
+
+    def parallel_forward_afterstate_prediction(self, *inputs, **kwargs):
+        if not self.device_ids:
+            return self.module.forward_afterstate_prediction(*inputs, **kwargs)
+
+        for t in chain(self.module.parameters(), self.module.buffers()):
+            if t.device != self.src_device_obj:
+                raise RuntimeError("module must have its parameters and buffers "
+                                   "on device {} (device_ids[0]) but found one of "
+                                   "them on device: {}".format(self.src_device_obj, t.device))
+
+        inputs, kwargs = self.scatter(inputs, kwargs, self.device_ids)
+        if len(self.device_ids) == 1:
+            return self.module.forward_afterstate_prediction(*inputs[0], **kwargs[0])
+        replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
+        outputs = self.parallel_apply_network(replicas, "afterstate_prediction", inputs, kwargs)
+        return self.gather(outputs, self.output_device)
+
+    def parallel_forward_encoder(self, *inputs, **kwargs):
+        if not self.device_ids:
+            return self.module.forward_encoder(*inputs, **kwargs)
+
+        for t in chain(self.module.parameters(), self.module.buffers()):
+            if t.device != self.src_device_obj:
+                raise RuntimeError("module must have its parameters and buffers "
+                                   "on device {} (device_ids[0]) but found one of "
+                                   "them on device: {}".format(self.src_device_obj, t.device))
+
+        inputs, kwargs = self.scatter(inputs, kwargs, self.device_ids)
+        if len(self.device_ids) == 1:
+            return self.module.forward_encoder(*inputs[0], **kwargs[0])
+        replicas = self.replicate(self.module, self.device_ids[:len(inputs)])
+        outputs = self.parallel_apply_network(replicas, "encoder", inputs, kwargs)
         return self.gather(outputs, self.output_device)
 
     def replicate(self, module, device_ids):
@@ -128,7 +198,7 @@ class DataParallelWrapper(torch.nn.Module):
     def parallel_apply(self, replicas, inputs, kwargs):
         return parallel_apply(replicas, inputs, kwargs, self.device_ids[:len(replicas)])
 
-    def parallel_apply_representation(self, modules, inputs, kwargs_tup=None, devices=None):
+    def parallel_apply_network(self, modules, network, inputs, kwargs_tup=None, devices=None):
         assert len(modules) == len(inputs)
         if kwargs_tup is not None:
             assert len(modules) == len(kwargs_tup)
@@ -143,7 +213,7 @@ class DataParallelWrapper(torch.nn.Module):
         results = {}
         grad_enabled, autocast_enabled = torch.is_grad_enabled(), torch.is_autocast_enabled()
 
-        def _worker(i, module, input, kwargs, device=None):
+        def _worker(i, module, network, input, kwargs, device=None):
             torch.set_grad_enabled(grad_enabled)
             if device is None:
                 device = get_a_var(input).get_device()
@@ -152,7 +222,18 @@ class DataParallelWrapper(torch.nn.Module):
                     # this also avoids accidental slicing of `input` if it is a Tensor
                     if not isinstance(input, (list, tuple)):
                         input = (input, )
-                    output = module.forward_representation(*input, **kwargs)
+                    if network == "representation":
+                        output = module.forward_representation(*input, **kwargs)
+                    elif network == "dynamics":
+                        output = module.forward_dynamics(*input, **kwargs)
+                    elif network == "dynamics_onehot":
+                        output = module.forward_dynamics_onehot(*input, **kwargs)
+                    elif network == "afterstate_dynamics":
+                        output = module.forward_afterstate_dynamics(*input, **kwargs)
+                    elif network == "afterstate_prediction":
+                        output = module.forward_afterstate_prediction(*input, **kwargs)
+                    elif network == "encoder":
+                        output = module.forward_encoder(*input, **kwargs)
                 with lock:
                     results[i] = output
             except Exception:
@@ -162,7 +243,7 @@ class DataParallelWrapper(torch.nn.Module):
 
         if len(modules) > 1:
             threads = [
-                threading.Thread(target=_worker, args=(i, module, input, kwargs, device))
+                threading.Thread(target=_worker, args=(i, module, network, input, kwargs, device))
                 for i, (module, input, kwargs,
                         device) in enumerate(zip(modules, inputs, kwargs_tup, devices))
             ]
@@ -172,61 +253,7 @@ class DataParallelWrapper(torch.nn.Module):
             for thread in threads:
                 thread.join()
         else:
-            _worker(0, modules[0], inputs[0], kwargs_tup[0], devices[0])
-
-        outputs = []
-        for i in range(len(inputs)):
-            output = results[i]
-            if isinstance(output, ExceptionWrapper):
-                output.reraise()
-            outputs.append(output)
-        return outputs
-
-    def parallel_apply_dynamics(self, modules, inputs, kwargs_tup=None, devices=None):
-        assert len(modules) == len(inputs)
-        if kwargs_tup is not None:
-            assert len(modules) == len(kwargs_tup)
-        else:
-            kwargs_tup = ({}, ) * len(modules)
-        if devices is not None:
-            assert len(modules) == len(devices)
-        else:
-            devices = [None] * len(modules)
-        devices = list(map(lambda x: _get_device_index(x, True), devices))
-        lock = threading.Lock()
-        results = {}
-        grad_enabled, autocast_enabled = torch.is_grad_enabled(), torch.is_autocast_enabled()
-
-        def _worker(i, module, input, kwargs, device=None):
-            torch.set_grad_enabled(grad_enabled)
-            if device is None:
-                device = get_a_var(input).get_device()
-            try:
-                with torch.cuda.device(device), autocast(enabled=autocast_enabled):
-                    # this also avoids accidental slicing of `input` if it is a Tensor
-                    if not isinstance(input, (list, tuple)):
-                        input = (input, )
-                    output = module.forward_dynamics(*input, **kwargs)
-                with lock:
-                    results[i] = output
-            except Exception:
-                with lock:
-                    results[i] = ExceptionWrapper(
-                        where="in replica {} on device {}".format(i, device))
-
-        if len(modules) > 1:
-            threads = [
-                threading.Thread(target=_worker, args=(i, module, input, kwargs, device))
-                for i, (module, input, kwargs,
-                        device) in enumerate(zip(modules, inputs, kwargs_tup, devices))
-            ]
-
-            for thread in threads:
-                thread.start()
-            for thread in threads:
-                thread.join()
-        else:
-            _worker(0, modules[0], inputs[0], kwargs_tup[0], devices[0])
+            _worker(0, modules[0], network, inputs[0], kwargs_tup[0], devices[0])
 
         outputs = []
         for i in range(len(inputs)):

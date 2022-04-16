@@ -4,7 +4,7 @@ import torch.multiprocessing as mp
 
 from czf.learner.preprocessor.preprocessor import Preprocessor
 from czf.learner.replay_buffer.replay_buffer import Statistics
-from czf.learner.replay_buffer.muzero_replay_buffer import MuZeroTransition
+from czf.learner.replay_buffer.muzero_replay_buffer import MuZeroTransition, StochasticMuZeroTransition
 from czf.pb import czf_pb2
 
 
@@ -21,6 +21,7 @@ class MuZeroPreprocessor(Preprocessor):
         nstep,
         discount_factor,
         use_prioritize,
+        is_stochastic,
     ):
         self._result_queue = result_queue
         self._num_player = num_player
@@ -36,6 +37,7 @@ class MuZeroPreprocessor(Preprocessor):
         self._mstep = kstep + nstep
         self._discount_factor = discount_factor
         self._use_prioritize = use_prioritize
+        self._is_stochastic = is_stochastic
 
     @staticmethod
     def _get_target_dist(x, heads):
@@ -95,29 +97,57 @@ class MuZeroPreprocessor(Preprocessor):
                     terminal_value = [terminal_value]
                 terminal_value = to_bytes(terminal_value)
                 priorities.append(0.)
-                buffer_.append(
-                    MuZeroTransition(
-                        observation=observation,
-                        action=None,
-                        policy=None,
-                        value=terminal_value,
-                        reward=None,
-                        is_terminal=True,
-                        valid=False,
-                    ))
+                if self._is_stochastic:
+                    buffer_.append(
+                        StochasticMuZeroTransition(
+                            observation=observation,
+                            action=None,
+                            policy=None,
+                            value=terminal_value,
+                            reward=None,
+                            chance_outcome=None,
+                            chance_probs=None,
+                            is_terminal=True,
+                            valid=False,
+                        ))
+                else:
+                    buffer_.append(
+                        MuZeroTransition(
+                            observation=observation,
+                            action=None,
+                            policy=None,
+                            value=terminal_value,
+                            reward=None,
+                            is_terminal=True,
+                            valid=False,
+                        ))
                 continue
             if not state.HasField('transition'):  # is_frame_stack
                 priorities.append(0.)
-                buffer_.append(
-                    MuZeroTransition(
-                        observation=observation,
-                        action=None,
-                        policy=None,
-                        value=None,
-                        reward=None,
-                        is_terminal=False,
-                        valid=False,
-                    ))
+                if self._is_stochastic:
+                    buffer_.append(
+                        StochasticMuZeroTransition(
+                            observation=observation,
+                            action=None,
+                            policy=None,
+                            value=None,
+                            reward=None,
+                            chance_outcome=None,
+                            chance_probs=None,
+                            is_terminal=False,
+                            valid=False,
+                        ))
+                else:
+                    buffer_.append(
+                        MuZeroTransition(
+                            observation=observation,
+                            action=None,
+                            policy=None,
+                            value=None,
+                            reward=None,
+                            is_terminal=False,
+                            valid=False,
+                        ))
                 continue
             is_valid = has_statistics or (i >= self._mstep)
             # monte carlo returns
@@ -161,16 +191,32 @@ class MuZeroPreprocessor(Preprocessor):
             value = to_bytes(nstep_value)
             reward = to_bytes(reward)
             # (o_t, p_t, v_t, a_{t+1}, r_{t+1}, is_terminal)
-            buffer_.append(
-                MuZeroTransition(
-                    observation=observation,
-                    action=action,
-                    policy=policy,
-                    value=value,
-                    reward=reward,
-                    is_terminal=False,
-                    valid=is_valid,
-                ))
+            if self._is_stochastic:
+                chance_outcome = to_bytes(state.transition.chance_outcome)
+                chance_probs = to_bytes(state.transition.chance_probs)
+                buffer_.append(
+                    StochasticMuZeroTransition(
+                        observation=observation,
+                        action=action,
+                        policy=policy,
+                        value=value,
+                        reward=reward,
+                        chance_outcome=chance_outcome,
+                        chance_probs=chance_probs,
+                        is_terminal=False,
+                        valid=is_valid,
+                    ))
+            else:
+                buffer_.append(
+                    MuZeroTransition(
+                        observation=observation,
+                        action=action,
+                        policy=policy,
+                        value=value,
+                        reward=reward,
+                        is_terminal=False,
+                        valid=is_valid,
+                    ))
             del state
         # update statistics
         stats = Statistics(

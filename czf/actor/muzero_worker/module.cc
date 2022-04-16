@@ -19,7 +19,10 @@ PYBIND11_MODULE(muzero_worker, m) {  // NOLINT
       .def_readwrite("state_shape", &GameInfo::state_shape)
       .def_readwrite("all_actions", &GameInfo::all_actions)
       .def_readwrite("num_actions", &GameInfo::num_actions)
-      .def_readwrite("is_two_player", &GameInfo::is_two_player);
+      .def_readwrite("all_chance_outcomes", &GameInfo::all_chance_outcomes)
+      .def_readwrite("num_chance_outcomes", &GameInfo::num_chance_outcomes)
+      .def_readwrite("is_two_player", &GameInfo::is_two_player)
+      .def_readwrite("is_stochastic", &GameInfo::is_stochastic);
   using czf::actor::muzero_worker::WorkerOption;
   py::class_<WorkerOption>(m, "WorkerOption")
       .def(py::init<>())

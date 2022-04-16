@@ -33,6 +33,11 @@ class State {
 
   virtual std::string serialize() const { return ""; }
 
+  virtual bool is_chance_node() const { return false; }
+  virtual std::vector<std::pair<Action, float>> legal_chance_outcome_probs() const {
+    return {{0, 1.0}};
+  }
+
  protected:
   GamePtr game_;
 };
@@ -60,6 +65,8 @@ class Game : public std::enable_shared_from_this<Game> {
   virtual StatePtr deserialize_state(const std::string& str = "") const {
     return new_initial_state();
   }
+
+  virtual int num_chance_outcomes() const { return 0; }
 };
 
 class GameFactory {

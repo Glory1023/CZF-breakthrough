@@ -15,17 +15,27 @@ GameInfo WorkerManager::game_info;
 void WorkerManager::run(size_t num_cpu_worker, size_t num_gpu_worker, size_t num_gpu_root_worker,
                         size_t num_gpu) {
   if (!running_) {
+    std::cout << "#CPU Worker: " << num_cpu_worker << std::endl;
+    std::cout << "#GPU Root Worker: " << num_gpu_root_worker << std::endl;
+    std::cout << "#GPU State Worker: " << num_gpu_worker << std::endl;
     running_ = true;
-    const auto seed = WorkerManager::worker_option.seed;
+    const auto seed = worker_option.seed;
     for (size_t i = 0; i < num_cpu_worker; ++i) {
       const Seed_t stream = 100U + i;
       cpu_threads_.emplace_back(&WorkerManager::cpu_worker, this, seed, stream);
     }
     for (size_t i = 0; i < num_gpu_worker; ++i) {
-      gpu_threads_.emplace_back(&WorkerManager::gpu_worker, this, false);
+      gpu_threads_.emplace_back(&WorkerManager::gpu_worker, this, GpuWorkerType::kWorkerState);
     }
     for (size_t i = 0; i < num_gpu_root_worker; ++i) {
-      gpu_threads_.emplace_back(&WorkerManager::gpu_worker, this, true);
+      gpu_threads_.emplace_back(&WorkerManager::gpu_worker, this, GpuWorkerType::kWorkerRoot);
+    }
+    if (game_info.is_stochastic) {
+      std::cout << "#GPU Afterstate Worker: " << num_gpu_worker << std::endl;
+      for (size_t i = 0; i < num_gpu_worker; ++i) {
+        gpu_threads_.emplace_back(&WorkerManager::gpu_worker, this,
+                                  GpuWorkerType::kWorkerAfterstate);
+      }
     }
     model_manager.resize(num_gpu);
   }
@@ -79,7 +89,7 @@ std::tuple<py::bytes, std::string, int> WorkerManager::enqueue_job_batch(const s
 
 py::bytes WorkerManager::dequeue_job_batch(size_t max_batch_size) {
   constexpr auto zero = std::chrono::duration<double>::zero();
-  const auto max_timeout = std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
+  const auto max_timeout = std::chrono::microseconds(worker_option.timeout_us);
   // collect result jobs
   std::vector<std::unique_ptr<Job>> jobs;
   jobs.reserve(max_batch_size);
@@ -130,7 +140,7 @@ void WorkerManager::preprocess_pb_job(std::unique_ptr<Job> &job) {
   job_pb.mutable_payload()->mutable_state()->clear_observation_tensor();
   // worker job
   job_pb.SerializeToString(&job->job_str);
-  job->tree.set_option(tree_option, game_info.is_two_player);
+  job->tree.set_option(tree_option, game_info.is_two_player, game_info.is_stochastic);
   job->tree.set_forward_result({std::move(observation), {}, 0, 0});
   job->tree.expand_root(legal_actions);
 }
@@ -169,21 +179,33 @@ void WorkerManager::cpu_worker(Seed_t seed, Seed_t stream) {
           job->step = Job::Step::kForwardRoot;
           break;
         case Job::Step::kSelect:
-          job->tree.before_forward(WorkerManager::game_info.all_actions);
-          job->step = Job::Step::kForward;
+          // std::cout << "Select" << std::endl;
+          job->step =
+              job->tree.before_forward(game_info.all_actions, game_info.all_chance_outcomes)
+                  ? Job::Step::kForwardAfterstate
+                  : Job::Step::kForwardState;
           break;
         case Job::Step::kUpdate:
+          // std::cout << "Update" << std::endl;
           job->step = job->tree.after_forward(rng) ? Job::Step::kDone : Job::Step::kSelect;
           break;
         case Job::Step::kForwardRoot:
+          // std::cout << "ForwardRoot" << std::endl;
           gpu_root_queue_.enqueue(std::move(job));
           next_job = true;
           break;
-        case Job::Step::kForward:
-          gpu_queue_.enqueue(std::move(job));
+        case Job::Step::kForwardState:
+          // std::cout << "ForwardState" << std::endl;
+          gpu_state_queue_.enqueue(std::move(job));
+          next_job = true;
+          break;
+        case Job::Step::kForwardAfterstate:
+          // std::cout << "ForwardAfterstate" << std::endl;
+          gpu_afterstate_queue_.enqueue(std::move(job));
           next_job = true;
           break;
         case Job::Step::kDone:
+          // std::cout << "Done" << std::endl;
           postprocess_pb_job(job);
           job->step = Job::Step::kDequeue;
           break;
@@ -198,19 +220,23 @@ void WorkerManager::cpu_worker(Seed_t seed, Seed_t stream) {
   }
 }
 
-void WorkerManager::gpu_worker(bool is_root) {
+void WorkerManager::gpu_worker(GpuWorkerType worker_type) {
   // jobs
-  auto &queue = is_root ? gpu_root_queue_ : gpu_queue_;
+  auto &queue = (worker_type == GpuWorkerType::kWorkerRoot)
+                    ? gpu_root_queue_
+                    : (worker_type == GpuWorkerType::kWorkerState) ? gpu_state_queue_
+                                                                   : gpu_afterstate_queue_;
   constexpr auto zero = std::chrono::duration<double>::zero();
-  const auto max_timeout = std::chrono::microseconds(WorkerManager::worker_option.timeout_us);
-  const auto max_batch_size = WorkerManager::worker_option.batch_size;
+  const auto max_timeout = std::chrono::microseconds(worker_option.timeout_us);
+  const auto max_batch_size = worker_option.batch_size;
   std::vector<std::unique_ptr<Job>> jobs;
   jobs.reserve(max_batch_size);
   std::vector<czf::actor::muzero_worker::mcts::ForwardResult> forward_results;
   forward_results.reserve(max_batch_size);
   // inputs (NCHW)
-  std::vector<int64_t> state_shape =
-      is_root ? WorkerManager::game_info.observation_shape : WorkerManager::game_info.state_shape;
+  std::vector<int64_t> state_shape = (worker_type == GpuWorkerType::kWorkerRoot)
+                                         ? game_info.observation_shape
+                                         : game_info.state_shape;
   state_shape.insert(state_shape.begin(), static_cast<int64_t>(max_batch_size));
   std::vector<float> state_vector;
   state_vector.reserve(
@@ -249,11 +275,11 @@ void WorkerManager::gpu_worker(bool is_root) {
     auto action_tensor =
         torch::from_blob(action_vector.data(), {static_cast<int64_t>(batch_size), 1}).to(device);
     torch::Tensor next_state_tensor;
-    if (is_root) {
+    if (worker_type == GpuWorkerType::kWorkerRoot) {
       // representation function
       next_state_tensor =
           model_ptr->get_method("forward_representation")({state_tensor}).toTensor();
-    } else {
+    } else if (worker_type == GpuWorkerType::kWorkerState) {
       // dynamics function
       auto results = model_ptr->get_method("forward_dynamics")({state_tensor, action_tensor})
                          .toTuple()
@@ -264,6 +290,15 @@ void WorkerManager::gpu_worker(bool is_root) {
       for (size_t i = 0; i < batch_size; ++i) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         forward_results[i].reward = reward_ptr[i];
+      }
+    } else {
+      // afterstate_dynamics function
+      next_state_tensor =
+          model_ptr->get_method("forward_afterstate_dynamics")({state_tensor, action_tensor})
+              .toTensor();
+      for (size_t i = 0; i < batch_size; ++i) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        forward_results[i].reward = 0.F;
       }
     }
     const auto batch_state = next_state_tensor.cpu().contiguous();
@@ -276,7 +311,12 @@ void WorkerManager::gpu_worker(bool is_root) {
       state_ptr = state_ptr_end;
     }
     // prediction function
-    const auto results = model_ptr->forward({next_state_tensor}).toTuple()->elements();
+    const auto results =
+        (worker_type == GpuWorkerType::kWorkerAfterstate)
+            ? model_ptr->get_method("forward_afterstate_prediction")({next_state_tensor})
+                  .toTuple()
+                  ->elements()
+            : model_ptr->forward({next_state_tensor}).toTuple()->elements();
     const auto batch_policy = results[0].toTensor().cpu().contiguous();
     const auto batch_value = results[1].toTensor().cpu().contiguous();
     const auto policy_size = batch_policy[0].numel();

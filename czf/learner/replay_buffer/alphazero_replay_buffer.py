@@ -42,6 +42,7 @@ class AlphaZeroReplayBuffer(ReplayBuffer):
             sequences_to_train,
             sample_ratio,
             sample_states,
+            capacity,
         )
         self._buffer = deque(maxlen=capacity)
 
