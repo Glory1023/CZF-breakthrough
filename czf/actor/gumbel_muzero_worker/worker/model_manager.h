@@ -8,7 +8,7 @@
 #include <tuple>
 #include <vector>
 
-namespace czf::actor::muzero_worker_gumbel::worker {
+namespace czf::actor::gumbel_muzero_worker::worker {
 
 using Model = torch::jit::script::Module;  ///< the type of a model
 using ModelPtr = std::shared_ptr<Model>;   ///< the type of a pointer to model
@@ -35,4 +35,4 @@ class ModelManager {
   std::atomic_size_t toggle_{0U};
 };
 
-}  // namespace czf::actor::muzero_worker_gumbel::worker
+}  // namespace czf::actor::gumbel_muzero_worker::worker

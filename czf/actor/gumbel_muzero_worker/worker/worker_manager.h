@@ -10,12 +10,12 @@
 #include "worker/job.h"
 #include "worker/model_manager.h"
 
-namespace czf::actor::muzero_worker_gumbel::worker {
+namespace czf::actor::gumbel_muzero_worker::worker {
 
 namespace py = ::pybind11;
-using RNG_t = czf::actor::muzero_worker_gumbel::RNG_t;    ///< the type for the random
+using RNG_t = czf::actor::gumbel_muzero_worker::RNG_t;    ///< the type for the random
                                                           ///< number generator
-using Seed_t = czf::actor::muzero_worker_gumbel::Seed_t;  ///< the type of random seed
+using Seed_t = czf::actor::gumbel_muzero_worker::Seed_t;  ///< the type of random seed
 using Clock_t = std::chrono::steady_clock;                ///< the type for clock
 
 class WorkerManager {
@@ -45,7 +45,7 @@ class WorkerManager {
   /** cpu worker */
   void cpu_worker(Seed_t, Seed_t);
   /** gpu worker */
-  void gpu_worker(bool);
+  void gpu_worker(GpuWorkerType);
 
  private:
   /** can worker continue to run */
@@ -55,7 +55,7 @@ class WorkerManager {
   /** threads on cpu and gpu */
   std::vector<std::thread> cpu_threads_, gpu_threads_;
   /** job queues for cpu, gpu, root gpu, and result */
-  JobQueue cpu_queue_, gpu_queue_, gpu_root_queue_, result_queue_;
+  JobQueue cpu_queue_, gpu_state_queue_, gpu_afterstate_queue_, gpu_root_queue_, result_queue_;
 };
 
-}  // namespace czf::actor::muzero_worker_gumbel::worker
+}  // namespace czf::actor::gumbel_muzero_worker::worker

@@ -57,7 +57,7 @@ async def main():
 
     config = yaml.safe_load(Path(args.config).read_text())
     algorithm = config['algorithm']
-    assert config['algorithm'] in ('AlphaZero', 'MuZero', 'MuZero_Gumbel')
+    assert config['algorithm'] in ('AlphaZero', 'MuZero')
     # default storage dir: `storage_{algorithm}_{game}_{date}`
     if not args.storage_dir:
         game = config['game']['name']

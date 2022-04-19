@@ -5,9 +5,9 @@
 
 #include "utils/config.h"
 
-namespace czf::actor::muzero_worker_gumbel::mcts {
+namespace czf::actor::gumbel_muzero_worker::mcts {
 
-using RNG_t = czf::actor::muzero_worker_gumbel::RNG_t;  ///< the type for the random
+using RNG_t = czf::actor::gumbel_muzero_worker::RNG_t;  ///< the type for the random
                                                         ///< number generator
 using State_t = std::vector<float>;                     ///< the type of a state
 using Action_t = int32_t;                               ///< the type of an action
@@ -58,7 +58,7 @@ struct MctsInfo {
       value = 0.F,          ///< Mcts Q-value
       forward_value;        ///< forward value
   Policy_t policy;          ///< policy of children
-  Policy_t gumbel_noise;
+  Policy_t gumbel_noise;    ///< gumbel noise
 
   /** Mcts update helper function */
   float update(float, bool, bool, float);
@@ -71,11 +71,13 @@ struct NodeInfo {
   std::vector<Node> children;
   /// check if the current player to play is the same as the root player to play
   bool is_root_player = true;
+  /// check if the current node is chance node
+  bool is_chance_node = false;
 
   /** check if the node can select child */
   bool can_select_child() const;
   /** Mcts expansion helper function */
-  void expand(const std::vector<Action_t> &, bool);
+  void expand(const std::vector<Action_t> &, bool, bool);
 };
 
 class Node {
@@ -85,9 +87,9 @@ class Node {
   /** select a child according to the pUCT score */
   Node *select_child(const TreeInfo &, const TreeOption &, bool) const;
   /** set player and action */
-  void set_player_and_action(bool, Action_t);
+  void set_player_and_action(bool, Action_t, bool);
   /** expand children according to legal actions */
-  void expand_children(const std::vector<Action_t> &, bool);
+  void expand_children(const std::vector<Action_t> &, bool, bool);
   /** normalize policy by legal actions (only applies to the root node) */
   void normalize_policy();
   /** add Dirichlet noise to the policy (only applies to the root node) */
@@ -102,6 +104,8 @@ class Node {
   float get_forward_value() const;
   /** get if root player */
   bool is_root_player() const;
+  /** get if chance node */
+  bool is_chance_node() const;
   /** update the Mcts Q-value */
   float update(float, bool, float);
   /** get visit counts */
@@ -111,15 +115,24 @@ class Node {
   /** get Q-value */
   float get_q_value() const;
 
+  /** get children size */
   size_t get_children_size() const;
+  /** initialize gumbel noise */
   void set_gumbel_noise(bool, size_t, RNG_t &);
+  /** get top actions */
   std::vector<size_t> get_top_actions(const std::vector<size_t> &, size_t, bool, const TreeInfo &,
                                       const TreeOption &, bool) const;
+  /** select a child in gumbel planning */
   Node *gumbel_select_child(size_t) const;
-  size_t get_selected_action(size_t) const;
+  /** get the best action */
+  size_t get_best_action(size_t) const;
+  /** get the value of the best action */
+  float get_best_action_value(size_t, const TreeOption &, bool) const;
+  /** get the improved policy after search */
   std::unordered_map<Action_t, float> get_improved_policy(const TreeInfo &, const TreeOption &,
-                                                          bool) const;
-  float calculate_transformed_q_value(const TreeOption &, float) const;
+                                                          bool, size_t) const;
+  /** get transformed Q-value */
+  float get_transformed_q_value(const TreeOption &, float) const;
 
  private:
   ForwardInfo forward_info_;
@@ -130,13 +143,13 @@ class Node {
 class Tree {
  public:
   /** Mcts selection & expansion */
-  void before_forward(const std::vector<Action_t> &);
+  bool before_forward(const std::vector<Action_t> &, const std::vector<Action_t> &);
   /** Mcts update */
   bool after_forward(RNG_t &);
 
  public:
   /** set the tree option and game info */
-  void set_option(const TreeOption &, bool);
+  void set_option(const TreeOption &, bool, bool);
   /** select and expand root legal actions */
   void expand_root(const std::vector<Action_t> &);
   /** get the forward input of current node */
@@ -146,8 +159,10 @@ class Tree {
   /** get the tree result */
   TreeResult get_tree_result() const;
 
+  /** initialize gumbel muzero settings */
   void gumbel_init(size_t, RNG_t &);
-  size_t gumbel_search(const std::vector<Action_t> &);
+  /** gumbel muzero planning */
+  size_t gumbel_search(const std::vector<Action_t> &, const std::vector<Action_t> &);
 
  private:
   /** get the root simulation counts */
@@ -164,9 +179,17 @@ class Tree {
   TreeOption tree_option_;
   /** (const) tree of single-player or two-player */
   bool is_two_player_;
+  /** (const) tree of stochastis game */
+  bool is_stochastic_;
 
+  /** the remaining top actions */
   std::vector<size_t> top_actions_;
-  size_t current_iter_this_phase_, used_simulations_, simulations_this_phase_;
+  /** the current search iteration in the current phase (sequential halving) */
+  size_t current_iter_this_phase_;
+  /** the number of simulations done currently */
+  size_t used_simulations_;
+  /** the search budget in the current phase (sequential halving) */
+  size_t simulations_this_phase_;
 };
 
-}  // namespace czf::actor::muzero_worker_gumbel::mcts
+}  // namespace czf::actor::gumbel_muzero_worker::mcts

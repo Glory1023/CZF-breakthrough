@@ -6,7 +6,7 @@
 
 #include "utils/config.h"
 
-namespace czf::actor::muzero_worker_gumbel::worker {
+namespace czf::actor::gumbel_muzero_worker::worker {
 
 void ModelManager::resize(size_t size) {
   torch::init_num_threads();
@@ -49,4 +49,4 @@ std::tuple<torch::Device, ModelPtr> ModelManager::get() {
   return {forward_devices_[idx], models_[idx][toggle_]};
 }
 
-}  // namespace czf::actor::muzero_worker_gumbel::worker
+}  // namespace czf::actor::gumbel_muzero_worker::worker

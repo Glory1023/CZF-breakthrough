@@ -54,7 +54,7 @@ class Learner:
             # preprocess queue
             self._trajectory_queue = TrajectoryQueue(preprocessor_cls=AlphaZeroPreprocessor,
                                                      num_proc=args.num_proc)
-        elif algorithm == 'MuZero' or algorithm == 'MuZero_Gumbel':
+        elif algorithm == 'MuZero':
             from czf.learner.preprocessor.muzero_preprocessor import MuZeroPreprocessor
             from czf.learner.trainer.muzero_trainer import MuZeroTrainer
             from czf.learner.trainer.stochastic_muzero_trainer import StochasticMuZeroTrainer

@@ -44,6 +44,8 @@ message WorkerState {
     float gumbel_c_visit = 9;
     float gumbel_c_scale = 10;
     bool gumbel_use_noise = 11;
+    bool gumbel_use_best_action_value = 12;
+    bool gumbel_use_simple_loss = 13;
   }
   // a message for an evaluation result (Actor)
   message Evaluation {

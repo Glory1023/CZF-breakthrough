@@ -1,13 +1,11 @@
 algorithm: 'MuZero'
 
 game:
-  name: '2048'
-  num_player: 1
-  is_stochastic: True
+  name: 'tic_tac_toe'
+  num_player: 2
+  is_stochastic: False
   # number of total actions
-  actions: 4
-  # number of total chance outcomes (including no chance)
-  chance_outcomes: 32
+  actions: 9
   # if frame_stack equals to 0, then
   #   observation_shape is [channel, H, W]
   #   feature_shape is [channel, H, W]
@@ -20,79 +18,61 @@ game:
     # for n, (a_1, o_1, ...,  a_n, o_n)
     frame_stack: 0
     # C
-    channel: 17
+    channel: 4
     # [H, W]
-    spatial_shape: [4, 4]
+    spatial_shape: [3, 3]
   # if a state_spatial_shape is [H, W],
   # then the state_shape is [h_channels, H, W]
-  state_spatial_shape: [4, 4]
+  state_spatial_shape: [3, 3]
 
 model:
-  name: 'StochasticMuZero'
-  # MuZero2048Stochastic
+  name: 'MuZero'
   # h: representation function
   h_blocks: 3
-  h_channels: 256
+  h_channels: 64
   # g: dynamics function
   g_blocks: 3
-  r_heads: [0, 600]
-  r_loss: 'cross_entropy'
+  r_heads: 1
+  r_loss: 'mse'
   # f: prediction function
   f_blocks: 3
-  f_channels: 256
-  v_heads: [0, 600]
-  v_loss: 'cross_entropy'
-  # e: encoder
-  e_blocks: 3
-  e_channels: 256
-  codebook_size: 32
+  f_channels: 64
+  v_heads: 1
+  v_loss: 'mse'
 
 learner:
-  # transform of rewards and values
-  transform: 'Atari'
   # rollout timesteps K
   rollout_steps: 5
   # train the model when there are N newly generated states or sequences (disjoint options)
   # Examples:
   #     states_to_train: 5_000 # train per 5_000 states
   #     sequences_to_train: 25 # train per 25 sequences
-  states_to_train: 65_536
+  # 200 games * 40 avg_states_per_game
+  states_to_train: 4_000
 
   # sample the replay buffer with a number of the ratio of newly generated states
   # or a fixed number of states (disjoint options)
   # Examples:
   #     sample_ratio: 1
   #     sample_states: 10_000
-  sample_states: 65_536
+  sample_ratio: 1
 
+  # sequences_to_train: 100
   # how many states to store in the replay buffer
   # usually equals to (25 * states_to_train) or (25 * sequence * sequences_to_train)
-  replay_buffer_size: 1_000_000
+  replay_buffer_size: 100_000
   # whether to enable prioritized experience replay
   prioritized: False
   # how many states to learn from per batch
   batch_size: 1024
   # save a checkpoint every N steps
-  checkpoint_freq: 100
+  checkpoint_freq: 10
+
   optimizer:
-    # name: 'SGD'
-    # learning_rate: 1.e-3
-    # momentum: 0.9
-    # weight_decay: 1.e-4
-    # nesterov: True
-
-    name: 'Adam'
-    learning_rate: 1.e-3
-    betas: [0.9, 0.999]
-    eps: 1.e-8
-    weight_decay: 0
-
-  lr_scheduler: # torch.optim.lr_scheduler (disjoint)
-    name: MultiStepLR
-    gamma: 0.9
-    milestones:
-      - 10000
-      - 20000
+    learning_rate: 0.02
+    momentum: 0.9
+    weight_decay: 1.e-4
+    nesterov: True
 
 mcts:
   # Mcts simulation counts
@@ -100,39 +80,62 @@ mcts:
   # pUCT exploration constant
   c_puct: 1.25
   # discount factor of the return
-  discount_factor: 1
+  discount_factor: 1.
   # n-step of the return (set `0` to disable)
-  nstep: 1
+  nstep: 0
+  # default min q value on tree
+  tree_min_value: -1
+  # default max q value on tree
+  tree_max_value: 1
   # root dirichlet noise
   dirichlet:
     # Dir(alpha)
-    alpha: 0.25
-    # (1 - epsilon) * policy + epsilon * Dir(a);
-    epsilon: 0.1
+    alpha: .5
+    # (1 - epsilon) * policy + epsilon * Dir(alpha);
+    epsilon: 0.25
+  gumbel:
+    sampled_actions: 4
+    c_visit: 50.0
+    c_scale: 1.0
+    use_noise: True
+    use_best_action_value: True
+    use_simple_loss: False
 
 game_server:
+  # drop the softmax temperature from 1 to 0 after the number of steps
+  # (set `True` to always enable)
   softmax_temperature:
-    # drop the softmax temperature to 0 after the number of steps
+    # drop the softmax temperature to 0 after the number of game steps
     # (set `True` to always enable)
     steps: True
-    # initial temperature (default 1)
+    # softmax temperature value (can be scalar or a list for scheduling)
+    # Examples:
+    #     temperatures: 1.0 (T = 1.0)
+    #     temperatures: [
+    #       [1000, 1.0], (if    0 <= model_iteration <= 1000, set T = 1.0)
+    #       [2000, 0.5], (if 1000 <= model_iteration <= 2000, set T = 0.5)
+    #       [3000, 0.1]  (if 2000 <= model_iteration <= 3000, set T = 0.1)
+    #     ]              (if 3000 <  model_iteration        , set T = 0)
     temperatures: [
       [1000, 1.0],
-      [3000, 0.5],
-      [6000, 0.25],
-      [10000, 0.1]
+      [2000, 0.5],
+      [3000, 0.1]
     ]
   # send a sequence every length N (set `0` to send full game)
-  sequence: 200
+  sequence: 0
 
 evaluator:
   # the first checkpoint to be evaluated
   first_checkpoint: 0
   # the last checkpoint to be evaluated
-  last_checkpoint: 0
+  # if `latest` is set to `True`, set `last_checkpoint` to `0`
+  last_checkpoint: 1000
   # evaluate performance every N checkpoints
-  frequency: 200
+  frequency: 10
   # whether to listen to the latest model
-  # if set `True`, `last_checkpoint` is ignored
-  latest: True
-  tag: 'eval_n50'
+  latest: False
+  # the elo rating for the first checkpoint
+  elo_base: 0.
+  # the win rate threshold to replace the base model
+  # (set `0.` to replace the base model always)
+  replace_rate: 0.55
