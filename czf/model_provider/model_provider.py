@@ -24,6 +24,7 @@ class ModelProvider:
             )
 
     async def loop(self):
+        print("Model provider is running now ...")
         '''main loop'''
         while True:
             identity, raw = await self._provider.recv_multipart()
@@ -37,7 +38,10 @@ class ModelProvider:
         if info.version == -1:
             version = self._model_manager.get_latest_version(info.name)
             info.version = version
+        print("Recieve model request. Model version: ", info.version)
         model = self._model_manager.get(info)
-        packet = czf_pb2.Packet()
-        packet.model_response.CopyFrom(model)
-        self._provider.send_multipart([identity, packet.SerializeToString()])
+        if model:
+            packet = czf_pb2.Packet()
+            packet.model_response.CopyFrom(model)
+            self._provider.send_multipart([identity, packet.SerializeToString()])
+            print("Send model successfully. Model version: ", info.version)

@@ -21,6 +21,10 @@ class LocalModelManager:
         key = (info.name, info.version)
         if key not in self._cache:
             model_path = self._storage / info.name / f'{info.version:05d}.pt'
+            # check whether file exists
+            if not os.path.exists(model_path):
+                print(model_path, "doesn't exist.")
+                return 0
             model = czf_pb2.Model()
             model.info.CopyFrom(info)
             model.blobs.append(model_path.read_bytes())
