@@ -10,6 +10,10 @@ import numpy as np
 import yaml
 import zmq.asyncio
 
+from czf.pb import czf_pb2
+from czf.utils import get_zmq_dealer
+import platform
+
 from czf.game_server.game_server import GameServer
 from czf.game_server.evaluator import EvalGameServer
 
@@ -151,7 +155,29 @@ def run_main():
         asyncio.run(main(args, config, callbacks))
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
-        print('\rterminated by ctrl-c')
+
+        # send goodbye message to learner
+        context = zmq.Context()
+        learner_socket = context.socket(zmq.DEALER)
+        node = czf_pb2.Node(
+            identity=f'game-server-{args.suffix}',
+            hostname=platform.node(),
+        )
+        learner_socket.setsockopt_string(zmq.IDENTITY, node.identity)
+        learner_socket.connect(f'tcp://{args.upstream}')
+        packet = czf_pb2.Packet(goodbye=czf_pb2.Heartbeat())
+        learner_socket.send(packet.SerializeToString())
+
+        # send goodbye message to broker
+        broker_socket = context.socket(zmq.DEALER)
+        broker_socket.setsockopt_string(zmq.IDENTITY, node.identity)
+        broker_socket.connect(f'tcp://{args.broker}')
+        packet = czf_pb2.Packet(goodbye=czf_pb2.Heartbeat())
+        broker_socket.send(packet.SerializeToString())
+
+        print('\rterminated by ctrl-c:')
+        # print identity
+        print("Identity: ", node.identity)
 
 
 if __name__ == '__main__':

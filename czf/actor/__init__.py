@@ -10,6 +10,9 @@ import torch
 import yaml
 import zmq
 
+from czf.pb import czf_pb2
+import platform
+
 from czf.actor.actor import Actor
 
 
@@ -137,7 +140,22 @@ def run_main():
         asyncio.run(main(args))
     except KeyboardInterrupt:
         zmq.asyncio.Context.instance().destroy()
-        print('\rterminated by ctrl-c')
+
+        # send goodbye message to broker
+        context = zmq.Context()
+        node = czf_pb2.Node(
+            identity=f'actor-{args.suffix}',
+            hostname=platform.node(),
+        )
+        broker_socket = context.socket(zmq.DEALER)
+        broker_socket.setsockopt_string(zmq.IDENTITY, node.identity)
+        broker_socket.connect(f'tcp://{args.broker}')
+        packet = czf_pb2.Packet(goodbye=czf_pb2.Heartbeat())
+        broker_socket.send(packet.SerializeToString())
+
+        print('\rterminated by ctrl-c:')
+        # print identity
+        print("Identity: ", node.identity)
 
 
 if __name__ == '__main__':

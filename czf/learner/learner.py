@@ -11,6 +11,7 @@ from czf.utils import get_zmq_router, LocalModelManager
 
 class Learner:
     '''Learner'''
+
     def __init__(self, args, config):
         # create directories
         storage_path = Path(args.storage_dir)
@@ -50,6 +51,8 @@ class Learner:
                 sample_states=config['learner'].get('sample_states', None),
                 observation_config=config['game']['observation'],
                 capacity=config['learner']['replay_buffer_size'],
+                use_transformation=config['learner']['use_transformation'],
+                game=config['game']['name'],
             )
             # preprocess queue
             self._trajectory_queue = TrajectoryQueue(preprocessor_cls=AlphaZeroPreprocessor,
@@ -149,6 +152,7 @@ class Learner:
                 self._model_peers.add(identity)
             elif packet_type == 'goodbye':
                 self._model_peers.remove(identity)
+                print("Game-server leave. (identity: ", identity, ")")
 
     async def _notify_model_loop(self):
         '''loop to notify model update to peers'''
