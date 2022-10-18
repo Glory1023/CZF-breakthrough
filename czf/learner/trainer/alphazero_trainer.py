@@ -167,6 +167,8 @@ class AlphaZeroTrainer(Trainer):
             str(self._model_dir),
             '--algorithm',
             'AlphaZero',
+            '--device',
+            self._device,
         ]
         subprocess.run(args, check=True, env=os.environ.copy())
 
