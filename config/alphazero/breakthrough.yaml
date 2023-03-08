@@ -1,0 +1,128 @@
+algorithm: 'AlphaZero'
+
+game:
+  name: 'breakthrough'
+  num_player: 2
+  # number of total actions
+  actions: 308
+  # if frame_stack equals to 0, then
+  #   observation_shape is [channel, H, W]
+  #   feature_shape is [channel, H, W]
+  # otherwise,
+  #   observation_shape is [frame_stack * (channel + 1), H, W]
+  #   feature_shape is [(channel + 1), H, W]
+  observation:
+    # number of frames to stack
+    # for 0, (o_1)
+    # for n, (a_1, o_1, ...,  a_n, o_n)
+    frame_stack: 0
+    # C
+    channel: 4
+    # [H, W]
+    spatial_shape: [8, 8]
+  # if a state_spatial_shape is [H, W],
+  # then the state_shape is [h_channels, H, W]
+  state_spatial_shape: [8, 8]
+
+model:
+  # backbone can set "ResNet" or "SE-ResNet"
+  # if not set, default is "ResNet"
+  backbone: ResNet
+  # if backbone is "SE-ResNet", you can set the fc_hidden_dimension, default is 16
+  # fc_hidden_dimension: 16
+  blocks: 10
+  channels: 32
+
+learner:
+  # train the model when there are N newly generated states or sequences (disjoint options)
+  # Examples:
+  #     states_to_train: 5_000 # train per 5_000 states
+  #     sequences_to_train: 25 # train per 25 sequences
+  # 200 games * 40 avg_states_per_game
+  states_to_train: 1000
+  # sequences_to_train: 100
+
+  # sample the replay buffer with a number of the ratio of newly generated states
+  # or a fixed number of states (disjoint options)
+  # Examples:
+  #     sample_ratio: 1
+  #     sample_states: 10_000
+  sample_ratio: 1
+  # sample_states: 10_000
+
+  # how many states to store in the replay buffer
+  # usually equals to (25 * states_to_train) or (25 * sequence * sequences_to_train)
+  replay_buffer_size: 20_000
+  # whether to enable prioritized experience replay
+  prioritized: False
+  # Whether to augment data by rotation, reflection, etc.
+  use_transformation: False
+  # how many states to learn from per batch
+  batch_size: 200
+  # save a checkpoint every N steps
+  checkpoint_freq: 10
+
+  optimizer:
+    learning_rate: 0.02
+    momentum: 0.9
+    weight_decay: 1.e-4
+    nesterov: True
+  lr_scheduler:
+    gamma: 0.1
+    milestones:
+      - 200
+      - 400
+
+mcts:
+  # Mcts simulation counts
+  simulation_count: 400
+  # pUCT exploration constant
+  c_puct: 1.5
+  # root dirichlet noise
+  dirichlet:
+    # Dir(alpha)
+    alpha: 0.5
+    # (1 - epsilon) * policy + epsilon * Dir(alpha);
+    epsilon: 0.25
+  # How many transformations to sample in evaluation step.
+  num_sampled_transformations: 0
+
+game_server:
+  # drop the softmax temperature from 1 to 0 after the number of steps
+  # (set `True` to always enable)
+  softmax_temperature:
+    # drop the softmax temperature to 0 after the number of game steps
+    # (set `True` to always enable)
+    steps: True
+    # softmax temperature value (can be scalar or a list for scheduling)
+    # Examples:
+    #     temperatures: 1.0 (T = 1.0)
+    #     temperatures: [
+    #       [1000, 1.0], (if    0 <= model_iteration <= 1000, set T = 1.0)
+    #       [2000, 0.5], (if 1000 <= model_iteration <= 2000, set T = 0.5)
+    #       [3000, 0.1]  (if 2000 <= model_iteration <= 3000, set T = 0.1)
+    #     ]              (if 3000 <  model_iteration        , set T = 0)
+    temperatures: [
+      [1000, 1.0],
+      [2000, 0.5],
+      [3000, 0.1]
+    ]
+  # send a sequence every length N (set `0` to send full game)
+  sequence: 0
+
+evaluator:
+  # the first checkpoint to be evaluated
+  first_checkpoint: 0
+  # the last checkpoint to be evaluated
+  # if `latest` is set to `True`, set `last_checkpoint` to `0`
+  last_checkpoint: 100
+  # evaluate performance every N checkpoints
+  frequency: 10
+  # whether to listen to the latest model
+  latest: False
+  # the elo rating for the first checkpoint
+  elo_base: 0.
+  # the win rate threshold to replace the base model
+  # (set `0.` to replace the base model always)
+  replace_rate: 0.55
+
